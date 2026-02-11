@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TRPCReactProvider } from "@/lib/trpc/client";
-import { SidebarConfigProvider } from "@/contexts/sidebar-context";
+
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -31,9 +31,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TRPCReactProvider>
-            <SidebarConfigProvider>
-              {children}
-            </SidebarConfigProvider>
+            {children}
             <Toaster richColors />
           </TRPCReactProvider>
         </ThemeProvider>

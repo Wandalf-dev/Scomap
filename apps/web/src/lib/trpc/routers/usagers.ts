@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { eq, and, isNull } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { usagers, etablissements } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import { usagerSchema, usagerDetailSchema } from "@/lib/validators/usager";
@@ -97,7 +98,11 @@ export const usagersRouter = createTRPCRouter({
         })
         .returning();
 
-      return result[0]!;
+      const created = result[0];
+      if (!created) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Échec de la création" });
+      }
+      return created;
     }),
 
   updateDetail: tenantProcedure

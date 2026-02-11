@@ -89,9 +89,10 @@ src/
 
 | Property | Value |
 |----------|-------|
+| **Theme** | Solar Dusk (warm amber/orange tones) |
 | **Border Radius** | `0.3rem` (all components: buttons, cards, inputs, etc.) |
-| **Primary Color** | `#0D9488` (Teal) |
-| **Background** | `#FAFAFA` |
+| **Primary Color** | `#B45309` (Amber) light / `#F97316` (Orange) dark |
+| **Background** | `#FDFBF7` light / `#1C1917` dark |
 | **Font** | Inter |
 | **shadcn style** | `new-york` |
 
@@ -100,33 +101,37 @@ src/
 ```css
 :root {
   --radius: 0.3rem;
-  --background: #FAFAFA;
-  --foreground: #18181B;
-  --primary: #0D9488;
+  --background: #FDFBF7;
+  --foreground: #4A3B33;
+  --primary: #B45309;
   --primary-foreground: #FFFFFF;
-  --card: #FFFFFF;
-  --card-foreground: #18181B;
-  --muted: #F4F4F5;
-  --muted-foreground: #71717A;
-  --accent: #CCFBF1;
-  --accent-foreground: #0D9488;
-  --border: #E4E4E7;
-  --input: #E4E4E7;
-  --ring: #0D9488;
-  --destructive: #DC2626;
+  --card: #F8F4EE;
+  --card-foreground: #4A3B33;
+  --secondary: #E4C090;
+  --secondary-foreground: #57534E;
+  --muted: #F1E9DA;
+  --muted-foreground: #78716C;
+  --accent: #f2daba;
+  --accent-foreground: #57534E;
+  --border: #E4D9BC;
+  --input: #E4D9BC;
+  --ring: #B45309;
+  --destructive: #991B1B;
   --destructive-foreground: #FFFFFF;
 }
 
 .dark {
-  --background: #18181B;
-  --foreground: #FAFAFA;
-  --primary: #14B8A6;
-  --card: #27272A;
-  --muted: #3F3F46;
-  --muted-foreground: #A1A1AA;
-  --accent: #134E4A;
-  --border: #3F3F46;
-  --input: #3F3F46;
+  --background: #1C1917;
+  --foreground: #F5F5F4;
+  --primary: #F97316;
+  --card: #292524;
+  --secondary: #57534E;
+  --muted: #292524;
+  --muted-foreground: #A8A29E;
+  --accent: #1e4252;
+  --border: #44403C;
+  --input: #44403C;
+  --ring: #F97316;
 }
 ```
 

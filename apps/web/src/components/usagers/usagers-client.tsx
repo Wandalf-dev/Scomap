@@ -110,6 +110,22 @@ export function UsagersClient() {
     }),
   );
 
+  const updateMutation = useMutation(
+    trpc.usagers.updateDetail.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagers.list.queryKey(),
+        });
+        toast.success("Usager modifié avec succès");
+        setFormOpen(false);
+        setEditingItem(null);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la modification");
+      },
+    }),
+  );
+
   const deleteMutation = useMutation(
     trpc.usagers.delete.mutationOptions({
       onSuccess: () => {
@@ -197,6 +213,17 @@ export function UsagersClient() {
   function handleFormSubmit(values: UsagerFormValues) {
     if (formMode === "create") {
       createMutation.mutate(values);
+    } else if (formMode === "edit" && editingItem) {
+      updateMutation.mutate({
+        id: editingItem.id,
+        data: {
+          firstName: values.firstName,
+          lastName: values.lastName,
+          birthDate: values.birthDate,
+          gender: values.gender,
+          etablissementId: values.etablissementId,
+        },
+      });
     }
   }
 
@@ -516,12 +543,12 @@ export function UsagersClient() {
                 firstName: editingItem.firstName,
                 lastName: editingItem.lastName,
                 birthDate: editingItem.birthDate ?? "",
-                gender: editingItem.gender ?? "",
+                gender: (editingItem.gender as "M" | "F" | "") ?? "",
                 etablissementId: editingItem.etablissementId ?? "",
               }
             : undefined
         }
-        isPending={createMutation.isPending}
+        isPending={createMutation.isPending || updateMutation.isPending}
         mode={formMode}
       />
 

@@ -340,46 +340,31 @@ function AddressFormDialog({
   mode,
   nextPosition,
 }: AddressFormDialogProps) {
+  const emptyValues: UsagerAddressFormValues = {
+    position: nextPosition,
+    label: "",
+    civility: "",
+    responsibleLastName: "",
+    responsibleFirstName: "",
+    address: "",
+    city: "",
+    postalCode: "",
+    latitude: null,
+    longitude: null,
+    phone: "",
+    mobile: "",
+    email: "",
+    observations: "",
+  };
+
   const form = useForm<UsagerAddressFormValues>({
     resolver: zodResolver(usagerAddressSchema),
-    defaultValues: defaultValues ?? {
-      position: nextPosition,
-      label: "",
-      civility: "",
-      responsibleLastName: "",
-      responsibleFirstName: "",
-      address: "",
-      city: "",
-      postalCode: "",
-      latitude: null,
-      longitude: null,
-      phone: "",
-      mobile: "",
-      email: "",
-      observations: "",
-    },
+    defaultValues: defaultValues ?? emptyValues,
   });
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
-      form.reset(
-        defaultValues ?? {
-          position: nextPosition,
-          label: "",
-          civility: "",
-          responsibleLastName: "",
-          responsibleFirstName: "",
-          address: "",
-          city: "",
-          postalCode: "",
-          latitude: null,
-          longitude: null,
-          phone: "",
-          mobile: "",
-          email: "",
-          observations: "",
-        },
-      );
+      form.reset(defaultValues ?? emptyValues);
     }
     onOpenChange(open);
   };

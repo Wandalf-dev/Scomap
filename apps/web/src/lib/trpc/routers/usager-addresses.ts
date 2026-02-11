@@ -1,8 +1,54 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
-import { usagerAddresses } from "@scomap/db/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { usagerAddresses, usagers } from "@scomap/db/schema";
+import { db as dbInstance } from "@scomap/db";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "../init";
-import { usagerAddressSchema } from "@/lib/validators/usager-address";
+import {
+  usagerAddressSchema,
+  type UsagerAddressFormValues,
+} from "@/lib/validators/usager-address";
+
+function mapAddressData(data: UsagerAddressFormValues) {
+  return {
+    position: data.position,
+    label: data.label || null,
+    civility: data.civility || null,
+    responsibleLastName: data.responsibleLastName || null,
+    responsibleFirstName: data.responsibleFirstName || null,
+    address: data.address || null,
+    city: data.city || null,
+    postalCode: data.postalCode || null,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    phone: data.phone || null,
+    mobile: data.mobile || null,
+    email: data.email === "" ? null : data.email || null,
+    observations: data.observations || null,
+  };
+}
+
+async function assertUsagerOwnership(
+  db: typeof dbInstance,
+  usagerId: string,
+  tenantId: string,
+) {
+  const usager = await db
+    .select({ id: usagers.id })
+    .from(usagers)
+    .where(
+      and(
+        eq(usagers.id, usagerId),
+        eq(usagers.tenantId, tenantId),
+        isNull(usagers.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (usager.length === 0) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Usager non trouvé" });
+  }
+}
 
 export const usagerAddressesRouter = createTRPCRouter({
   list: tenantProcedure
@@ -28,25 +74,14 @@ export const usagerAddressesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertUsagerOwnership(ctx.db, input.usagerId, ctx.tenantId);
+
       const result = await ctx.db
         .insert(usagerAddresses)
         .values({
           usagerId: input.usagerId,
           tenantId: ctx.tenantId,
-          position: input.data.position,
-          label: input.data.label || null,
-          civility: input.data.civility || null,
-          responsibleLastName: input.data.responsibleLastName || null,
-          responsibleFirstName: input.data.responsibleFirstName || null,
-          address: input.data.address || null,
-          city: input.data.city || null,
-          postalCode: input.data.postalCode || null,
-          latitude: input.data.latitude ?? null,
-          longitude: input.data.longitude ?? null,
-          phone: input.data.phone || null,
-          mobile: input.data.mobile || null,
-          email: input.data.email === "" ? null : input.data.email || null,
-          observations: input.data.observations || null,
+          ...mapAddressData(input.data),
         })
         .returning();
 
@@ -64,20 +99,7 @@ export const usagerAddressesRouter = createTRPCRouter({
       const result = await ctx.db
         .update(usagerAddresses)
         .set({
-          position: input.data.position,
-          label: input.data.label || null,
-          civility: input.data.civility || null,
-          responsibleLastName: input.data.responsibleLastName || null,
-          responsibleFirstName: input.data.responsibleFirstName || null,
-          address: input.data.address || null,
-          city: input.data.city || null,
-          postalCode: input.data.postalCode || null,
-          latitude: input.data.latitude ?? null,
-          longitude: input.data.longitude ?? null,
-          phone: input.data.phone || null,
-          mobile: input.data.mobile || null,
-          email: input.data.email === "" ? null : input.data.email || null,
-          observations: input.data.observations || null,
+          ...mapAddressData(input.data),
           updatedAt: new Date(),
         })
         .where(

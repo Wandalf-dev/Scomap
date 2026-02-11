@@ -70,7 +70,7 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
       firstName: usager.firstName,
       lastName: usager.lastName,
       birthDate: usager.birthDate ?? "",
-      gender: usager.gender ?? "",
+      gender: (usager.gender as "M" | "F" | "") ?? "",
       etablissementId: usager.etablissementId ?? "",
       notes: usager.notes ?? "",
     },

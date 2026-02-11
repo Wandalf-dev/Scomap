@@ -27,4 +27,6 @@ ALTER TABLE "usager_addresses" ADD CONSTRAINT "usager_addresses_tenant_id_tenant
 ALTER TABLE "usagers" DROP COLUMN "addresses";--> statement-breakpoint
 ALTER TABLE "usagers" DROP COLUMN "parent_name";--> statement-breakpoint
 ALTER TABLE "usagers" DROP COLUMN "parent_phone";--> statement-breakpoint
-ALTER TABLE "usagers" DROP COLUMN "parent_email";
+ALTER TABLE "usagers" DROP COLUMN "parent_email";--> statement-breakpoint
+ALTER TABLE "usager_addresses" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "tenant_isolation" ON "usager_addresses" USING ("tenant_id" = (current_setting('app.tenant_id'))::uuid);

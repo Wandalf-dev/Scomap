@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
+import { SidebarConfigProvider } from "@/contexts/sidebar-context";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 export default async function DashboardLayout({
@@ -19,14 +20,16 @@ export default async function DashboardLayout({
   };
 
   return (
-    <DashboardShell
-      user={user}
-      signOutAction={async () => {
-        "use server";
-        await signOut({ redirectTo: "/" });
-      }}
-    >
-      {children}
-    </DashboardShell>
+    <SidebarConfigProvider>
+      <DashboardShell
+        user={user}
+        signOutAction={async () => {
+          "use server";
+          await signOut({ redirectTo: "/" });
+        }}
+      >
+        {children}
+      </DashboardShell>
+    </SidebarConfigProvider>
   );
 }
