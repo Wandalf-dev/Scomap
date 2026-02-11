@@ -5,7 +5,6 @@ import {
   text,
   timestamp,
   date,
-  jsonb,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { etablissements } from "./etablissements";
@@ -19,14 +18,11 @@ export const usagers = pgTable("usagers", {
     () => etablissements.id,
     { onDelete: "set null" }
   ),
+  code: varchar("code", { length: 50 }),
   firstName: varchar("first_name", { length: 100 }).notNull(),
   lastName: varchar("last_name", { length: 100 }).notNull(),
   birthDate: date("birth_date"),
-  // Up to 4 addresses (JSON array with address, lat, lng)
-  addresses: jsonb("addresses"),
-  parentName: varchar("parent_name", { length: 255 }),
-  parentPhone: varchar("parent_phone", { length: 20 }),
-  parentEmail: varchar("parent_email", { length: 255 }),
+  gender: varchar("gender", { length: 1 }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

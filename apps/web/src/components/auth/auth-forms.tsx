@@ -3,10 +3,9 @@
 import { useState, useActionState } from "react";
 import { login, signup } from "@/lib/auth/actions";
 import { SubmitButton } from "./submit-button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { AuthState } from "@/lib/auth/actions";
-
-const inputClass =
-  "flex h-11 w-full rounded-[0.3rem] border border-input bg-background px-4 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 export function AuthForms() {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -31,32 +30,34 @@ export function AuthForms() {
               </div>
             )}
 
-            <input
-              id="login-email"
-              name="email"
-              type="email"
-              placeholder="Email"
-              required
-              className={inputClass}
-            />
-
-            <div className="space-y-2">
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                placeholder="Mot de passe"
+            <div className="grid gap-2">
+              <Label htmlFor="login-email">Email</Label>
+              <Input
+                id="login-email"
+                name="email"
+                type="email"
+                placeholder="nom@exemple.com"
                 required
-                className={inputClass}
               />
-              <div className="flex justify-end">
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center">
+                <Label htmlFor="login-password">Mot de passe</Label>
                 <button
                   type="button"
-                  className="cursor-pointer text-sm text-muted-foreground hover:text-primary hover:underline"
+                  className="ml-auto cursor-pointer text-sm text-muted-foreground hover:text-primary hover:underline"
                 >
                   Mot de passe oublié ?
                 </button>
               </div>
+              <Input
+                id="login-password"
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                required
+              />
             </div>
 
             <SubmitButton>Se connecter</SubmitButton>
@@ -89,42 +90,48 @@ export function AuthForms() {
             )}
 
             <div className="grid gap-5 sm:grid-cols-2">
-              <input
-                id="signup-firstName"
-                name="firstName"
-                type="text"
-                placeholder="Prénom"
+              <div className="grid gap-2">
+                <Label htmlFor="signup-firstName">Prénom</Label>
+                <Input
+                  id="signup-firstName"
+                  name="firstName"
+                  type="text"
+                  placeholder="Jean"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="signup-lastName">Nom</Label>
+                <Input
+                  id="signup-lastName"
+                  name="lastName"
+                  type="text"
+                  placeholder="Dupont"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-email">Email</Label>
+              <Input
+                id="signup-email"
+                name="email"
+                type="email"
+                placeholder="nom@exemple.com"
                 required
-                className={inputClass}
-              />
-              <input
-                id="signup-lastName"
-                name="lastName"
-                type="text"
-                placeholder="Nom"
-                required
-                className={inputClass}
               />
             </div>
 
-            <input
-              id="signup-email"
-              name="email"
-              type="email"
-              placeholder="Email"
-              required
-              className={inputClass}
-            />
-
-            <div className="space-y-2">
-              <input
+            <div className="grid gap-2">
+              <Label htmlFor="signup-password">Mot de passe</Label>
+              <Input
                 id="signup-password"
                 name="password"
                 type="password"
-                placeholder="Mot de passe"
+                placeholder="••••••••"
                 minLength={8}
                 required
-                className={inputClass}
               />
               <p className="text-sm text-muted-foreground">Minimum 8 caractères</p>
             </div>

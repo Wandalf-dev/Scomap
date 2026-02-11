@@ -2,8 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   School,
@@ -16,59 +14,88 @@ import {
   Receipt,
 } from "lucide-react";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Établissements", href: "/etablissements", icon: School },
-  { name: "Usagers", href: "/usagers", icon: Users },
-  { name: "Circuits", href: "/circuits", icon: Route },
-  { name: "Trajets", href: "/trajets", icon: Map },
-  { name: "Planning", href: "/planning", icon: Calendar },
-  { name: "Véhicules", href: "/vehicules", icon: Truck },
-  { name: "Chauffeurs", href: "/chauffeurs", icon: UserCog },
-  { name: "Facturation", href: "/facturation", icon: Receipt },
-];
+import { NavMain } from "@/components/layout/nav-main";
+import { NavUser } from "@/components/layout/nav-user";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 
-export function AppSidebar() {
-  const pathname = usePathname();
+const data = {
+  navGroups: [
+    {
+      label: "Navigation",
+      items: [
+        { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+        { title: "Établissements", url: "/etablissements", icon: School },
+        { title: "Usagers", url: "/usagers", icon: Users },
+        { title: "Circuits", url: "/circuits", icon: Route },
+        { title: "Trajets", url: "/trajets", icon: Map },
+        { title: "Planning", url: "/planning", icon: Calendar },
+      ],
+    },
+    {
+      label: "Gestion",
+      items: [
+        { title: "Véhicules", url: "/vehicules", icon: Truck },
+        { title: "Chauffeurs", url: "/chauffeurs", icon: UserCog },
+        { title: "Facturation", url: "/facturation", icon: Receipt },
+      ],
+    },
+  ],
+};
 
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  user: {
+    name: string;
+    email: string;
+  };
+  signOutAction: () => void;
+}
+
+export function AppSidebar({ user, signOutAction, ...props }: AppSidebarProps) {
   return (
-    <aside className="flex w-64 flex-col border-r border-sidebar-border bg-sidebar">
-      {/* Logo */}
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <Image
-            src="/images/bus-logo.png"
-            alt="Scomap"
-            width={32}
-            height={32}
+    <Sidebar {...props}>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link href="/dashboard">
+                <Image
+                  src="/images/bus-logo.png"
+                  alt="Scomap"
+                  width={32}
+                  height={32}
+                  className="rounded-lg invert sepia-[0.3] brightness-[0.7] dark:invert-0 dark:sepia-0 dark:brightness-100"
+                />
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">Scomap</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    Transport Scolaire
+                  </span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        {data.navGroups.map((group) => (
+          <NavMain
+            key={group.label}
+            label={group.label}
+            items={group.items}
           />
-          <span className="text-lg font-semibold text-sidebar-foreground">
-            Scomap
-          </span>
-        </Link>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
-        {navigation.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-[0.3rem] px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+        ))}
+      </SidebarContent>
+      <SidebarFooter>
+        <NavUser user={user} signOutAction={signOutAction} />
+      </SidebarFooter>
+    </Sidebar>
   );
 }

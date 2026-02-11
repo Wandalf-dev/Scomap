@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { SiteHeader } from "@/components/layout/site-header";
+import { auth, signOut } from "@/lib/auth";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 export default async function DashboardLayout({
   children,
@@ -14,13 +13,20 @@ export default async function DashboardLayout({
     redirect("/");
   }
 
+  const user = {
+    name: session.user?.name || "Utilisateur",
+    email: session.user?.email || "",
+  };
+
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <div className="flex flex-1 flex-col">
-        <SiteHeader />
-        <main className="flex-1 overflow-auto bg-muted/30 p-6">{children}</main>
-      </div>
-    </div>
+    <DashboardShell
+      user={user}
+      signOutAction={async () => {
+        "use server";
+        await signOut({ redirectTo: "/" });
+      }}
+    >
+      {children}
+    </DashboardShell>
   );
 }

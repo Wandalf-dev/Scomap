@@ -3,6 +3,7 @@ export * from "./users";
 export * from "./etablissements";
 export * from "./etablissement-contacts";
 export * from "./usagers";
+export * from "./usager-addresses";
 export * from "./circuits";
 export * from "./vehicules";
 export * from "./chauffeurs";

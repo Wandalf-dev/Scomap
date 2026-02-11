@@ -1,6 +1,48 @@
-import Image from "next/image";
+import Link from "next/link";
 import { getTenantSlug } from "@/lib/tenant";
-import { ImageCarousel } from "@/components/auth/image-carousel";
+
+const quotes = [
+  {
+    text: "Chaque trajet compte. Derrière chaque circuit, il y a des enfants qui comptent sur nous.",
+    author: "Proverbe du transport scolaire",
+  },
+  {
+    text: "La sécurité des enfants n'est pas une option, c'est une mission.",
+    author: "Proverbe du transport scolaire",
+  },
+  {
+    text: "Un bon circuit, c'est celui que les parents ne remarquent pas : ponctuel, sûr, invisible.",
+    author: "Proverbe du transport scolaire",
+  },
+  {
+    text: "Organiser le transport scolaire, c'est orchestrer la confiance de centaines de familles.",
+    author: "Proverbe du transport scolaire",
+  },
+  {
+    text: "La ponctualité est la politesse des bus scolaires.",
+    author: "Proverbe du transport scolaire",
+  },
+];
+
+function QuoteDisplay() {
+  const today = new Date();
+  const dayOfYear = Math.floor(
+    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  const quoteIndex = dayOfYear % quotes.length;
+  const quote = quotes[quoteIndex];
+
+  return (
+    <blockquote className="max-w-lg space-y-4">
+      <p className="text-xl font-medium leading-relaxed">
+        &laquo; {quote.text} &raquo;
+      </p>
+      <footer className="text-muted-foreground">
+        — {quote.author}
+      </footer>
+    </blockquote>
+  );
+}
 
 export default async function AuthLayout({
   children,
@@ -10,43 +52,32 @@ export default async function AuthLayout({
   const tenantSlug = await getTenantSlug();
 
   return (
-    <div className="grid lg:grid-cols-2" style={{ minHeight: "100dvh" }}>
-      {/* Left - Form */}
-      <div className="relative flex items-center justify-center border-r border-border p-8">
-        {/* Logo top-left */}
-        <div className="absolute left-8 top-8 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[0.3rem] bg-primary">
-            <Image
-              src="/images/bus-logo.png"
-              alt="Scomap"
-              width={20}
-              height={20}
-            />
-          </div>
-          <span className="text-lg font-semibold text-foreground">Scomap</span>
-          {tenantSlug && (
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              — {tenantSlug}
-            </span>
-          )}
+    <div className="grid min-h-svh lg:grid-cols-2">
+      {/* Left column - Form */}
+      <div className="flex flex-col gap-4 p-6 md:p-10">
+        <div className="flex justify-center gap-2 md:justify-start">
+          <Link href="/" className="flex items-center gap-2 font-medium">
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold">
+              S
+            </div>
+            Scomap
+            {tenantSlug && (
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                — {tenantSlug}
+              </span>
+            )}
+          </Link>
         </div>
-
-        {/* Card */}
-        <div className="w-full max-w-[440px]">
-          <div className="rounded-[0.3rem] border border-border bg-card p-8 shadow-sm">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-md">
             {children}
           </div>
         </div>
       </div>
 
-      {/* Right - Images + Quote */}
-      <div className="relative hidden lg:flex lg:flex-col lg:items-center lg:justify-end">
-        <ImageCarousel />
-        <blockquote className="relative z-10 mb-12 max-w-md px-8 text-center">
-          <p className="text-lg italic text-white/90">
-            &laquo; Chaque trajet compte. Derrière chaque circuit, il y a des enfants qui comptent sur nous pour arriver à l&apos;heure, en sécurité. &raquo;
-          </p>
-        </blockquote>
+      {/* Right column - Quote */}
+      <div className="bg-muted relative hidden lg:flex flex-col items-center justify-center p-10">
+        <QuoteDisplay />
       </div>
     </div>
   );
