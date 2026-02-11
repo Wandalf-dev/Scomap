@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -35,11 +36,12 @@ export function AppSidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center border-b border-sidebar-border px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[0.3rem] bg-sidebar-primary">
-            <span className="text-sm font-bold text-sidebar-primary-foreground">
-              S
-            </span>
-          </div>
+          <Image
+            src="/images/bus-logo.png"
+            alt="Scomap"
+            width={32}
+            height={32}
+          />
           <span className="text-lg font-semibold text-sidebar-foreground">
             Scomap
           </span>

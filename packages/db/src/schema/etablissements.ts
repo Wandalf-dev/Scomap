@@ -23,6 +23,15 @@ export const etablissements = pgTable("etablissements", {
   longitude: doublePrecision("longitude"),
   phone: varchar("phone", { length: 20 }),
   email: varchar("email", { length: 255 }),
+  regime: varchar("regime", { length: 10 }), // public, prive
+  color: varchar("color", { length: 7 }), // Couleur hex (#FF5733)
+  website: varchar("website", { length: 255 }),
+  managerCivility: varchar("manager_civility", { length: 5 }), // M., Mme
+  managerName: varchar("manager_name", { length: 255 }),
+  managerPhone: varchar("manager_phone", { length: 20 }),
+  managerEmail: varchar("manager_email", { length: 255 }),
+  codeUai: varchar("code_uai", { length: 20 }),
+  observations: text("observations"),
   schedules: jsonb("schedules"), // Horaires par jour
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

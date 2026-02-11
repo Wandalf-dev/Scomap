@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { getTenantSlug } from "@/lib/tenant";
 import { ImageCarousel } from "@/components/auth/image-carousel";
 
@@ -15,7 +16,12 @@ export default async function AuthLayout({
         {/* Logo top-left */}
         <div className="absolute left-8 top-8 flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-[0.3rem] bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">S</span>
+            <Image
+              src="/images/bus-logo.png"
+              alt="Scomap"
+              width={20}
+              height={20}
+            />
           </div>
           <span className="text-lg font-semibold text-foreground">Scomap</span>
           {tenantSlug && (

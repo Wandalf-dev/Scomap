@@ -1,4 +1,8 @@
-export default function DashboardPage() {
+import { caller } from "@/lib/trpc/server";
+
+export default async function DashboardPage() {
+  const etablissements = await caller.etablissements.list();
+
   return (
     <div className="space-y-6">
       <div>
@@ -10,7 +14,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Établissements" value="0" />
+        <StatCard title="Établissements" value={String(etablissements.length)} />
         <StatCard title="Usagers" value="0" />
         <StatCard title="Circuits actifs" value="0" />
         <StatCard title="Trajets aujourd'hui" value="0" />

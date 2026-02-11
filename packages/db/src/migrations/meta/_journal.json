@@ -15,6 +15,13 @@
       "when": 1770381110353,
       "tag": "0001_cold_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770813875535,
+      "tag": "0002_yielding_fallen_one",
+      "breakpoints": true
     }
   ]
 }
