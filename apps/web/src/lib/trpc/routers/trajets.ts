@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, isNull, gte, lte, sql } from "drizzle-orm";
+import { eq, and, isNull, gte, lte, sql, asc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   trajets,
@@ -92,6 +92,12 @@ export const trajetsRouter = createTRPCRouter({
           startDate: trajets.startDate,
           endDate: trajets.endDate,
           notes: trajets.notes,
+          etat: trajets.etat,
+          peages: trajets.peages,
+          kmACharge: trajets.kmACharge,
+          totalDistanceKm: trajets.totalDistanceKm,
+          totalDurationSeconds: trajets.totalDurationSeconds,
+          routeGeometry: trajets.routeGeometry,
           circuitId: trajets.circuitId,
           circuitName: circuits.name,
           etablissementName: etablissements.name,
@@ -216,6 +222,9 @@ export const trajetsRouter = createTRPCRouter({
           startDate: input.data.startDate,
           endDate: input.data.endDate || null,
           notes: input.data.notes || null,
+          etat: input.data.etat ?? null,
+          peages: input.data.peages ?? false,
+          kmACharge: input.data.kmACharge ?? null,
           updatedAt: new Date(),
         })
         .where(
@@ -246,6 +255,278 @@ export const trajetsRouter = createTRPCRouter({
         .returning();
 
       return result[0] ?? null;
+    }),
+
+  // --- Calculs ---
+
+  calculateRoute: tenantProcedure
+    .input(z.object({ trajetId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const trajet = await ctx.db
+        .select({ id: trajets.id, peages: trajets.peages })
+        .from(trajets)
+        .where(
+          and(
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
+          ),
+        )
+        .limit(1);
+
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
+      }
+
+      const arretsList = await ctx.db
+        .select({
+          id: arrets.id,
+          latitude: arrets.latitude,
+          longitude: arrets.longitude,
+          orderIndex: arrets.orderIndex,
+        })
+        .from(arrets)
+        .where(
+          and(eq(arrets.trajetId, input.trajetId), isNull(arrets.deletedAt)),
+        )
+        .orderBy(asc(arrets.orderIndex));
+
+      if (arretsList.length < 2) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Il faut au moins 2 arrets pour calculer un trajet",
+        });
+      }
+
+      const hasGps = arretsList.every((a) => a.latitude != null && a.longitude != null);
+      if (!hasGps) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Tous les arrets doivent avoir des coordonnees GPS",
+        });
+      }
+
+      let totalDistanceKm = 0;
+      let totalDurationSeconds = 0;
+      const allCoordinates: number[][] = [];
+
+      // First stop has 0 distance
+      await ctx.db
+        .update(arrets)
+        .set({ distanceKm: 0, durationSeconds: 0, updatedAt: new Date() })
+        .where(eq(arrets.id, arretsList[0]!.id));
+
+      // Calculate distances between consecutive stops using IGN API
+      for (let i = 1; i < arretsList.length; i++) {
+        const prev = arretsList[i - 1]!;
+        const curr = arretsList[i]!;
+
+        const start = `${prev.longitude},${prev.latitude}`;
+        const end = `${curr.longitude},${curr.latitude}`;
+
+        const avoidTolls = trajet[0]!.peages === false;
+        const constraints = avoidTolls
+          ? '&constraints={"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}'
+          : "";
+
+        const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${start}&end=${end}&profile=car&optimization=fastest&getSteps=false${constraints}`;
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Erreur API IGN pour le segment ${i}`,
+          });
+        }
+
+        const data = (await response.json()) as {
+          distance: number;
+          duration: number;
+          geometry?: { type: string; coordinates: number[][] };
+        };
+
+        const distanceKm = Math.round((data.distance / 1000) * 1000) / 1000;
+        const durationSec = Math.round(data.duration);
+
+        totalDistanceKm += distanceKm;
+        totalDurationSeconds += durationSec;
+
+        if (data.geometry?.coordinates) {
+          const coords = data.geometry.coordinates;
+          const startIdx = allCoordinates.length > 0 ? 1 : 0;
+          for (let j = startIdx; j < coords.length; j++) {
+            allCoordinates.push(coords[j]!);
+          }
+        }
+
+        await ctx.db
+          .update(arrets)
+          .set({
+            distanceKm,
+            durationSeconds: durationSec,
+            updatedAt: new Date(),
+          })
+          .where(eq(arrets.id, curr.id));
+      }
+
+      // Simplify geometry: keep max ~1000 points for display
+      let simplified = allCoordinates;
+      if (allCoordinates.length > 1000) {
+        const step = Math.ceil(allCoordinates.length / 1000);
+        simplified = allCoordinates.filter((_, idx) => idx % step === 0);
+        const last = allCoordinates[allCoordinates.length - 1];
+        if (last && simplified[simplified.length - 1] !== last) {
+          simplified.push(last);
+        }
+      }
+
+      const routeGeometry = simplified.length >= 2
+        ? { type: "LineString" as const, coordinates: simplified }
+        : null;
+
+      // Update trajet totals + route geometry
+      await ctx.db
+        .update(trajets)
+        .set({
+          totalDistanceKm: Math.round(totalDistanceKm * 1000) / 1000,
+          totalDurationSeconds: totalDurationSeconds,
+          routeGeometry,
+          updatedAt: new Date(),
+        })
+        .where(eq(trajets.id, input.trajetId));
+
+      return { totalDistanceKm, totalDurationSeconds };
+    }),
+
+  calculateTimes: tenantProcedure
+    .input(
+      z.object({
+        trajetId: z.string().uuid(),
+        waitTimeSeconds: z.number().min(0).default(0),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const trajet = await ctx.db
+        .select({
+          id: trajets.id,
+          direction: trajets.direction,
+          departureTime: trajets.departureTime,
+        })
+        .from(trajets)
+        .where(
+          and(
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
+          ),
+        )
+        .limit(1);
+
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
+      }
+
+      const t = trajet[0]!;
+
+      const arretsList = await ctx.db
+        .select({
+          id: arrets.id,
+          orderIndex: arrets.orderIndex,
+          arrivalTime: arrets.arrivalTime,
+          durationSeconds: arrets.durationSeconds,
+          timeLocked: arrets.timeLocked,
+          waitTime: arrets.waitTime,
+        })
+        .from(arrets)
+        .where(
+          and(eq(arrets.trajetId, input.trajetId), isNull(arrets.deletedAt)),
+        )
+        .orderBy(asc(arrets.orderIndex));
+
+      if (arretsList.length < 2) {
+        return { updated: 0 };
+      }
+
+      const direction = t.direction; // 'aller' | 'retour'
+
+      if (direction === "aller") {
+        // Backwards from last stop (school)
+        // Last stop time is fixed (or we use its current arrivalTime)
+        const lastStop = arretsList[arretsList.length - 1]!;
+        let baseTimeSeconds = parseTimeToSeconds(lastStop.arrivalTime || t.departureTime || "08:00");
+
+        // If last stop is locked, use its time
+        if (lastStop.timeLocked && lastStop.arrivalTime) {
+          baseTimeSeconds = parseTimeToSeconds(lastStop.arrivalTime);
+        }
+
+        // Update last stop time if not locked
+        if (!lastStop.timeLocked) {
+          await ctx.db
+            .update(arrets)
+            .set({ arrivalTime: secondsToTime(baseTimeSeconds), updatedAt: new Date() })
+            .where(eq(arrets.id, lastStop.id));
+        }
+
+        let cumulSeconds = baseTimeSeconds;
+
+        // Go backwards
+        for (let i = arretsList.length - 2; i >= 0; i--) {
+          const stop = arretsList[i]!;
+          const nextStop = arretsList[i + 1]!;
+
+          if (stop.timeLocked && stop.arrivalTime) {
+            cumulSeconds = parseTimeToSeconds(stop.arrivalTime);
+            continue;
+          }
+
+          const travelTime = nextStop.durationSeconds ?? 0;
+          const waitTimeSec = (stop.waitTime ?? 0) * 60 + input.waitTimeSeconds;
+          cumulSeconds = cumulSeconds - travelTime - waitTimeSec;
+
+          await ctx.db
+            .update(arrets)
+            .set({ arrivalTime: secondsToTime(cumulSeconds), updatedAt: new Date() })
+            .where(eq(arrets.id, stop.id));
+        }
+      } else {
+        // Forward from first stop (school)
+        const firstStop = arretsList[0]!;
+        let baseTimeSeconds = parseTimeToSeconds(firstStop.arrivalTime || t.departureTime || "08:00");
+
+        if (firstStop.timeLocked && firstStop.arrivalTime) {
+          baseTimeSeconds = parseTimeToSeconds(firstStop.arrivalTime);
+        }
+
+        if (!firstStop.timeLocked) {
+          await ctx.db
+            .update(arrets)
+            .set({ arrivalTime: secondsToTime(baseTimeSeconds), updatedAt: new Date() })
+            .where(eq(arrets.id, firstStop.id));
+        }
+
+        let cumulSeconds = baseTimeSeconds;
+
+        for (let i = 1; i < arretsList.length; i++) {
+          const stop = arretsList[i]!;
+
+          if (stop.timeLocked && stop.arrivalTime) {
+            cumulSeconds = parseTimeToSeconds(stop.arrivalTime);
+            continue;
+          }
+
+          const travelTime = stop.durationSeconds ?? 0;
+          const prevWaitTimeSec = (arretsList[i - 1]!.waitTime ?? 0) * 60 + input.waitTimeSeconds;
+          cumulSeconds = cumulSeconds + travelTime + prevWaitTimeSec;
+
+          await ctx.db
+            .update(arrets)
+            .set({ arrivalTime: secondsToTime(cumulSeconds), updatedAt: new Date() })
+            .where(eq(arrets.id, stop.id));
+        }
+      }
+
+      return { updated: arretsList.length };
     }),
 
   // --- Occurrences ---
@@ -484,4 +765,18 @@ async function autoCreateEtablissementArret(
     longitude: c.etablissementLongitude ?? null,
     orderIndex: 0,
   });
+}
+
+function parseTimeToSeconds(time: string): number {
+  const parts = time.split(":");
+  const hours = parseInt(parts[0] ?? "0", 10);
+  const minutes = parseInt(parts[1] ?? "0", 10);
+  return hours * 3600 + minutes * 60;
+}
+
+function secondsToTime(totalSeconds: number): string {
+  const absSeconds = Math.abs(totalSeconds);
+  const hours = Math.floor(absSeconds / 3600);
+  const minutes = Math.floor((absSeconds % 3600) / 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }

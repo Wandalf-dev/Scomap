@@ -39,6 +39,9 @@ export const trajetDetailSchema = z.object({
   startDate: z.string().min(1, "Date de debut requise"),
   endDate: z.string().nullable().optional(),
   notes: z.string().optional(),
+  etat: z.string().nullable().optional(),
+  peages: z.boolean().optional(),
+  kmACharge: z.number().min(0).nullable().optional(),
 });
 
 export type TrajetDetailFormValues = z.infer<typeof trajetDetailSchema>;
@@ -66,6 +69,9 @@ export const arretSchema = z.object({
   orderIndex: z.number().min(0),
   arrivalTime: z.string().optional(),
   waitTime: z.number().min(0).optional(),
+  distanceKm: z.number().min(0).nullable().optional(),
+  durationSeconds: z.number().min(0).nullable().optional(),
+  timeLocked: z.boolean().optional(),
 }).refine((data) => {
   if (data.type === "usager") return !!data.usagerAddressId;
   if (data.type === "etablissement") return !!data.etablissementId;

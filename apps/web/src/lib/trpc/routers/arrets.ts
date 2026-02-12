@@ -46,9 +46,13 @@ export const arretsRouter = createTRPCRouter({
           orderIndex: arrets.orderIndex,
           arrivalTime: arrets.arrivalTime,
           waitTime: arrets.waitTime,
+          distanceKm: arrets.distanceKm,
+          durationSeconds: arrets.durationSeconds,
+          timeLocked: arrets.timeLocked,
           createdAt: arrets.createdAt,
           updatedAt: arrets.updatedAt,
           // Joined usager info
+          usagerId: usagers.id,
           usagerFirstName: usagers.firstName,
           usagerLastName: usagers.lastName,
           usagerAddressLabel: usagerAddresses.label,
@@ -117,6 +121,9 @@ export const arretsRouter = createTRPCRouter({
           orderIndex: input.data.orderIndex,
           arrivalTime: input.data.arrivalTime || null,
           waitTime: input.data.waitTime ?? null,
+          distanceKm: input.data.distanceKm ?? null,
+          durationSeconds: input.data.durationSeconds ?? null,
+          timeLocked: input.data.timeLocked ?? false,
         })
         .returning();
 
@@ -162,6 +169,9 @@ export const arretsRouter = createTRPCRouter({
           orderIndex: input.data.orderIndex,
           arrivalTime: input.data.arrivalTime || null,
           waitTime: input.data.waitTime ?? null,
+          distanceKm: input.data.distanceKm ?? null,
+          durationSeconds: input.data.durationSeconds ?? null,
+          timeLocked: input.data.timeLocked ?? false,
           updatedAt: new Date(),
         })
         .where(

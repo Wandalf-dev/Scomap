@@ -8,6 +8,7 @@ import {
   integer,
   doublePrecision,
   jsonb,
+  boolean,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -42,6 +43,15 @@ export const trajets = pgTable("trajets", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date"),
   notes: text("notes"),
+  etat: varchar("etat", { length: 20 }),
+  peages: boolean("peages").notNull().default(false),
+  kmACharge: doublePrecision("km_a_charge"),
+  totalDistanceKm: doublePrecision("total_distance_km"),
+  totalDurationSeconds: integer("total_duration_seconds"),
+  routeGeometry: jsonb("route_geometry").$type<{
+    type: "LineString";
+    coordinates: number[][];
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -111,6 +121,9 @@ export const arrets = pgTable("arrets", {
   orderIndex: integer("order_index").notNull(),
   arrivalTime: varchar("arrival_time", { length: 5 }), // HH:MM format
   waitTime: integer("wait_time"), // in minutes
+  distanceKm: doublePrecision("distance_km"),
+  durationSeconds: integer("duration_seconds"),
+  timeLocked: boolean("time_locked").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

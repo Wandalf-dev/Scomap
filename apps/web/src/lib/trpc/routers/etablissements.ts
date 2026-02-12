@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, isNull } from "drizzle-orm";
-import { etablissements } from "@scomap/db/schema";
+import { etablissements, arrets } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import {
   etablissementSchema,
@@ -170,7 +170,28 @@ export const etablissementsRouter = createTRPCRouter({
         )
         .returning();
 
-      return result[0] ?? null;
+      const updated = result[0];
+      if (updated && updated.latitude != null && updated.longitude != null) {
+        await ctx.db
+          .update(arrets)
+          .set({
+            latitude: updated.latitude,
+            longitude: updated.longitude,
+            name: updated.name,
+            address: [updated.address, updated.postalCode, updated.city]
+              .filter(Boolean)
+              .join(", "),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(arrets.etablissementId, updated.id),
+              isNull(arrets.deletedAt),
+            ),
+          );
+      }
+
+      return updated ?? null;
     }),
 
   updateSchedules: tenantProcedure

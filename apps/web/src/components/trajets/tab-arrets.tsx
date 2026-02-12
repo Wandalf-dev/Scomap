@@ -51,8 +51,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, MoreHorizontal, Pencil, Trash2, MapPin, User, School } from "lucide-react";
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  MapPin,
+  User,
+  School,
+  Lock,
+} from "lucide-react";
+import Link from "next/link";
 import { UsagerSelector } from "./usager-selector";
 import { EtablissementSelector } from "../circuits/etablissement-selector";
 
@@ -69,6 +80,10 @@ interface ArretRow {
   orderIndex: number;
   arrivalTime: string | null;
   waitTime: number | null;
+  distanceKm: number | null;
+  durationSeconds: number | null;
+  timeLocked: boolean;
+  usagerId: string | null;
   usagerFirstName: string | null;
   usagerLastName: string | null;
   usagerAddressLabel: string | null;
@@ -80,7 +95,7 @@ interface TabArretsProps {
   trajetId: string;
 }
 
-export function TabArrets({ trajetId }: TabArretsProps) {
+export function TrajetArrets({ trajetId }: TabArretsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -138,6 +153,16 @@ export function TabArrets({ trajetId }: TabArretsProps) {
     }),
   );
 
+  const toggleLockMutation = useMutation(
+    trpc.arrets.update.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.arrets.list.queryKey({ trajetId }),
+        });
+      },
+    }),
+  );
+
   function handleCreate() {
     setEditingArret(null);
     setFormOpen(true);
@@ -156,6 +181,28 @@ export function TabArrets({ trajetId }: TabArretsProps) {
     }
   }
 
+  function handleToggleLock(arret: ArretRow) {
+    toggleLockMutation.mutate({
+      id: arret.id,
+      trajetId,
+      data: {
+        type: (arret.type as "usager" | "etablissement") ?? "usager",
+        usagerAddressId: arret.usagerAddressId,
+        etablissementId: arret.etablissementId,
+        name: arret.name,
+        address: arret.address ?? "",
+        latitude: arret.latitude ?? undefined,
+        longitude: arret.longitude ?? undefined,
+        orderIndex: arret.orderIndex,
+        arrivalTime: arret.arrivalTime ?? "",
+        waitTime: arret.waitTime ?? undefined,
+        distanceKm: arret.distanceKm ?? undefined,
+        durationSeconds: arret.durationSeconds ?? undefined,
+        timeLocked: !arret.timeLocked,
+      },
+    });
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -168,17 +215,34 @@ export function TabArrets({ trajetId }: TabArretsProps) {
 
   const nextOrderIndex = arretsList ? arretsList.length : 0;
 
-  // Check if an arret is the auto-created etablissement stop (orderIndex 0, type etablissement)
   function isAutoEtablissement(arret: ArretRow) {
     return arret.type === "etablissement" && arret.orderIndex === 0;
   }
 
+  function formatDuration(seconds: number | null) {
+    if (seconds == null) return "\u2014";
+    return String(seconds);
+  }
+
+  function formatKm(km: number | null) {
+    if (km == null) return "\u2014";
+    return km.toFixed(3);
+  }
+
+  function formatGps(lat: number | null, lng: number | null) {
+    if (lat == null || lng == null) return "\u2014";
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={handleCreate} className="cursor-pointer">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Arrets ({arretsList?.length ?? 0})
+        </h3>
+        <Button onClick={handleCreate} size="sm" className="cursor-pointer">
           <Plus className="mr-2 h-4 w-4" />
-          Ajouter
+          Ajouter un point
         </Button>
       </div>
 
@@ -193,68 +257,91 @@ export function TabArrets({ trajetId }: TabArretsProps) {
           </p>
         </div>
       ) : (
-        <div className="rounded-[0.3rem] border border-border">
+        <div className="overflow-x-auto rounded-[0.3rem] border border-border">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead className="w-[60px]">Type</TableHead>
-                <TableHead>Nom</TableHead>
-                <TableHead>Adresse</TableHead>
-                <TableHead>Heure</TableHead>
-                <TableHead>Attente (min)</TableHead>
-                <TableHead className="w-[50px]" />
+              <TableRow className="bg-muted/40">
+                <TableHead className="w-[40px] text-center">#</TableHead>
+                <TableHead>Nom / Adresse</TableHead>
+                <TableHead className="w-[80px]">Horaire</TableHead>
+                <TableHead className="w-[40px] text-center">
+                  <Lock className="h-3.5 w-3.5 mx-auto text-muted-foreground" />
+                </TableHead>
+                <TableHead className="w-[80px] text-right">Km</TableHead>
+                <TableHead className="w-[70px] text-right">Tps (s)</TableHead>
+                <TableHead className="w-[130px]">GPS</TableHead>
+                <TableHead className="w-[40px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {arretsList.map((arret) => (
-                <TableRow key={arret.id}>
-                  <TableCell className="text-muted-foreground">
-                    {arret.orderIndex + 1}
-                  </TableCell>
-                  <TableCell>
-                    {arret.type === "usager" ? (
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    ) : arret.type === "etablissement" ? (
-                      <School className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                    )}
+                <TableRow key={arret.id} className="group">
+                  <TableCell className="text-center font-mono text-sm text-muted-foreground">
+                    {String(arret.orderIndex + 1).padStart(2, "0")}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div>
-                        <span className="font-medium">{arret.name}</span>
-                        {arret.type === "usager" && arret.usagerAddressLabel && (
-                          <p className="text-sm text-muted-foreground">
-                            {arret.usagerAddressLabel}
+                      {arret.type === "usager" ? (
+                        <User className="h-4 w-4 shrink-0 text-amber-600" />
+                      ) : arret.type === "etablissement" ? (
+                        <School className="h-4 w-4 shrink-0 text-blue-600" />
+                      ) : (
+                        <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <div className="min-w-0">
+                        {arret.type === "usager" && arret.usagerId ? (
+                          <Link
+                            href={`/usagers/${arret.usagerId}`}
+                            className="font-medium text-sm text-primary hover:underline cursor-pointer"
+                          >
+                            {arret.name}
+                          </Link>
+                        ) : arret.type === "etablissement" && arret.etablissementId ? (
+                          <Link
+                            href={`/etablissements/${arret.etablissementId}`}
+                            className="font-medium text-sm text-primary hover:underline cursor-pointer"
+                          >
+                            {arret.name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-sm">
+                            {arret.name}
+                          </span>
+                        )}
+                        {arret.address && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[300px]">
+                            {arret.address}
                           </p>
                         )}
-                        {arret.type === "etablissement" &&
-                          arret.etablissementCity && (
-                            <p className="text-sm text-muted-foreground">
-                              {arret.etablissementCity}
-                            </p>
-                          )}
                       </div>
                       {isAutoEtablissement(arret) && (
                         <Badge
                           variant="outline"
-                          className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400 text-xs"
+                          className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400 text-xs shrink-0"
                         >
                           Ecole
                         </Badge>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground max-w-[250px] truncate">
-                    {arret.address || "\u2014"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="font-mono text-sm">
                     {arret.arrivalTime || "\u2014"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {arret.waitTime ?? "\u2014"}
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={arret.timeLocked}
+                      onCheckedChange={() => handleToggleLock(arret)}
+                      className="cursor-pointer"
+                    />
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                    {formatKm(arret.distanceKm)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                    {formatDuration(arret.durationSeconds)}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {formatGps(arret.latitude, arret.longitude)}
                   </TableCell>
                   <TableCell>
                     {!isAutoEtablissement(arret) && (
@@ -263,10 +350,9 @@ export function TabArrets({ trajetId }: TabArretsProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 cursor-pointer"
+                            className="h-7 w-7 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -306,7 +392,8 @@ export function TabArrets({ trajetId }: TabArretsProps) {
         defaultValues={
           editingArret
             ? {
-                type: (editingArret.type as "usager" | "etablissement") ?? "usager",
+                type:
+                  (editingArret.type as "usager" | "etablissement") ?? "usager",
                 usagerAddressId: editingArret.usagerAddressId ?? undefined,
                 etablissementId: editingArret.etablissementId ?? undefined,
                 name: editingArret.name,
@@ -338,11 +425,17 @@ export function TabArrets({ trajetId }: TabArretsProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending} className="cursor-pointer">
+            <AlertDialogCancel
+              disabled={deleteMutation.isPending}
+              className="cursor-pointer"
+            >
               Annuler
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteArret && deleteMutation.mutate({ id: deleteArret.id, trajetId })}
+              onClick={() =>
+                deleteArret &&
+                deleteMutation.mutate({ id: deleteArret.id, trajetId })
+              }
               disabled={deleteMutation.isPending}
               className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -354,6 +447,9 @@ export function TabArrets({ trajetId }: TabArretsProps) {
     </div>
   );
 }
+
+// Keep backward compat export for any other consumers
+export { TrajetArrets as TabArrets };
 
 // --- Arret Form Dialog ---
 
@@ -399,7 +495,8 @@ function ArretFormDialog({
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
-      const type = (defaultValues?.type as "usager" | "etablissement") ?? "usager";
+      const type =
+        (defaultValues?.type as "usager" | "etablissement") ?? "usager";
       setSelectedType(type);
       form.reset({
         type,
@@ -438,7 +535,10 @@ function ArretFormDialog({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 pt-2">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="grid gap-4 pt-2"
+          >
             {/* Type selection */}
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -452,7 +552,9 @@ function ArretFormDialog({
               </Button>
               <Button
                 type="button"
-                variant={selectedType === "etablissement" ? "default" : "outline"}
+                variant={
+                  selectedType === "etablissement" ? "default" : "outline"
+                }
                 onClick={() => handleTypeChange("etablissement")}
                 className="cursor-pointer"
               >
@@ -528,51 +630,6 @@ function ArretFormDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="latitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Latitude</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="any"
-                        placeholder="\u2014"
-                        className="bg-muted"
-                        readOnly
-                        value={field.value ?? ""}
-                        onChange={() => {}}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="longitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Longitude</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="any"
-                        placeholder="\u2014"
-                        className="bg-muted"
-                        readOnly
-                        value={field.value ?? ""}
-                        onChange={() => {}}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
             <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
@@ -585,7 +642,9 @@ function ArretFormDialog({
                         type="number"
                         min={0}
                         {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value, 10) || 0)
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -619,7 +678,9 @@ function ArretFormDialog({
                         value={field.value ?? ""}
                         onChange={(e) => {
                           const v = e.target.value;
-                          field.onChange(v === "" ? undefined : parseInt(v, 10));
+                          field.onChange(
+                            v === "" ? undefined : parseInt(v, 10),
+                          );
                         }}
                       />
                     </FormControl>
@@ -639,7 +700,11 @@ function ArretFormDialog({
               >
                 Annuler
               </Button>
-              <Button type="submit" disabled={isPending} className="cursor-pointer">
+              <Button
+                type="submit"
+                disabled={isPending}
+                className="cursor-pointer"
+              >
                 {isPending
                   ? "Enregistrement..."
                   : mode === "create"

@@ -27,11 +27,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { CircuitSelector } from "./circuit-selector";
 import { ChauffeurSelector } from "./chauffeur-selector";
@@ -50,6 +49,9 @@ interface TrajetData {
   circuitId: string;
   chauffeurId: string | null;
   vehiculeId: string | null;
+  etat: string | null;
+  peages: boolean;
+  kmACharge: number | null;
 }
 
 interface TabInformationsProps {
@@ -78,6 +80,9 @@ export function TabInformations({ trajet }: TabInformationsProps) {
       startDate: trajet.startDate,
       endDate: trajet.endDate ?? null,
       notes: trajet.notes ?? "",
+      etat: trajet.etat ?? null,
+      peages: trajet.peages,
+      kmACharge: trajet.kmACharge ?? null,
     },
   });
 
@@ -106,116 +111,110 @@ export function TabInformations({ trajet }: TabInformationsProps) {
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Identification */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Identification</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nom du trajet" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="circuitId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Circuit</FormLabel>
-                  <FormControl>
-                    <CircuitSelector
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="direction"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Direction</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+    <Card>
+      <CardContent className="pt-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            {/* Row 1: Identification */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Intitule du trajet</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="cursor-pointer">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <Input placeholder="Nom du trajet" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="aller" className="cursor-pointer">
-                        Aller
-                      </SelectItem>
-                      <SelectItem value="retour" className="cursor-pointer">
-                        Retour
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="departureTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure de depart</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+              <FormField
+                control={form.control}
+                name="circuitId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Circuit</FormLabel>
+                    <FormControl>
+                      <CircuitSelector
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        {/* Planification */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Planification</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="recurrence"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Jours de recurrence</FormLabel>
-                  <FormControl>
-                    <RecurrenceInput
-                      value={field.value?.daysOfWeek ?? []}
-                      onChange={(days) =>
-                        field.onChange({
-                          frequency: "weekly" as const,
-                          daysOfWeek: days,
-                        })
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="direction"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Direction</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="cursor-pointer">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="aller" className="cursor-pointer">
+                          Aller
+                        </SelectItem>
+                        <SelectItem value="retour" className="cursor-pointer">
+                          Retour
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="departureTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Heure de depart</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Row 2: Planification */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="lg:col-span-2">
+                <FormField
+                  control={form.control}
+                  name="recurrence"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jours</FormLabel>
+                      <FormControl>
+                        <RecurrenceInput
+                          value={field.value?.daysOfWeek ?? []}
+                          onChange={(days) =>
+                            field.onChange({
+                              frequency: "weekly" as const,
+                              daysOfWeek: days,
+                            })
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="startDate"
@@ -235,7 +234,7 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                 name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date de fin (optionnel)</FormLabel>
+                    <FormLabel>Date de fin</FormLabel>
                     <FormControl>
                       <Input
                         type="date"
@@ -250,66 +249,134 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                 )}
               />
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Affectation */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Affectation</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="chauffeurId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Chauffeur</FormLabel>
-                  <FormControl>
-                    <ChauffeurSelector
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Row 3: Affectation + nouveaux champs */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <FormField
+                control={form.control}
+                name="chauffeurId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Chauffeur</FormLabel>
+                    <FormControl>
+                      <ChauffeurSelector
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="vehiculeId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Vehicule</FormLabel>
-                  <FormControl>
-                    <VehiculeSelector
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+              <FormField
+                control={form.control}
+                name="vehiculeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vehicule</FormLabel>
+                    <FormControl>
+                      <VehiculeSelector
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        {/* Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
+              <FormField
+                control={form.control}
+                name="etat"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Etat</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(v || null)}
+                      value={field.value ?? ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="cursor-pointer">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="ok" className="cursor-pointer">
+                          Ok
+                        </SelectItem>
+                        <SelectItem value="anomalie" className="cursor-pointer">
+                          Anomalie
+                        </SelectItem>
+                        <SelectItem value="suspendu" className="cursor-pointer">
+                          Suspendu
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="peages"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Peages</FormLabel>
+                    <div className="flex items-center gap-2 h-9">
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          className="cursor-pointer"
+                        />
+                      </FormControl>
+                      <span className="text-sm text-muted-foreground">
+                        {field.value ? "Oui" : "Non"}
+                      </span>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="kmACharge"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Km a charge</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        placeholder="0.00"
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? null : parseFloat(v));
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Row 4: Notes */}
             <FormField
               control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem>
+                  <FormLabel>Notes</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Notes sur le trajet..."
-                      rows={4}
+                      placeholder="Observations sur le trajet..."
+                      rows={2}
                       {...field}
                     />
                   </FormControl>
@@ -317,19 +384,19 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                 </FormItem>
               )}
             />
-          </CardContent>
-        </Card>
 
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            disabled={mutation.isPending}
-            className="cursor-pointer"
-          >
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
-      </form>
-    </Form>
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={mutation.isPending}
+                className="cursor-pointer"
+              >
+                {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 }
