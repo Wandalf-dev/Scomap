@@ -10,6 +10,8 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
+import { usagerAddresses } from "./usager-addresses";
+import { etablissements } from "./etablissements";
 
 export const circuits = pgTable("circuits", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -35,6 +37,15 @@ export const arrets = pgTable("arrets", {
   circuitId: uuid("circuit_id")
     .notNull()
     .references(() => circuits.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 20 }), // 'usager' | 'etablissement'
+  usagerAddressId: uuid("usager_address_id").references(
+    () => usagerAddresses.id,
+    { onDelete: "set null" },
+  ),
+  etablissementId: uuid("etablissement_id").references(
+    () => etablissements.id,
+    { onDelete: "set null" },
+  ),
   name: varchar("name", { length: 255 }).notNull(),
   address: text("address"),
   latitude: doublePrecision("latitude"),
