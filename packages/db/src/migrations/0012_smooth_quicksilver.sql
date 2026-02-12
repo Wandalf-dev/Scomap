@@ -1,0 +1,1 @@
+ALTER TABLE "usagers" ADD COLUMN "transport_start_date" date;

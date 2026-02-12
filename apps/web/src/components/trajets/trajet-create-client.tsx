@@ -38,7 +38,7 @@ import {
 import { CircuitSelector } from "./circuit-selector";
 import { ChauffeurSelector } from "./chauffeur-selector";
 import { VehiculeSelector } from "./vehicule-selector";
-import { RecurrenceInput } from "./recurrence-input";
+import { DaySelector } from "@/components/shared/day-selector";
 
 export function TrajetCreateClient() {
   const trpc = useTRPC();
@@ -198,7 +198,7 @@ export function TrajetCreateClient() {
                   <FormItem>
                     <FormLabel>Jours de recurrence</FormLabel>
                     <FormControl>
-                      <RecurrenceInput
+                      <DaySelector
                         value={field.value?.daysOfWeek ?? []}
                         onChange={(days) =>
                           field.onChange({ frequency: "weekly" as const, daysOfWeek: days })
@@ -218,7 +218,13 @@ export function TrajetCreateClient() {
                     <FormItem>
                       <FormLabel>Date de debut</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value || null)
+                          }
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

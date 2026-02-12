@@ -14,16 +14,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRightLeft } from "lucide-react";
-
-const DAY_LABELS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "Me",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
-};
+import { DayBadges } from "@/components/shared/day-badges";
+import type { DayEntry } from "@/lib/types/day-entry";
 
 interface TabTrajetsProps {
   circuitId: string;
@@ -68,6 +60,7 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
           <TableRow>
             <TableHead>Nom</TableHead>
             <TableHead>Direction</TableHead>
+            <TableHead>Etat</TableHead>
             <TableHead>Chauffeur</TableHead>
             <TableHead>Vehicule</TableHead>
             <TableHead>Depart</TableHead>
@@ -78,7 +71,7 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
           {trajets.map((trajet) => {
             const recurrence = trajet.recurrence as {
               frequency: string;
-              daysOfWeek: number[];
+              daysOfWeek: DayEntry[];
             } | null;
             return (
               <TableRow
@@ -95,6 +88,21 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
                   >
                     {trajet.direction === "aller" ? "Aller" : "Retour"}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  {!trajet.etat || trajet.etat === "brouillon" ? (
+                    <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+                      Brouillon
+                    </Badge>
+                  ) : trajet.etat === "ok" ? (
+                    <Badge variant="outline" className="border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
+                      Ok
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-700 dark:text-red-400">
+                      Anomalie
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   {trajet.chauffeurFirstName ? (
@@ -114,29 +122,7 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
                   )}
                 </TableCell>
                 <TableCell>
-                  {recurrence?.daysOfWeek?.length ? (
-                    <div className="flex gap-0.5">
-                      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                        <Badge
-                          key={d}
-                          variant={
-                            recurrence.daysOfWeek.includes(d)
-                              ? "default"
-                              : "outline"
-                          }
-                          className={`h-5 w-6 justify-center px-0 text-[10px] ${
-                            recurrence.daysOfWeek.includes(d)
-                              ? ""
-                              : "text-muted-foreground/40 border-border/50"
-                          }`}
-                        >
-                          {DAY_LABELS[d]}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground/60">&mdash;</span>
-                  )}
+                  <DayBadges days={recurrence?.daysOfWeek ?? null} />
                 </TableCell>
               </TableRow>
             );

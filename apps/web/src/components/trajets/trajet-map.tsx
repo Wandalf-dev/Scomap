@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 interface Stop {
   id: string;
@@ -24,53 +26,26 @@ interface TrajetMapProps {
 
 export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<unknown>(null);
-  const [ready, setReady] = useState(false);
+  const mapRef = useRef<maplibregl.Map | null>(null);
 
   const geoArrets = arrets.filter(
     (a) => a.latitude != null && a.longitude != null,
   );
 
-  const geoArretsKey = JSON.stringify(
-    geoArrets.map((a) => [a.id, a.latitude, a.longitude]),
+  const geoArretsKey = useMemo(
+    () => JSON.stringify(geoArrets.map((a) => [a.id, a.latitude, a.longitude])),
+    [geoArrets],
   );
   const geometryKey = routeGeometry ? routeGeometry.coordinates.length : 0;
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((window as any).maplibregl) {
-      setReady(true);
-      return;
-    }
-
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css";
-    document.head.appendChild(link);
-
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js";
-    script.onload = () => setReady(true);
-    document.head.appendChild(script);
-
-    return () => {
-      link.remove();
-      script.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !containerRef.current || geoArrets.length === 0) return;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ml = (window as any).maplibregl;
-    if (!ml) return;
+    if (!containerRef.current || geoArrets.length === 0) return;
 
     if (mapRef.current) {
-      (mapRef.current as { remove: () => void }).remove();
+      mapRef.current.remove();
     }
 
-    const map = new ml.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: [geoArrets[0]!.longitude!, geoArrets[0]!.latitude!],
@@ -92,11 +67,11 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
         `;
         el.textContent = String(arret.orderIndex + 1);
 
-        new ml.Marker({ element: el })
+        new maplibregl.Marker({ element: el })
           .setLngLat([arret.longitude!, arret.latitude!])
           .setPopup(
-            new ml.Popup({ offset: 25 }).setHTML(
-              `<strong>${arret.orderIndex + 1}. ${arret.name}</strong>`,
+            new maplibregl.Popup({ offset: 25 }).setText(
+              `${arret.orderIndex + 1}. ${arret.name}`,
             ),
           )
           .addTo(map);
@@ -131,11 +106,11 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
         });
 
         // Fit bounds to route geometry for better framing
-        const bounds = new ml.LngLatBounds();
-        routeCoords.forEach((c: number[]) => bounds.extend(c));
+        const bounds = new maplibregl.LngLatBounds();
+        routeCoords.forEach((c: number[]) => bounds.extend(c as [number, number]));
         map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
       } else if (geoArrets.length > 1) {
-        const bounds = new ml.LngLatBounds();
+        const bounds = new maplibregl.LngLatBounds();
         geoArrets.forEach((a) => bounds.extend([a.longitude!, a.latitude!]));
         map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
       }
@@ -146,7 +121,7 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, geoArretsKey, geometryKey]);
+  }, [geoArretsKey, geometryKey]);
 
   if (geoArrets.length === 0) {
     return (

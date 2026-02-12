@@ -47,55 +47,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Pencil, Trash2, Route } from "lucide-react";
-
-const DAY_LABELS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "Me",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
-};
-
-const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7];
-
-function DayBadges({ days, label }: { days: number[] | null; label: string }) {
-  if (!days || days.length === 0) {
-    return <span className="text-muted-foreground/60">&mdash;</span>;
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex gap-0.5">
-        {ALL_DAYS.map((d) => (
-          <Badge
-            key={d}
-            variant={days.includes(d) ? "default" : "outline"}
-            className={`h-5 w-6 justify-center px-0 text-[10px] ${
-              days.includes(d)
-                ? ""
-                : "text-muted-foreground/40 border-border/50"
-            }`}
-          >
-            {DAY_LABELS[d]}
-          </Badge>
-        ))}
-      </div>
-    </div>
-  );
-}
+import { DayBadges } from "@/components/shared/day-badges";
+import type { DayEntry } from "@/lib/types/day-entry";
 
 interface UsagerCircuitRow {
   id: string;
   circuitId: string;
   usagerAddressId: string | null;
-  daysAller: number[] | null;
-  daysRetour: number[] | null;
+  daysAller: DayEntry[];
+  daysRetour: DayEntry[];
   circuitName: string;
   etablissementName: string | null;
   etablissementCity: string | null;
@@ -268,6 +230,7 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
                   <TableCell>
                     <DayBadges days={item.daysRetour} label="R" />
                   </TableCell>
+
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
@@ -307,8 +270,6 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
             usagerId,
             circuitId: values.circuitId,
             usagerAddressId: values.usagerAddressId,
-            daysAller: values.daysAller,
-            daysRetour: values.daysRetour,
           });
         }}
         onSubmitUpdate={(values) => {
@@ -317,8 +278,6 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
               id: editingItem.id,
               data: {
                 usagerAddressId: values.usagerAddressId,
-                daysAller: values.daysAller,
-                daysRetour: values.daysRetour,
               },
             });
           }
@@ -370,8 +329,6 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
 const linkFormSchema = z.object({
   circuitId: z.string().uuid("Selectionnez un circuit"),
   usagerAddressId: z.string().uuid("Selectionnez une adresse"),
-  daysAller: z.array(z.number()),
-  daysRetour: z.array(z.number()),
 });
 
 type LinkFormValues = z.infer<typeof linkFormSchema>;
@@ -405,8 +362,6 @@ function CircuitLinkDialog({
     defaultValues: {
       circuitId: "",
       usagerAddressId: "",
-      daysAller: [],
-      daysRetour: [],
     },
   });
 
@@ -420,15 +375,11 @@ function CircuitLinkDialog({
         form.reset({
           circuitId: editingItem.circuitId,
           usagerAddressId: editingItem.usagerAddressId ?? "",
-          daysAller: (editingItem.daysAller as number[]) ?? [],
-          daysRetour: (editingItem.daysRetour as number[]) ?? [],
         });
       } else {
         form.reset({
           circuitId: "",
           usagerAddressId: "",
-          daysAller: [],
-          daysRetour: [],
         });
       }
     }
@@ -532,17 +483,6 @@ function CircuitLinkDialog({
               )}
             />
 
-            <DaysCheckboxGroup
-              form={form}
-              name="daysAller"
-              label="Jours aller"
-            />
-            <DaysCheckboxGroup
-              form={form}
-              name="daysRetour"
-              label="Jours retour"
-            />
-
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
@@ -568,70 +508,3 @@ function CircuitLinkDialog({
   );
 }
 
-// --- Days Checkbox Group ---
-
-function DaysCheckboxGroup({
-  form,
-  name,
-  label,
-}: {
-  form: ReturnType<typeof useForm<LinkFormValues>>;
-  name: "daysAller" | "daysRetour";
-  label: string;
-}) {
-  return (
-    <FormField
-      control={form.control}
-      name={name}
-      render={({ field }) => (
-        <FormItem>
-          <div className="flex items-center justify-between">
-            <FormLabel>{label}</FormLabel>
-            <button
-              type="button"
-              className="cursor-pointer text-xs text-primary hover:underline"
-              onClick={() => {
-                const current = field.value ?? [];
-                if (current.length === ALL_DAYS.length) {
-                  field.onChange([]);
-                } else {
-                  field.onChange([...ALL_DAYS]);
-                }
-              }}
-            >
-              {(field.value ?? []).length === ALL_DAYS.length ? "Aucun" : "Tous"}
-            </button>
-          </div>
-          <div className="flex gap-3">
-            {ALL_DAYS.map((day) => {
-              const checked = (field.value ?? []).includes(day);
-              return (
-                <label
-                  key={day}
-                  className="flex cursor-pointer flex-col items-center gap-1.5"
-                >
-                  <Checkbox
-                    checked={checked}
-                    className="h-6 w-6 cursor-pointer"
-                    onCheckedChange={(isChecked) => {
-                      const current = field.value ?? [];
-                      if (isChecked) {
-                        field.onChange([...current, day].sort());
-                      } else {
-                        field.onChange(current.filter((d) => d !== day));
-                      }
-                    }}
-                  />
-                  <span className="cursor-pointer text-xs text-muted-foreground">
-                    {DAY_LABELS[day]}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}

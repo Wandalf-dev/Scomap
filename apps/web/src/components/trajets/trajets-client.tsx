@@ -11,24 +11,18 @@ import { Badge } from "@/components/ui/badge";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { TrajetFormDialog } from "./trajet-form-dialog";
+import { DayBadges } from "@/components/shared/day-badges";
 import type { TrajetFormValues } from "@/lib/validators/trajet";
-
-const DAY_LABELS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "Me",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
-};
+import type { DayEntry } from "@/lib/types/day-entry";
 
 interface TrajetRow {
   id: string;
   name: string;
   direction: string;
   departureTime: string | null;
-  recurrence: { frequency: string; daysOfWeek: number[] } | null;
+  recurrence: { frequency: string; daysOfWeek: DayEntry[] } | null;
+  etat: string | null;
+  totalDistanceKm: number | null;
   circuitId: string;
   circuitName: string | null;
   chauffeurId: string | null;
@@ -47,29 +41,6 @@ const EMPTY_FILTERS: TrajetFilters = {
   name: "",
   direction: "all",
 };
-
-function DayBadges({ days }: { days: number[] | null }) {
-  if (!days || days.length === 0) {
-    return <span className="text-muted-foreground/60">&mdash;</span>;
-  }
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-        <Badge
-          key={d}
-          variant={days.includes(d) ? "default" : "outline"}
-          className={`h-6 w-7 justify-center px-0 text-xs ${
-            days.includes(d)
-              ? ""
-              : "text-muted-foreground/40 border-border/50"
-          }`}
-        >
-          {DAY_LABELS[d]}
-        </Badge>
-      ))}
-    </div>
-  );
-}
 
 export function TrajetsClient() {
   const trpc = useTRPC();
@@ -184,6 +155,31 @@ export function TrajetsClient() {
               {row.direction === "aller" ? "Aller" : "Retour"}
             </Badge>
           ),
+        },
+        {
+          key: "etat",
+          header: "Etat",
+          render: (row) => {
+            if (!row.etat || row.etat === "brouillon") {
+              return (
+                <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+                  Brouillon
+                </Badge>
+              );
+            }
+            if (row.etat === "ok") {
+              return (
+                <Badge variant="outline" className="border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
+                  Ok
+                </Badge>
+              );
+            }
+            return (
+              <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-700 dark:text-red-400">
+                Anomalie
+              </Badge>
+            );
+          },
         },
         {
           key: "chauffeur",

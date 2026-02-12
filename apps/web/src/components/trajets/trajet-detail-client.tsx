@@ -13,6 +13,7 @@ import {
   Clock,
   ChevronDown,
   Loader2,
+  CalendarDays,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ import {
 import { TabInformations } from "./tab-informations";
 import { TrajetArrets } from "./tab-arrets";
 import { TabOccurrences } from "./tab-occurrences";
+import type { DayEntry } from "@/lib/types/day-entry";
 const TrajetMap = dynamic(
   () => import("./trajet-map").then((mod) => mod.TrajetMap),
   { ssr: false, loading: () => <div className="h-[500px] rounded-[0.3rem] border border-border bg-muted/30 animate-pulse" /> },
@@ -168,10 +170,36 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
           >
             {trajet.direction === "aller" ? "Aller" : "Retour"}
           </Badge>
+          <Badge
+            variant="outline"
+            className={
+              trajet.effectiveEtat === "ok"
+                ? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400"
+                : trajet.effectiveEtat === "anomalie"
+                  ? "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400"
+                  : trajet.effectiveEtat === "brouillon"
+                    ? "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400"
+                    : "border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400"
+            }
+          >
+            {trajet.effectiveEtat === "ok"
+              ? "Ok"
+              : trajet.effectiveEtat === "anomalie"
+                ? "Anomalie"
+                : trajet.effectiveEtat === "brouillon"
+                  ? "Brouillon"
+                  : "Suspendu"}
+          </Badge>
           {trajet.circuitName && (
             <span className="text-sm text-muted-foreground">
               {trajet.circuitName}
               {trajet.etablissementName && ` — ${trajet.etablissementName}`}
+            </span>
+          )}
+          {(trajet.effectiveStartDate || trajet.effectiveEndDate) && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <CalendarDays className="h-3 w-3" />
+              {trajet.effectiveStartDate ?? "..."} → {trajet.effectiveEndDate ?? "..."}
             </span>
           )}
         </div>
@@ -223,7 +251,7 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
           departureTime: trajet.departureTime,
           recurrence: trajet.recurrence as {
             frequency: string;
-            daysOfWeek: number[];
+            daysOfWeek: DayEntry[];
           } | null,
           startDate: trajet.startDate,
           endDate: trajet.endDate,
@@ -231,10 +259,12 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
           circuitId: trajet.circuitId,
           chauffeurId: trajet.chauffeurId,
           vehiculeId: trajet.vehiculeId,
-          etat: trajet.etat,
           peages: trajet.peages,
           kmACharge: trajet.kmACharge,
         }}
+        circuitStartDate={trajet.circuitStartDate ?? null}
+        circuitEndDate={trajet.circuitEndDate ?? null}
+        circuitOperatingDays={(trajet.circuitOperatingDays as DayEntry[] | null) ?? null}
       />
 
       {/* Action bar */}
@@ -242,7 +272,8 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
         <Button
           onClick={() => calculateRouteMutation.mutate({ trajetId: id })}
           disabled={calculateRouteMutation.isPending}
-          className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+          variant="default"
+          className="cursor-pointer"
         >
           {calculateRouteMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -256,7 +287,8 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
             calculateTimesMutation.mutate({ trajetId: id, waitTimeSeconds: 0 })
           }
           disabled={calculateTimesMutation.isPending}
-          className="cursor-pointer bg-sky-600 hover:bg-sky-700 text-white"
+          variant="secondary"
+          className="cursor-pointer"
         >
           {calculateTimesMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -267,7 +299,7 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
         </Button>
 
         {totalKm != null && totalSeconds != null && (
-          <div className="ml-auto rounded-[0.3rem] bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+          <div className="ml-auto rounded-[0.3rem] bg-primary/10 px-4 py-2 text-sm font-medium text-primary border border-primary/20">
             Distance : {totalKm.toFixed(3)} km — Duree :{" "}
             {(totalSeconds / 60).toFixed(1)} min
           </div>

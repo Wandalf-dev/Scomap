@@ -51,8 +51,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, MapPin, Phone, Mail } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin, Phone, Mail, Calendar } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input";
+import { DayPecGrid } from "@/components/shared/day-pec-grid";
+import { DayBadges } from "@/components/shared/day-badges";
+import { normalizeDays } from "@/lib/types/day-entry";
 import type { UsagerAddress } from "@scomap/db/schema";
 
 const CIVILITIES = [
@@ -249,6 +252,15 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
                     {addr.observations}
                   </p>
                 )}
+                {(normalizeDays(addr.daysAller).length > 0 || normalizeDays(addr.daysRetour).length > 0) && (
+                  <div className="mt-2 flex items-center gap-4">
+                    <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="flex gap-4">
+                      <DayBadges days={addr.daysAller} label="A" />
+                      <DayBadges days={addr.daysRetour} label="R" />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -280,6 +292,8 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
                 mobile: editingAddress.mobile ?? "",
                 email: editingAddress.email ?? "",
                 observations: editingAddress.observations ?? "",
+                daysAller: normalizeDays(editingAddress.daysAller),
+                daysRetour: normalizeDays(editingAddress.daysRetour),
               }
             : undefined
         }
@@ -355,6 +369,8 @@ function AddressFormDialog({
     mobile: "",
     email: "",
     observations: "",
+    daysAller: [],
+    daysRetour: [],
   };
 
   const form = useForm<UsagerAddressFormValues>({
@@ -610,6 +626,13 @@ function AddressFormDialog({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <DayPecGrid
+              daysAller={form.watch("daysAller") ?? []}
+              daysRetour={form.watch("daysRetour") ?? []}
+              onChangeAller={(days) => form.setValue("daysAller", days)}
+              onChangeRetour={(days) => form.setValue("daysRetour", days)}
             />
 
             <FormField

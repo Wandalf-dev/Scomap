@@ -38,9 +38,9 @@ export const trajets = pgTable("trajets", {
   departureTime: varchar("departure_time", { length: 5 }), // HH:MM
   recurrence: jsonb("recurrence").$type<{
     frequency: "weekly";
-    daysOfWeek: number[];
+    daysOfWeek: number[] | { day: number; parity: "all" | "even" | "odd" }[];
   }>(),
-  startDate: date("start_date").notNull(),
+  startDate: date("start_date"),
   endDate: date("end_date"),
   notes: text("notes"),
   etat: varchar("etat", { length: 20 }),

@@ -20,7 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -28,23 +27,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EtablissementSelector } from "./etablissement-selector";
-
-const DAYS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-  { value: 6, label: "Samedi" },
-  { value: 7, label: "Dimanche" },
-];
+import { DaySelector } from "@/components/shared/day-selector";
+import type { DayEntry } from "@/lib/types/day-entry";
 
 interface CircuitData {
   id: string;
   name: string;
   description: string | null;
   isActive: boolean;
-  operatingDays: number[] | null;
+  operatingDays: DayEntry[] | null;
+  startDate: string | null;
+  endDate: string | null;
   etablissementId: string;
 }
 
@@ -65,6 +58,8 @@ export function TabInformations({ circuit }: TabInformationsProps) {
       etablissementId: circuit.etablissementId,
       description: circuit.description ?? "",
       operatingDays: days,
+      startDate: circuit.startDate ?? null,
+      endDate: circuit.endDate ?? null,
     },
   });
 
@@ -174,35 +169,63 @@ export function TabInformations({ circuit }: TabInformationsProps) {
               name="operatingDays"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex flex-wrap gap-4">
-                    {DAYS.map((day) => {
-                      const checked = field.value?.includes(day.value) ?? false;
-                      return (
-                        <label
-                          key={day.value}
-                          className="flex items-center space-x-2 cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(c) => {
-                              const current = field.value ?? [];
-                              if (c) {
-                                field.onChange([...current, day.value].sort());
-                              } else {
-                                field.onChange(current.filter((d) => d !== day.value));
-                              }
-                            }}
-                            className="cursor-pointer"
-                          />
-                          <span className="text-sm">{day.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <DaySelector
+                    value={field.value ?? []}
+                    onChange={field.onChange}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
             />
+          </CardContent>
+        </Card>
+
+        {/* Periode */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Periode</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date de debut</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value || null)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date de fin</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value || null)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </CardContent>
         </Card>
 

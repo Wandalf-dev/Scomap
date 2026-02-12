@@ -186,6 +186,7 @@ export const etablissementsRouter = createTRPCRouter({
           .where(
             and(
               eq(arrets.etablissementId, updated.id),
+              eq(arrets.tenantId, ctx.tenantId),
               isNull(arrets.deletedAt),
             ),
           );

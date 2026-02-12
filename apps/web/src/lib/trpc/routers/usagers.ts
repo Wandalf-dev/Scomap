@@ -45,6 +45,7 @@ export const usagersRouter = createTRPCRouter({
           gender: usagers.gender,
           etablissementId: usagers.etablissementId,
           etablissementName: etablissements.name,
+          transportStartDate: usagers.transportStartDate,
           notes: usagers.notes,
           createdAt: usagers.createdAt,
           updatedAt: usagers.updatedAt,
@@ -94,6 +95,7 @@ export const usagersRouter = createTRPCRouter({
           birthDate: input.birthDate || null,
           gender: input.gender || null,
           etablissementId: input.etablissementId || null,
+          transportStartDate: input.transportStartDate || null,
           notes: input.notes || null,
         })
         .returning();
@@ -122,6 +124,7 @@ export const usagersRouter = createTRPCRouter({
           birthDate: input.data.birthDate || null,
           gender: input.data.gender || null,
           etablissementId: input.data.etablissementId || null,
+          transportStartDate: input.data.transportStartDate || null,
           notes: input.data.notes || null,
           updatedAt: new Date(),
         })

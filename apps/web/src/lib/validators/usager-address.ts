@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dayEntrySchema } from "@/lib/types/day-entry";
 
 export const usagerAddressSchema = z.object({
   position: z.number().int().min(1).max(4),
@@ -15,6 +16,8 @@ export const usagerAddressSchema = z.object({
   mobile: z.string().optional(),
   email: z.string().email("Email invalide").or(z.literal("")).optional(),
   observations: z.string().optional(),
+  daysAller: z.array(dayEntrySchema).optional(),
+  daysRetour: z.array(dayEntrySchema).optional(),
 });
 
 export type UsagerAddressFormValues = z.infer<typeof usagerAddressSchema>;

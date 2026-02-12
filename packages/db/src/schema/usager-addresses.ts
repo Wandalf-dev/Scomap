@@ -6,6 +6,7 @@ import {
   timestamp,
   integer,
   doublePrecision,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { usagers } from "./usagers";
@@ -32,6 +33,12 @@ export const usagerAddresses = pgTable("usager_addresses", {
   mobile: varchar("mobile", { length: 20 }),
   email: varchar("email", { length: 255 }),
   observations: text("observations"),
+  daysAller: jsonb("days_aller").$type<
+    number[] | { day: number; parity: "all" | "even" | "odd" }[]
+  >(),
+  daysRetour: jsonb("days_retour").$type<
+    number[] | { day: number; parity: "all" | "even" | "odd" }[]
+  >(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

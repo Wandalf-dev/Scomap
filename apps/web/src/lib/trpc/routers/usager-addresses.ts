@@ -8,6 +8,7 @@ import {
   usagerAddressSchema,
   type UsagerAddressFormValues,
 } from "@/lib/validators/usager-address";
+import { normalizeDays } from "@/lib/types/day-entry";
 
 function mapAddressData(data: UsagerAddressFormValues) {
   return {
@@ -25,6 +26,8 @@ function mapAddressData(data: UsagerAddressFormValues) {
     mobile: data.mobile || null,
     email: data.email === "" ? null : data.email || null,
     observations: data.observations || null,
+    daysAller: data.daysAller ?? null,
+    daysRetour: data.daysRetour ?? null,
   };
 }
 
@@ -54,7 +57,7 @@ export const usagerAddressesRouter = createTRPCRouter({
   list: tenantProcedure
     .input(z.object({ usagerId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
+      const rows = await ctx.db
         .select()
         .from(usagerAddresses)
         .where(
@@ -64,6 +67,12 @@ export const usagerAddressesRouter = createTRPCRouter({
           ),
         )
         .orderBy(usagerAddresses.position);
+
+      return rows.map((row) => ({
+        ...row,
+        daysAller: normalizeDays(row.daysAller),
+        daysRetour: normalizeDays(row.daysRetour),
+      }));
     }),
 
   create: tenantProcedure

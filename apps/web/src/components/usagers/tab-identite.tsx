@@ -48,6 +48,7 @@ interface UsagerData {
   gender: string | null;
   etablissementId: string | null;
   etablissementName: string | null;
+  transportStartDate: string | null;
   notes: string | null;
 }
 
@@ -72,6 +73,7 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
       birthDate: usager.birthDate ?? "",
       gender: (usager.gender as "M" | "F" | "") ?? "",
       etablissementId: usager.etablissementId ?? "",
+      transportStartDate: usager.transportStartDate ?? null,
       notes: usager.notes ?? "",
     },
   });
@@ -189,12 +191,12 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
           </CardContent>
         </Card>
 
-        {/* Établissement */}
+        {/* Établissement & Transport */}
         <Card>
           <CardHeader>
-            <CardTitle>Établissement</CardTitle>
+            <CardTitle>Établissement & Transport</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="etablissementId"
@@ -215,6 +217,25 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="transportStartDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date de debut de transport</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      value={field.value ?? ""}
+                      onChange={(e) =>
+                        field.onChange(e.target.value || null)
+                      }
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

@@ -27,8 +27,12 @@ export const usagerCircuits = pgTable(
       () => usagerAddresses.id,
       { onDelete: "set null" },
     ),
-    daysAller: jsonb("days_aller").$type<number[]>(),
-    daysRetour: jsonb("days_retour").$type<number[]>(),
+    daysAller: jsonb("days_aller").$type<
+      number[] | { day: number; parity: "all" | "even" | "odd" }[]
+    >(),
+    daysRetour: jsonb("days_retour").$type<
+      number[] | { day: number; parity: "all" | "even" | "odd" }[]
+    >(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

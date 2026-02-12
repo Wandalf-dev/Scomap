@@ -35,30 +35,33 @@ import {
 import { CircuitSelector } from "./circuit-selector";
 import { ChauffeurSelector } from "./chauffeur-selector";
 import { VehiculeSelector } from "./vehicule-selector";
-import { RecurrenceInput } from "./recurrence-input";
+import { DaySelector } from "@/components/shared/day-selector";
+import { formatDaysShort, normalizeDays, type DayEntry } from "@/lib/types/day-entry";
 
 interface TrajetData {
   id: string;
   name: string;
   direction: string;
   departureTime: string | null;
-  recurrence: { frequency: string; daysOfWeek: number[] } | null;
-  startDate: string;
+  recurrence: { frequency: string; daysOfWeek: DayEntry[] } | null;
+  startDate: string | null;
   endDate: string | null;
   notes: string | null;
   circuitId: string;
   chauffeurId: string | null;
   vehiculeId: string | null;
-  etat: string | null;
   peages: boolean;
   kmACharge: number | null;
 }
 
 interface TabInformationsProps {
   trajet: TrajetData;
+  circuitStartDate: string | null;
+  circuitEndDate: string | null;
+  circuitOperatingDays: DayEntry[] | null;
 }
 
-export function TabInformations({ trajet }: TabInformationsProps) {
+export function TabInformations({ trajet, circuitStartDate, circuitEndDate, circuitOperatingDays }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -77,10 +80,9 @@ export function TabInformations({ trajet }: TabInformationsProps) {
             daysOfWeek: trajet.recurrence.daysOfWeek,
           }
         : { frequency: "weekly" as const, daysOfWeek: [] },
-      startDate: trajet.startDate,
+      startDate: trajet.startDate ?? null,
       endDate: trajet.endDate ?? null,
       notes: trajet.notes ?? "",
-      etat: trajet.etat ?? null,
       peages: trajet.peages,
       kmACharge: trajet.kmACharge ?? null,
     },
@@ -199,7 +201,7 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                     <FormItem>
                       <FormLabel>Jours</FormLabel>
                       <FormControl>
-                        <RecurrenceInput
+                        <DaySelector
                           value={field.value?.daysOfWeek ?? []}
                           onChange={(days) =>
                             field.onChange({
@@ -209,6 +211,11 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                           }
                         />
                       </FormControl>
+                      {circuitOperatingDays && circuitOperatingDays.length > 0 && (!field.value?.daysOfWeek || field.value.daysOfWeek.length === 0) && (
+                        <p className="text-xs text-muted-foreground">
+                          Herite du circuit : {formatDaysShort(normalizeDays(circuitOperatingDays))}
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -222,8 +229,19 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                   <FormItem>
                     <FormLabel>Date de debut</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input
+                        type="date"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value || null)
+                        }
+                      />
                     </FormControl>
+                    {circuitStartDate && !field.value && (
+                      <p className="text-xs text-muted-foreground">
+                        Herite du circuit : {circuitStartDate}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -244,14 +262,19 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                         }
                       />
                     </FormControl>
+                    {circuitEndDate && !field.value && (
+                      <p className="text-xs text-muted-foreground">
+                        Herite du circuit : {circuitEndDate}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Row 3: Affectation + nouveaux champs */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {/* Row 3: Affectation + options */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <FormField
                 control={form.control}
                 name="chauffeurId"
@@ -281,38 +304,6 @@ export function TabInformations({ trajet }: TabInformationsProps) {
                         onChange={field.onChange}
                       />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="etat"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Etat</FormLabel>
-                    <Select
-                      onValueChange={(v) => field.onChange(v || null)}
-                      value={field.value ?? ""}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="cursor-pointer">
-                          <SelectValue placeholder="—" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="ok" className="cursor-pointer">
-                          Ok
-                        </SelectItem>
-                        <SelectItem value="anomalie" className="cursor-pointer">
-                          Anomalie
-                        </SelectItem>
-                        <SelectItem value="suspendu" className="cursor-pointer">
-                          Suspendu
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

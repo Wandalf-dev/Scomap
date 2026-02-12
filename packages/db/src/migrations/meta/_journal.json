@@ -75,8 +75,29 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1770903651135,
+      "when": 1771010000000,
       "tag": "0010_broken_white_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1771020000000,
+      "tag": "0011_young_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1771030000000,
+      "tag": "0012_smooth_quicksilver",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1770914282591,
+      "tag": "0013_typical_gauntlet",
       "breakpoints": true
     }
   ]

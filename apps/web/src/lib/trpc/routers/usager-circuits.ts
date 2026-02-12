@@ -14,30 +14,16 @@ import {
   usagerCircuitSchema,
   usagerCircuitUpdateSchema,
 } from "@/lib/validators/usager-circuit";
+import {
+  normalizeDays,
+  areDayEntriesEqual,
+  formatDaysShort,
+  type DayEntry,
+} from "@/lib/types/day-entry";
 
-const DAY_LABELS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "Me",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
-};
-
-function buildTrajetName(direction: string, daysOfWeek: number[]): string {
+function buildTrajetName(direction: string, days: DayEntry[]): string {
   const label = direction === "aller" ? "Aller" : "Retour";
-  const dayStr = daysOfWeek
-    .sort((a, b) => a - b)
-    .map((d) => DAY_LABELS[d] ?? String(d))
-    .join("-");
-  return `${label} ${dayStr}`;
-}
-
-function arraysEqual(a: number[], b: number[]): boolean {
-  const sa = [...a].sort((x, y) => x - y);
-  const sb = [...b].sort((x, y) => x - y);
-  return sa.length === sb.length && sa.every((v, i) => v === sb[i]);
+  return `${label} ${formatDaysShort(days)}`;
 }
 
 type Ctx = {
@@ -150,10 +136,10 @@ async function syncTrajetForDirection(
   ctx: Ctx,
   circuitId: string,
   direction: string,
-  daysOfWeek: number[],
+  days: DayEntry[],
   usagerAddressId: string,
 ) {
-  if (!daysOfWeek || daysOfWeek.length === 0) return;
+  if (!days || days.length === 0) return;
 
   // Load existing trajets for this circuit + direction (non-deleted)
   const existingTrajets = await ctx.db
@@ -171,11 +157,12 @@ async function syncTrajetForDirection(
       ),
     );
 
-  // Find a trajet with matching daysOfWeek
+  // Find a trajet with matching daysOfWeek (normalize legacy data)
   const matchingTrajet = existingTrajets.find((t) => {
-    const rec = t.recurrence as { daysOfWeek: number[] } | null;
+    const rec = t.recurrence as { daysOfWeek: unknown } | null;
     if (!rec?.daysOfWeek) return false;
-    return arraysEqual(rec.daysOfWeek, daysOfWeek);
+    const existingDays = normalizeDays(rec.daysOfWeek);
+    return areDayEntriesEqual(existingDays, days);
   });
 
   if (matchingTrajet) {
@@ -183,7 +170,8 @@ async function syncTrajetForDirection(
     await addUsagerArret(ctx, matchingTrajet.id, usagerAddressId);
   } else {
     // Create new trajet
-    const name = buildTrajetName(direction, daysOfWeek);
+    const sortedDays = [...days].sort((a, b) => a.day - b.day);
+    const name = buildTrajetName(direction, sortedDays);
     const result = await ctx.db
       .insert(trajets)
       .values({
@@ -191,8 +179,7 @@ async function syncTrajetForDirection(
         circuitId,
         name,
         direction,
-        recurrence: { frequency: "weekly" as const, daysOfWeek: [...daysOfWeek].sort((a, b) => a - b) },
-        startDate: new Date().toISOString().split("T")[0]!,
+        recurrence: { frequency: "weekly" as const, daysOfWeek: sortedDays },
       })
       .returning();
 
@@ -261,20 +248,20 @@ export const usagerCircuitsRouter = createTRPCRouter({
   listByUsager: tenantProcedure
     .input(z.object({ usagerId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
+      const rows = await ctx.db
         .select({
           id: usagerCircuits.id,
           usagerId: usagerCircuits.usagerId,
           circuitId: usagerCircuits.circuitId,
           usagerAddressId: usagerCircuits.usagerAddressId,
-          daysAller: usagerCircuits.daysAller,
-          daysRetour: usagerCircuits.daysRetour,
           circuitName: circuits.name,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
           addressLabel: usagerAddresses.label,
           addressCity: usagerAddresses.city,
           addressAddress: usagerAddresses.address,
+          daysAller: usagerAddresses.daysAller,
+          daysRetour: usagerAddresses.daysRetour,
         })
         .from(usagerCircuits)
         .innerJoin(circuits, eq(usagerCircuits.circuitId, circuits.id))
@@ -292,25 +279,31 @@ export const usagerCircuitsRouter = createTRPCRouter({
             eq(usagerCircuits.tenantId, ctx.tenantId),
           ),
         );
+
+      return rows.map((row) => ({
+        ...row,
+        daysAller: normalizeDays(row.daysAller),
+        daysRetour: normalizeDays(row.daysRetour),
+      }));
     }),
 
   listByCircuit: tenantProcedure
     .input(z.object({ circuitId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
+      const rows = await ctx.db
         .select({
           id: usagerCircuits.id,
           usagerId: usagerCircuits.usagerId,
           circuitId: usagerCircuits.circuitId,
           usagerAddressId: usagerCircuits.usagerAddressId,
-          daysAller: usagerCircuits.daysAller,
-          daysRetour: usagerCircuits.daysRetour,
           usagerFirstName: usagers.firstName,
           usagerLastName: usagers.lastName,
           usagerCode: usagers.code,
           addressLabel: usagerAddresses.label,
           addressCity: usagerAddresses.city,
           addressAddress: usagerAddresses.address,
+          daysAller: usagerAddresses.daysAller,
+          daysRetour: usagerAddresses.daysRetour,
         })
         .from(usagerCircuits)
         .innerJoin(usagers, eq(usagerCircuits.usagerId, usagers.id))
@@ -324,11 +317,26 @@ export const usagerCircuitsRouter = createTRPCRouter({
             eq(usagerCircuits.tenantId, ctx.tenantId),
           ),
         );
+
+      return rows.map((row) => ({
+        ...row,
+        daysAller: normalizeDays(row.daysAller),
+        daysRetour: normalizeDays(row.daysRetour),
+      }));
     }),
 
   create: tenantProcedure
     .input(usagerCircuitSchema)
     .mutation(async ({ ctx, input }) => {
+      // Read days from the address
+      const addr = await ctx.db
+        .select({ daysAller: usagerAddresses.daysAller, daysRetour: usagerAddresses.daysRetour })
+        .from(usagerAddresses)
+        .where(eq(usagerAddresses.id, input.usagerAddressId))
+        .limit(1);
+      const addrDaysAller = normalizeDays(addr[0]?.daysAller);
+      const addrDaysRetour = normalizeDays(addr[0]?.daysRetour);
+
       const result = await ctx.db
         .insert(usagerCircuits)
         .values({
@@ -336,8 +344,8 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerId: input.usagerId,
           circuitId: input.circuitId,
           usagerAddressId: input.usagerAddressId,
-          daysAller: input.daysAller ?? null,
-          daysRetour: input.daysRetour ?? null,
+          daysAller: addrDaysAller.length > 0 ? addrDaysAller : null,
+          daysRetour: addrDaysRetour.length > 0 ? addrDaysRetour : null,
         })
         .returning();
 
@@ -345,21 +353,21 @@ export const usagerCircuitsRouter = createTRPCRouter({
 
       // Auto-create trajets + arrets
       if (created) {
-        if (input.daysAller && input.daysAller.length > 0) {
+        if (addrDaysAller.length > 0) {
           await syncTrajetForDirection(
             ctx,
             input.circuitId,
             "aller",
-            input.daysAller,
+            addrDaysAller,
             input.usagerAddressId,
           );
         }
-        if (input.daysRetour && input.daysRetour.length > 0) {
+        if (addrDaysRetour.length > 0) {
           await syncTrajetForDirection(
             ctx,
             input.circuitId,
             "retour",
-            input.daysRetour,
+            addrDaysRetour,
             input.usagerAddressId,
           );
         }
@@ -376,7 +384,7 @@ export const usagerCircuitsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Fetch existing record to know old address + days
+      // Fetch existing record to know old address
       const existing = await ctx.db
         .select()
         .from(usagerCircuits)
@@ -393,12 +401,25 @@ export const usagerCircuitsRouter = createTRPCRouter({
 
       const newAddressId = input.data.usagerAddressId ?? old.usagerAddressId;
 
+      // Read days from the (new) address
+      let addrDaysAller: DayEntry[] = [];
+      let addrDaysRetour: DayEntry[] = [];
+      if (newAddressId) {
+        const addr = await ctx.db
+          .select({ daysAller: usagerAddresses.daysAller, daysRetour: usagerAddresses.daysRetour })
+          .from(usagerAddresses)
+          .where(eq(usagerAddresses.id, newAddressId))
+          .limit(1);
+        addrDaysAller = normalizeDays(addr[0]?.daysAller);
+        addrDaysRetour = normalizeDays(addr[0]?.daysRetour);
+      }
+
       const result = await ctx.db
         .update(usagerCircuits)
         .set({
           usagerAddressId: newAddressId,
-          daysAller: input.data.daysAller ?? null,
-          daysRetour: input.data.daysRetour ?? null,
+          daysAller: addrDaysAller.length > 0 ? addrDaysAller : null,
+          daysRetour: addrDaysRetour.length > 0 ? addrDaysRetour : null,
           updatedAt: new Date(),
         })
         .where(
@@ -415,21 +436,21 @@ export const usagerCircuitsRouter = createTRPCRouter({
       }
 
       if (newAddressId) {
-        if (input.data.daysAller && input.data.daysAller.length > 0) {
+        if (addrDaysAller.length > 0) {
           await syncTrajetForDirection(
             ctx,
             old.circuitId,
             "aller",
-            input.data.daysAller,
+            addrDaysAller,
             newAddressId,
           );
         }
-        if (input.data.daysRetour && input.data.daysRetour.length > 0) {
+        if (addrDaysRetour.length > 0) {
           await syncTrajetForDirection(
             ctx,
             old.circuitId,
             "retour",
-            input.data.daysRetour,
+            addrDaysRetour,
             newAddressId,
           );
         }

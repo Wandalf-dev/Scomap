@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dayEntrySchema } from "@/lib/types/day-entry";
 
 // Schema pour la creation rapide (dialog de la liste)
 export const circuitSchema = z.object({
@@ -13,7 +14,9 @@ export const circuitDetailSchema = z.object({
   name: z.string().min(1, "Nom requis"),
   etablissementId: z.string().uuid("Etablissement requis"),
   description: z.string().optional(),
-  operatingDays: z.array(z.number().min(1).max(7)).optional(),
+  operatingDays: z.array(dayEntrySchema).optional(),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
 });
 
 export type CircuitDetailFormValues = z.infer<typeof circuitDetailSchema>;

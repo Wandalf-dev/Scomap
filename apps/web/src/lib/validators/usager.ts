@@ -19,6 +19,7 @@ export const usagerDetailSchema = z.object({
   birthDate: z.string().optional(),
   gender: z.enum(["M", "F"]).optional().or(z.literal("")),
   etablissementId: z.string().uuid().optional().or(z.literal("")),
+  transportStartDate: z.string().nullable().optional(),
   notes: z.string().optional(),
 });
 

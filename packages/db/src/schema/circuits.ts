@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   timestamp,
+  date,
   boolean,
   jsonb,
 } from "drizzle-orm/pg-core";
@@ -21,7 +22,11 @@ export const circuits = pgTable("circuits", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
-  operatingDays: jsonb("operating_days").$type<number[]>(),
+  operatingDays: jsonb("operating_days").$type<
+    number[] | { day: number; parity: "all" | "even" | "odd" }[]
+  >(),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

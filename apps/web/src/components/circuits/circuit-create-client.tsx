@@ -22,7 +22,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -30,16 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EtablissementSelector } from "./etablissement-selector";
-
-const DAYS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-  { value: 6, label: "Samedi" },
-  { value: 7, label: "Dimanche" },
-];
+import { DaySelector } from "@/components/shared/day-selector";
 
 export function CircuitCreateClient() {
   const trpc = useTRPC();
@@ -52,7 +42,13 @@ export function CircuitCreateClient() {
       name: "",
       etablissementId: "",
       description: "",
-      operatingDays: [],
+      operatingDays: [
+        { day: 1, parity: "all" },
+        { day: 2, parity: "all" },
+        { day: 3, parity: "all" },
+        { day: 4, parity: "all" },
+        { day: 5, parity: "all" },
+      ],
     },
   });
 
@@ -177,31 +173,10 @@ export function CircuitCreateClient() {
                 name="operatingDays"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex flex-wrap gap-4">
-                      {DAYS.map((day) => {
-                        const checked = field.value?.includes(day.value) ?? false;
-                        return (
-                          <label
-                            key={day.value}
-                            className="flex items-center space-x-2 cursor-pointer"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(c) => {
-                                const current = field.value ?? [];
-                                if (c) {
-                                  field.onChange([...current, day.value].sort());
-                                } else {
-                                  field.onChange(current.filter((d) => d !== day.value));
-                                }
-                              }}
-                              className="cursor-pointer"
-                            />
-                            <span className="text-sm">{day.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    <DaySelector
+                      value={field.value ?? []}
+                      onChange={field.onChange}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

@@ -1,22 +1,25 @@
 import { z } from "zod";
 import { eq, and, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { circuits, etablissements } from "@scomap/db/schema";
+import { circuits, etablissements, trajets, usagerCircuits } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import {
   circuitSchema,
   circuitDetailSchema,
 } from "@/lib/validators/circuit";
+import { normalizeDays } from "@/lib/types/day-entry";
 
 export const circuitsRouter = createTRPCRouter({
   list: tenantProcedure.query(async ({ ctx }) => {
-    return ctx.db
+    const rows = await ctx.db
       .select({
         id: circuits.id,
         name: circuits.name,
         description: circuits.description,
         isActive: circuits.isActive,
         operatingDays: circuits.operatingDays,
+        startDate: circuits.startDate,
+        endDate: circuits.endDate,
         etablissementId: circuits.etablissementId,
         etablissementName: etablissements.name,
         etablissementCity: etablissements.city,
@@ -32,6 +35,11 @@ export const circuitsRouter = createTRPCRouter({
         ),
       )
       .limit(500);
+
+    return rows.map((row) => ({
+      ...row,
+      operatingDays: normalizeDays(row.operatingDays),
+    }));
   }),
 
   getById: tenantProcedure
@@ -44,6 +52,8 @@ export const circuitsRouter = createTRPCRouter({
           description: circuits.description,
           isActive: circuits.isActive,
           operatingDays: circuits.operatingDays,
+          startDate: circuits.startDate,
+          endDate: circuits.endDate,
           etablissementId: circuits.etablissementId,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
@@ -61,7 +71,9 @@ export const circuitsRouter = createTRPCRouter({
         )
         .limit(1);
 
-      return result[0] ?? null;
+      const row = result[0] ?? null;
+      if (!row) return null;
+      return { ...row, operatingDays: normalizeDays(row.operatingDays) };
     }),
 
   create: tenantProcedure
@@ -90,6 +102,8 @@ export const circuitsRouter = createTRPCRouter({
           etablissementId: input.etablissementId,
           description: input.description || null,
           operatingDays: input.operatingDays ?? null,
+          startDate: input.startDate || null,
+          endDate: input.endDate || null,
         })
         .returning();
 
@@ -142,6 +156,8 @@ export const circuitsRouter = createTRPCRouter({
           etablissementId: input.data.etablissementId,
           description: input.data.description || null,
           operatingDays: input.data.operatingDays ?? null,
+          startDate: input.data.startDate || null,
+          endDate: input.data.endDate || null,
           updatedAt: new Date(),
         })
         .where(
@@ -159,9 +175,11 @@ export const circuitsRouter = createTRPCRouter({
   delete: tenantProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      const now = new Date();
+
       const result = await ctx.db
         .update(circuits)
-        .set({ deletedAt: new Date() })
+        .set({ deletedAt: now })
         .where(
           and(
             eq(circuits.id, input.id),
@@ -170,6 +188,24 @@ export const circuitsRouter = createTRPCRouter({
           ),
         )
         .returning();
+
+      if (result[0]) {
+        // Soft-delete all trajets of this circuit
+        await ctx.db
+          .update(trajets)
+          .set({ deletedAt: now })
+          .where(
+            and(
+              eq(trajets.circuitId, input.id),
+              isNull(trajets.deletedAt),
+            ),
+          );
+
+        // Delete usager-circuit associations
+        await ctx.db
+          .delete(usagerCircuits)
+          .where(eq(usagerCircuits.circuitId, input.id));
+      }
 
       return result[0] ?? null;
     }),

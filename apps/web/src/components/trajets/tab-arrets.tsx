@@ -154,7 +154,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
   );
 
   const toggleLockMutation = useMutation(
-    trpc.arrets.update.mutationOptions({
+    trpc.arrets.toggleTimeLock.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: trpc.arrets.list.queryKey({ trajetId }),
@@ -182,25 +182,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
   }
 
   function handleToggleLock(arret: ArretRow) {
-    toggleLockMutation.mutate({
-      id: arret.id,
-      trajetId,
-      data: {
-        type: (arret.type as "usager" | "etablissement") ?? "usager",
-        usagerAddressId: arret.usagerAddressId,
-        etablissementId: arret.etablissementId,
-        name: arret.name,
-        address: arret.address ?? "",
-        latitude: arret.latitude ?? undefined,
-        longitude: arret.longitude ?? undefined,
-        orderIndex: arret.orderIndex,
-        arrivalTime: arret.arrivalTime ?? "",
-        waitTime: arret.waitTime ?? undefined,
-        distanceKm: arret.distanceKm ?? undefined,
-        durationSeconds: arret.durationSeconds ?? undefined,
-        timeLocked: !arret.timeLocked,
-      },
-    });
+    toggleLockMutation.mutate({ id: arret.id, trajetId });
   }
 
   if (isLoading) {

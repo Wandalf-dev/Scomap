@@ -23,6 +23,7 @@ export const usagers = pgTable("usagers", {
   lastName: varchar("last_name", { length: 100 }).notNull(),
   birthDate: date("birth_date"),
   gender: varchar("gender", { length: 1 }),
+  transportStartDate: date("transport_start_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

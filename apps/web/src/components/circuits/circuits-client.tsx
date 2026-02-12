@@ -11,24 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { CircuitFormDialog } from "./circuit-form-dialog";
+import { DayBadges } from "@/components/shared/day-badges";
 import type { CircuitFormValues } from "@/lib/validators/circuit";
-
-const DAY_LABELS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "Me",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
-};
+import type { DayEntry } from "@/lib/types/day-entry";
 
 interface CircuitRow {
   id: string;
   name: string;
   description: string | null;
   isActive: boolean;
-  operatingDays: number[] | null;
+  operatingDays: DayEntry[];
   etablissementId: string;
   etablissementName: string | null;
   etablissementCity: string | null;
@@ -43,29 +35,6 @@ const EMPTY_FILTERS: CircuitFilters = {
   name: "",
   status: "all",
 };
-
-function DayBadges({ days }: { days: number[] | null }) {
-  if (!days || days.length === 0) {
-    return <span className="text-muted-foreground/60">&mdash;</span>;
-  }
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-        <Badge
-          key={d}
-          variant={days.includes(d) ? "default" : "outline"}
-          className={`h-6 w-7 justify-center px-0 text-xs ${
-            days.includes(d)
-              ? ""
-              : "text-muted-foreground/40 border-border/50"
-          }`}
-        >
-          {DAY_LABELS[d]}
-        </Badge>
-      ))}
-    </div>
-  );
-}
 
 export function CircuitsClient() {
   const trpc = useTRPC();

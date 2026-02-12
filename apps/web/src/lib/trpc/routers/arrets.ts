@@ -185,6 +185,58 @@ export const arretsRouter = createTRPCRouter({
       return result[0] ?? null;
     }),
 
+  toggleTimeLock: tenantProcedure
+    .input(z.object({ id: z.string().uuid(), trajetId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify trajet ownership
+      const trajet = await ctx.db
+        .select({ id: trajets.id })
+        .from(trajets)
+        .where(
+          and(
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
+          ),
+        )
+        .limit(1);
+
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
+      }
+
+      const current = await ctx.db
+        .select({ timeLocked: arrets.timeLocked })
+        .from(arrets)
+        .where(
+          and(
+            eq(arrets.id, input.id),
+            eq(arrets.trajetId, input.trajetId),
+          ),
+        )
+        .limit(1);
+
+      if (current.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Arret non trouve" });
+      }
+
+      const result = await ctx.db
+        .update(arrets)
+        .set({
+          timeLocked: !current[0]!.timeLocked,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(arrets.id, input.id),
+            eq(arrets.trajetId, input.trajetId),
+          ),
+        )
+        .returning();
+
+      return result[0] ?? null;
+    }),
+
   delete: tenantProcedure
     .input(z.object({ id: z.string().uuid(), trajetId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {

@@ -16,12 +16,13 @@ import {
   trajetDetailSchema,
   occurrenceOverrideSchema,
 } from "@/lib/validators/trajet";
+import { normalizeDays, isAnyDayActiveForDate, type DayEntry } from "@/lib/types/day-entry";
 
 export const trajetsRouter = createTRPCRouter({
   listByCircuit: tenantProcedure
     .input(z.object({ circuitId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
+      const rows = await ctx.db
         .select({
           id: trajets.id,
           name: trajets.name,
@@ -30,6 +31,7 @@ export const trajetsRouter = createTRPCRouter({
           recurrence: trajets.recurrence,
           startDate: trajets.startDate,
           endDate: trajets.endDate,
+          etat: trajets.etat,
           chauffeurFirstName: chauffeurs.firstName,
           chauffeurLastName: chauffeurs.lastName,
           vehiculeName: vehicules.name,
@@ -44,11 +46,22 @@ export const trajetsRouter = createTRPCRouter({
             eq(trajets.tenantId, ctx.tenantId),
             isNull(trajets.deletedAt),
           ),
-        );
+        )
+        .orderBy(asc(trajets.direction), asc(trajets.name));
+
+      return rows.map((row) => {
+        const rec = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
+        return {
+          ...row,
+          recurrence: rec
+            ? { frequency: rec.frequency, daysOfWeek: normalizeDays(rec.daysOfWeek) }
+            : null,
+        };
+      });
     }),
 
   list: tenantProcedure.query(async ({ ctx }) => {
-    return ctx.db
+    const rows = await ctx.db
       .select({
         id: trajets.id,
         name: trajets.name,
@@ -57,6 +70,8 @@ export const trajetsRouter = createTRPCRouter({
         recurrence: trajets.recurrence,
         startDate: trajets.startDate,
         endDate: trajets.endDate,
+        etat: trajets.etat,
+        totalDistanceKm: trajets.totalDistanceKm,
         circuitId: trajets.circuitId,
         circuitName: circuits.name,
         etablissementName: etablissements.name,
@@ -74,9 +89,24 @@ export const trajetsRouter = createTRPCRouter({
       .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))
       .leftJoin(vehicules, eq(trajets.vehiculeId, vehicules.id))
       .where(
-        and(eq(trajets.tenantId, ctx.tenantId), isNull(trajets.deletedAt)),
+        and(
+          eq(trajets.tenantId, ctx.tenantId),
+          isNull(trajets.deletedAt),
+          eq(circuits.isActive, true),
+        ),
       )
+      .orderBy(asc(trajets.direction), asc(trajets.name))
       .limit(500);
+
+    return rows.map((row) => {
+      const rec = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
+      return {
+        ...row,
+        recurrence: rec
+          ? { frequency: rec.frequency, daysOfWeek: normalizeDays(rec.daysOfWeek) }
+          : null,
+      };
+    });
   }),
 
   getById: tenantProcedure
@@ -100,6 +130,10 @@ export const trajetsRouter = createTRPCRouter({
           routeGeometry: trajets.routeGeometry,
           circuitId: trajets.circuitId,
           circuitName: circuits.name,
+          circuitStartDate: circuits.startDate,
+          circuitEndDate: circuits.endDate,
+          circuitOperatingDays: circuits.operatingDays,
+          circuitIsActive: circuits.isActive,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
           chauffeurId: trajets.chauffeurId,
@@ -125,7 +159,36 @@ export const trajetsRouter = createTRPCRouter({
         )
         .limit(1);
 
-      return result[0] ?? null;
+      const row = result[0];
+      if (!row) return null;
+
+      // Compute effective state
+      let effectiveEtat: string;
+      if (row.circuitIsActive === false) {
+        effectiveEtat = "suspendu";
+      } else if (row.routeGeometry && row.totalDistanceKm) {
+        effectiveEtat = "ok";
+      } else {
+        effectiveEtat = "brouillon";
+      }
+
+      // Effective dates/days (trajet override or circuit fallback)
+      const recurrence = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
+      const normalizedRecDays = normalizeDays(recurrence?.daysOfWeek);
+      const normalizedCircuitDays = normalizeDays(row.circuitOperatingDays);
+      const effectiveStartDate = row.startDate ?? row.circuitStartDate ?? null;
+      const effectiveEndDate = row.endDate ?? row.circuitEndDate ?? null;
+      const effectiveDaysOfWeek = normalizedRecDays.length
+        ? normalizedRecDays
+        : normalizedCircuitDays;
+
+      return {
+        ...row,
+        effectiveEtat,
+        effectiveStartDate,
+        effectiveEndDate,
+        effectiveDaysOfWeek,
+      };
     }),
 
   create: tenantProcedure
@@ -138,7 +201,6 @@ export const trajetsRouter = createTRPCRouter({
           name: input.name,
           circuitId: input.circuitId,
           direction: input.direction,
-          startDate: new Date().toISOString().split("T")[0]!,
         })
         .returning();
 
@@ -164,7 +226,7 @@ export const trajetsRouter = createTRPCRouter({
           vehiculeId: input.vehiculeId ?? null,
           departureTime: input.departureTime || null,
           recurrence: input.recurrence ?? null,
-          startDate: input.startDate,
+          startDate: input.startDate || null,
           endDate: input.endDate || null,
           notes: input.notes || null,
         })
@@ -219,10 +281,9 @@ export const trajetsRouter = createTRPCRouter({
           vehiculeId: input.data.vehiculeId ?? null,
           departureTime: input.data.departureTime || null,
           recurrence: input.data.recurrence ?? null,
-          startDate: input.data.startDate,
+          startDate: input.data.startDate || null,
           endDate: input.data.endDate || null,
           notes: input.data.notes || null,
-          etat: input.data.etat ?? null,
           peages: input.data.peages ?? false,
           kmACharge: input.data.kmACharge ?? null,
           updatedAt: new Date(),
@@ -309,14 +370,15 @@ export const trajetsRouter = createTRPCRouter({
       let totalDistanceKm = 0;
       let totalDurationSeconds = 0;
       const allCoordinates: number[][] = [];
+      const segmentResults: { id: string; distanceKm: number; durationSeconds: number }[] = [];
 
-      // First stop has 0 distance
-      await ctx.db
-        .update(arrets)
-        .set({ distanceKm: 0, durationSeconds: 0, updatedAt: new Date() })
-        .where(eq(arrets.id, arretsList[0]!.id));
+      const avoidTolls = trajet[0]!.peages === false;
+      const constraintsObj = { constraintType: "banned", key: "wayType", operator: "=", value: "autoroute" };
+      const constraints = avoidTolls
+        ? `&constraints=${encodeURIComponent(JSON.stringify(constraintsObj))}`
+        : "";
 
-      // Calculate distances between consecutive stops using IGN API
+      // Fetch all segments from IGN API (sequential due to rate limits)
       for (let i = 1; i < arretsList.length; i++) {
         const prev = arretsList[i - 1]!;
         const curr = arretsList[i]!;
@@ -324,18 +386,13 @@ export const trajetsRouter = createTRPCRouter({
         const start = `${prev.longitude},${prev.latitude}`;
         const end = `${curr.longitude},${curr.latitude}`;
 
-        const avoidTolls = trajet[0]!.peages === false;
-        const constraints = avoidTolls
-          ? '&constraints={"constraintType":"banned","key":"wayType","operator":"=","value":"autoroute"}'
-          : "";
-
         const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${start}&end=${end}&profile=car&optimization=fastest&getSteps=false${constraints}`;
 
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
         if (!response.ok) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: `Erreur API IGN pour le segment ${i}`,
+            message: `Erreur API IGN pour le segment ${i} (HTTP ${response.status})`,
           });
         }
 
@@ -350,6 +407,7 @@ export const trajetsRouter = createTRPCRouter({
 
         totalDistanceKm += distanceKm;
         totalDurationSeconds += durationSec;
+        segmentResults.push({ id: curr.id, distanceKm, durationSeconds: durationSec });
 
         if (data.geometry?.coordinates) {
           const coords = data.geometry.coordinates;
@@ -358,15 +416,6 @@ export const trajetsRouter = createTRPCRouter({
             allCoordinates.push(coords[j]!);
           }
         }
-
-        await ctx.db
-          .update(arrets)
-          .set({
-            distanceKm,
-            durationSeconds: durationSec,
-            updatedAt: new Date(),
-          })
-          .where(eq(arrets.id, curr.id));
       }
 
       // Simplify geometry: keep max ~1000 points for display
@@ -384,16 +433,38 @@ export const trajetsRouter = createTRPCRouter({
         ? { type: "LineString" as const, coordinates: simplified }
         : null;
 
-      // Update trajet totals + route geometry
-      await ctx.db
-        .update(trajets)
-        .set({
-          totalDistanceKm: Math.round(totalDistanceKm * 1000) / 1000,
-          totalDurationSeconds: totalDurationSeconds,
-          routeGeometry,
-          updatedAt: new Date(),
-        })
-        .where(eq(trajets.id, input.trajetId));
+      // Atomic batch update: all DB writes in a single transaction
+      await ctx.db.transaction(async (tx) => {
+        // First stop has 0 distance
+        await tx
+          .update(arrets)
+          .set({ distanceKm: 0, durationSeconds: 0, updatedAt: new Date() })
+          .where(eq(arrets.id, arretsList[0]!.id));
+
+        // Update each segment's stop
+        for (const seg of segmentResults) {
+          await tx
+            .update(arrets)
+            .set({
+              distanceKm: seg.distanceKm,
+              durationSeconds: seg.durationSeconds,
+              updatedAt: new Date(),
+            })
+            .where(eq(arrets.id, seg.id));
+        }
+
+        // Update trajet totals + route geometry + etat
+        await tx
+          .update(trajets)
+          .set({
+            totalDistanceKm: Math.round(totalDistanceKm * 1000) / 1000,
+            totalDurationSeconds: totalDurationSeconds,
+            routeGeometry,
+            etat: "ok",
+            updatedAt: new Date(),
+          })
+          .where(eq(trajets.id, input.trajetId));
+      });
 
       return { totalDistanceKm, totalDurationSeconds };
     }),
@@ -448,29 +519,26 @@ export const trajetsRouter = createTRPCRouter({
       }
 
       const direction = t.direction; // 'aller' | 'retour'
+      const DEFAULT_DEPARTURE_TIME = "08:00";
+
+      // Compute all times in memory first, then batch update in a transaction
+      const timeUpdates: { id: string; arrivalTime: string }[] = [];
 
       if (direction === "aller") {
         // Backwards from last stop (school)
-        // Last stop time is fixed (or we use its current arrivalTime)
         const lastStop = arretsList[arretsList.length - 1]!;
-        let baseTimeSeconds = parseTimeToSeconds(lastStop.arrivalTime || t.departureTime || "08:00");
+        let baseTimeSeconds = parseTimeToSeconds(lastStop.arrivalTime || t.departureTime || DEFAULT_DEPARTURE_TIME);
 
-        // If last stop is locked, use its time
         if (lastStop.timeLocked && lastStop.arrivalTime) {
           baseTimeSeconds = parseTimeToSeconds(lastStop.arrivalTime);
         }
 
-        // Update last stop time if not locked
         if (!lastStop.timeLocked) {
-          await ctx.db
-            .update(arrets)
-            .set({ arrivalTime: secondsToTime(baseTimeSeconds), updatedAt: new Date() })
-            .where(eq(arrets.id, lastStop.id));
+          timeUpdates.push({ id: lastStop.id, arrivalTime: secondsToTime(baseTimeSeconds) });
         }
 
         let cumulSeconds = baseTimeSeconds;
 
-        // Go backwards
         for (let i = arretsList.length - 2; i >= 0; i--) {
           const stop = arretsList[i]!;
           const nextStop = arretsList[i + 1]!;
@@ -484,25 +552,19 @@ export const trajetsRouter = createTRPCRouter({
           const waitTimeSec = (stop.waitTime ?? 0) * 60 + input.waitTimeSeconds;
           cumulSeconds = cumulSeconds - travelTime - waitTimeSec;
 
-          await ctx.db
-            .update(arrets)
-            .set({ arrivalTime: secondsToTime(cumulSeconds), updatedAt: new Date() })
-            .where(eq(arrets.id, stop.id));
+          timeUpdates.push({ id: stop.id, arrivalTime: secondsToTime(cumulSeconds) });
         }
       } else {
         // Forward from first stop (school)
         const firstStop = arretsList[0]!;
-        let baseTimeSeconds = parseTimeToSeconds(firstStop.arrivalTime || t.departureTime || "08:00");
+        let baseTimeSeconds = parseTimeToSeconds(firstStop.arrivalTime || t.departureTime || DEFAULT_DEPARTURE_TIME);
 
         if (firstStop.timeLocked && firstStop.arrivalTime) {
           baseTimeSeconds = parseTimeToSeconds(firstStop.arrivalTime);
         }
 
         if (!firstStop.timeLocked) {
-          await ctx.db
-            .update(arrets)
-            .set({ arrivalTime: secondsToTime(baseTimeSeconds), updatedAt: new Date() })
-            .where(eq(arrets.id, firstStop.id));
+          timeUpdates.push({ id: firstStop.id, arrivalTime: secondsToTime(baseTimeSeconds) });
         }
 
         let cumulSeconds = baseTimeSeconds;
@@ -519,12 +581,19 @@ export const trajetsRouter = createTRPCRouter({
           const prevWaitTimeSec = (arretsList[i - 1]!.waitTime ?? 0) * 60 + input.waitTimeSeconds;
           cumulSeconds = cumulSeconds + travelTime + prevWaitTimeSec;
 
-          await ctx.db
-            .update(arrets)
-            .set({ arrivalTime: secondsToTime(cumulSeconds), updatedAt: new Date() })
-            .where(eq(arrets.id, stop.id));
+          timeUpdates.push({ id: stop.id, arrivalTime: secondsToTime(cumulSeconds) });
         }
       }
+
+      // Atomic batch update
+      await ctx.db.transaction(async (tx) => {
+        for (const u of timeUpdates) {
+          await tx
+            .update(arrets)
+            .set({ arrivalTime: u.arrivalTime, updatedAt: new Date() })
+            .where(eq(arrets.id, u.id));
+        }
+      });
 
       return { updated: arretsList.length };
     }),
@@ -540,10 +609,19 @@ export const trajetsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Fetch the trajet
+      // Fetch the trajet with circuit fallback data
       const trajet = await ctx.db
-        .select()
+        .select({
+          id: trajets.id,
+          startDate: trajets.startDate,
+          endDate: trajets.endDate,
+          recurrence: trajets.recurrence,
+          circuitStartDate: circuits.startDate,
+          circuitEndDate: circuits.endDate,
+          circuitOperatingDays: circuits.operatingDays,
+        })
         .from(trajets)
+        .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
         .where(
           and(
             eq(trajets.id, input.trajetId),
@@ -558,35 +636,41 @@ export const trajetsRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
 
+      // Effective days: trajet override or circuit fallback
       const recurrence = t.recurrence as {
         frequency: string;
-        daysOfWeek: number[];
+        daysOfWeek: unknown;
       } | null;
-      if (!recurrence || !recurrence.daysOfWeek?.length) {
+      const normalizedRecDays = normalizeDays(recurrence?.daysOfWeek);
+      const normalizedCircuitDays = normalizeDays(t.circuitOperatingDays);
+      const effectiveDays: DayEntry[] = normalizedRecDays.length
+        ? normalizedRecDays
+        : normalizedCircuitDays;
+
+      if (effectiveDays.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Ce trajet n'a pas de recurrence configuree",
         });
       }
 
+      // Effective dates: trajet override or circuit fallback
+      const effectiveStartDate = t.startDate ?? t.circuitStartDate ?? null;
+      const effectiveEndDate = t.endDate ?? t.circuitEndDate ?? null;
+
       // Calculate dates
-      const start = new Date(
-        Math.max(
-          new Date(input.fromDate).getTime(),
-          new Date(t.startDate).getTime(),
-        ),
-      );
-      const endTrajet = t.endDate ? new Date(t.endDate) : null;
-      const end = endTrajet
-        ? new Date(Math.min(new Date(input.toDate).getTime(), endTrajet.getTime()))
+      const startMs = effectiveStartDate
+        ? Math.max(new Date(input.fromDate).getTime(), new Date(effectiveStartDate).getTime())
+        : new Date(input.fromDate).getTime();
+      const start = new Date(startMs);
+      const end = effectiveEndDate
+        ? new Date(Math.min(new Date(input.toDate).getTime(), new Date(effectiveEndDate).getTime()))
         : new Date(input.toDate);
 
       const dates: string[] = [];
       const current = new Date(start);
       while (current <= end) {
-        // JS getDay: 0=Sunday, convert to ISO: 1=Monday...7=Sunday
-        const isoDay = current.getDay() === 0 ? 7 : current.getDay();
-        if (recurrence.daysOfWeek.includes(isoDay)) {
+        if (isAnyDayActiveForDate(effectiveDays, current)) {
           dates.push(current.toISOString().split("T")[0]!);
         }
         current.setDate(current.getDate() + 1);
@@ -775,8 +859,9 @@ function parseTimeToSeconds(time: string): number {
 }
 
 function secondsToTime(totalSeconds: number): string {
-  const absSeconds = Math.abs(totalSeconds);
-  const hours = Math.floor(absSeconds / 3600);
-  const minutes = Math.floor((absSeconds % 3600) / 60);
+  // Wraparound on 24h for negative values (e.g. -1800 -> 23:30)
+  const normalized = ((totalSeconds % 86400) + 86400) % 86400;
+  const hours = Math.floor(normalized / 3600) % 24;
+  const minutes = Math.floor((normalized % 3600) / 60);
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }

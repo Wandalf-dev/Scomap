@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { dayEntrySchema } from "@/lib/types/day-entry";
 
 export const directionEnum = z.enum(["aller", "retour"]);
+
+export const etatEnum = z.enum(["brouillon", "ok", "anomalie", "suspendu"]);
+export type Etat = z.infer<typeof etatEnum>;
 export type Direction = z.infer<typeof directionEnum>;
 
 export const occurrenceStatusEnum = z.enum([
@@ -13,7 +17,7 @@ export type OccurrenceStatus = z.infer<typeof occurrenceStatusEnum>;
 
 export const recurrenceRuleSchema = z.object({
   frequency: z.literal("weekly"),
-  daysOfWeek: z.array(z.number().min(1).max(7)).min(1, "Selectionnez au moins un jour"),
+  daysOfWeek: z.array(dayEntrySchema).min(1, "Selectionnez au moins un jour"),
 });
 
 export type RecurrenceRule = z.infer<typeof recurrenceRuleSchema>;
@@ -36,10 +40,9 @@ export const trajetDetailSchema = z.object({
   vehiculeId: z.string().uuid().nullable().optional(),
   departureTime: z.string().optional(),
   recurrence: recurrenceRuleSchema.nullable().optional(),
-  startDate: z.string().min(1, "Date de debut requise"),
+  startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
   notes: z.string().optional(),
-  etat: z.string().nullable().optional(),
   peages: z.boolean().optional(),
   kmACharge: z.number().min(0).nullable().optional(),
 });
