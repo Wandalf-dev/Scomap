@@ -17,39 +17,46 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { CircuitSelector } from "./circuit-selector";
 import {
-  circuitSchema,
-  type CircuitFormValues,
-} from "@/lib/validators/circuit";
-import { EtablissementSelector } from "./etablissement-selector";
+  trajetSchema,
+  type TrajetFormValues,
+} from "@/lib/validators/trajet";
 
-interface CircuitFormDialogProps {
+interface TrajetFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (values: CircuitFormValues) => void;
-  defaultValues?: CircuitFormValues;
+  onSubmit: (values: TrajetFormValues) => void;
+  defaultValues?: TrajetFormValues;
   isPending: boolean;
   mode: "create" | "edit";
 }
 
-export function CircuitFormDialog({
+export function TrajetFormDialog({
   open,
   onOpenChange,
   onSubmit,
   defaultValues,
   isPending,
   mode,
-}: CircuitFormDialogProps) {
-  const form = useForm<CircuitFormValues>({
-    resolver: zodResolver(circuitSchema),
-    defaultValues: defaultValues ?? { name: "", etablissementId: "" },
+}: TrajetFormDialogProps) {
+  const form = useForm<TrajetFormValues>({
+    resolver: zodResolver(trajetSchema),
+    defaultValues: defaultValues ?? { name: "", circuitId: "", direction: "aller" },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset(defaultValues ?? { name: "", etablissementId: "" });
+      form.reset(defaultValues ?? { name: "", circuitId: "", direction: "aller" });
     }
   }, [open, defaultValues, form]);
 
@@ -58,9 +65,7 @@ export function CircuitFormDialog({
       <DialogContent className="sm:max-w-[540px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create"
-              ? "Ajouter un circuit"
-              : "Modifier le circuit"}
+            {mode === "create" ? "Ajouter un trajet" : "Modifier le trajet"}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -75,7 +80,7 @@ export function CircuitFormDialog({
                 <FormItem>
                   <FormLabel>Nom</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nom du circuit" {...field} />
+                    <Input placeholder="Nom du trajet" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -84,15 +89,45 @@ export function CircuitFormDialog({
 
             <FormField
               control={form.control}
-              name="etablissementId"
-              render={() => (
+              name="circuitId"
+              render={({ field }) => (
                 <FormItem>
-                  <EtablissementSelector
-                    selectedEtablissementId={form.watch("etablissementId") || null}
-                    onSelect={(result) => {
-                      form.setValue("etablissementId", result.etablissementId, { shouldValidate: true });
-                    }}
-                  />
+                  <FormLabel>Circuit</FormLabel>
+                  <FormControl>
+                    <CircuitSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="direction"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Direction</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="cursor-pointer">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="aller" className="cursor-pointer">
+                        Aller
+                      </SelectItem>
+                      <SelectItem value="retour" className="cursor-pointer">
+                        Retour
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

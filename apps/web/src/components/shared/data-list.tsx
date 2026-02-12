@@ -281,7 +281,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
         </div>
       ) : !data || data.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-          <EmptyIcon className="h-12 w-12 text-muted-foreground/50" />
+          <EmptyIcon className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             {emptyTitle}
           </h3>
@@ -337,7 +337,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                     className="h-32 text-center"
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <EmptyIcon className="h-8 w-8 text-muted-foreground/40" />
+                      <EmptyIcon className="h-8 w-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         Aucun resultat pour ces filtres
                       </p>

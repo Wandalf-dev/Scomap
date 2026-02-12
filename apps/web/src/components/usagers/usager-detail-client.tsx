@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
 import { TabIdentite } from "./tab-identite";
 import { TabAdresses } from "./tab-adresses";
+import { TabCircuits } from "./tab-circuits";
 
 interface UsagerDetailClientProps {
   id: string;
@@ -65,6 +66,11 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
           value: "adresses",
           label: "Adresses",
           content: usager ? <TabAdresses usagerId={usager.id} /> : null,
+        },
+        {
+          value: "circuits",
+          label: "Circuits",
+          content: usager ? <TabCircuits usagerId={usager.id} /> : null,
         },
       ]}
     />

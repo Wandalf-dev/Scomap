@@ -17,6 +17,9 @@ export default async function UsagerDetailPage({
     queryClient.prefetchQuery(
       trpc.usagerAddresses.list.queryOptions({ usagerId: id }),
     ),
+    queryClient.prefetchQuery(
+      trpc.usagerCircuits.listByUsager.queryOptions({ usagerId: id }),
+    ),
   ]);
 
   return (

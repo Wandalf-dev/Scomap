@@ -14,7 +14,12 @@ export default async function CircuitDetailPage({
 
   await Promise.all([
     queryClient.prefetchQuery(trpc.circuits.getById.queryOptions({ id })),
-    queryClient.prefetchQuery(trpc.arrets.list.queryOptions({ circuitId: id })),
+    queryClient.prefetchQuery(
+      trpc.trajets.listByCircuit.queryOptions({ circuitId: id }),
+    ),
+    queryClient.prefetchQuery(
+      trpc.usagerCircuits.listByCircuit.queryOptions({ circuitId: id }),
+    ),
   ]);
 
   return (

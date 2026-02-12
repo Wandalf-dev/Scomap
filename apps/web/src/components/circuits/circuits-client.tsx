@@ -29,6 +29,9 @@ interface CircuitRow {
   description: string | null;
   isActive: boolean;
   operatingDays: number[] | null;
+  etablissementId: string;
+  etablissementName: string | null;
+  etablissementCity: string | null;
 }
 
 type CircuitFilters = {
@@ -153,12 +156,18 @@ export function CircuitsClient() {
           ),
         },
         {
-          key: "description",
-          header: "Description",
-          className: "max-w-[300px] truncate",
+          key: "etablissement",
+          header: "Etablissement",
           render: (row) =>
-            row.description ? (
-              <span className="text-muted-foreground">{row.description}</span>
+            row.etablissementName ? (
+              <span className="text-foreground">
+                {row.etablissementName}
+                {row.etablissementCity && (
+                  <span className="text-muted-foreground ml-1">
+                    ({row.etablissementCity})
+                  </span>
+                )}
+              </span>
             ) : (
               <span className="text-muted-foreground/60">&mdash;</span>
             ),
@@ -237,7 +246,7 @@ export function CircuitsClient() {
         onSubmit={handleFormSubmit}
         defaultValues={
           editingItem
-            ? { name: editingItem.name }
+            ? { name: editingItem.name, etablissementId: editingItem.etablissementId }
             : undefined
         }
         isPending={createMutation.isPending || updateMutation.isPending}

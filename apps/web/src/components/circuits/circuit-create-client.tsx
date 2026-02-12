@@ -29,6 +29,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EtablissementSelector } from "./etablissement-selector";
 
 const DAYS = [
   { value: 1, label: "Lundi" },
@@ -49,6 +50,7 @@ export function CircuitCreateClient() {
     resolver: zodResolver(circuitDetailSchema),
     defaultValues: {
       name: "",
+      etablissementId: "",
       description: "",
       operatingDays: [],
     },
@@ -108,6 +110,30 @@ export function CircuitCreateClient() {
                     <FormControl>
                       <Input placeholder="Nom du circuit" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Etablissement de destination */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Etablissement de destination</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FormField
+                control={form.control}
+                name="etablissementId"
+                render={() => (
+                  <FormItem>
+                    <EtablissementSelector
+                      selectedEtablissementId={form.watch("etablissementId") || null}
+                      onSelect={(result) => {
+                        form.setValue("etablissementId", result.etablissementId, { shouldValidate: true });
+                      }}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

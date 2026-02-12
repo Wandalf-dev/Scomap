@@ -174,7 +174,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
 
       {!addresses || addresses.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-          <MapPin className="h-12 w-12 text-muted-foreground/50" />
+          <MapPin className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             Aucune adresse
           </h3>

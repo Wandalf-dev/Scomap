@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   arretSchema,
   type ArretFormValues,
-} from "@/lib/validators/circuit";
+} from "@/lib/validators/trajet";
 import {
   Table,
   TableBody,
@@ -50,14 +50,15 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, MoreHorizontal, Pencil, Trash2, MapPin, User, School } from "lucide-react";
 import { UsagerSelector } from "./usager-selector";
-import { EtablissementSelector } from "./etablissement-selector";
+import { EtablissementSelector } from "../circuits/etablissement-selector";
 
 interface ArretRow {
   id: string;
-  circuitId: string;
+  trajetId: string;
   type: string | null;
   usagerAddressId: string | null;
   etablissementId: string | null;
@@ -76,10 +77,10 @@ interface ArretRow {
 }
 
 interface TabArretsProps {
-  circuitId: string;
+  trajetId: string;
 }
 
-export function TabArrets({ circuitId }: TabArretsProps) {
+export function TabArrets({ trajetId }: TabArretsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -88,14 +89,14 @@ export function TabArrets({ circuitId }: TabArretsProps) {
   const [deleteArret, setDeleteArret] = useState<ArretRow | null>(null);
 
   const { data: arretsList, isLoading } = useQuery(
-    trpc.arrets.list.queryOptions({ circuitId }),
+    trpc.arrets.list.queryOptions({ trajetId }),
   );
 
   const createMutation = useMutation(
     trpc.arrets.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: trpc.arrets.list.queryKey({ circuitId }),
+          queryKey: trpc.arrets.list.queryKey({ trajetId }),
         });
         toast.success("Arret ajoute");
         setFormOpen(false);
@@ -110,7 +111,7 @@ export function TabArrets({ circuitId }: TabArretsProps) {
     trpc.arrets.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: trpc.arrets.list.queryKey({ circuitId }),
+          queryKey: trpc.arrets.list.queryKey({ trajetId }),
         });
         toast.success("Arret modifie");
         setFormOpen(false);
@@ -126,7 +127,7 @@ export function TabArrets({ circuitId }: TabArretsProps) {
     trpc.arrets.delete.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: trpc.arrets.list.queryKey({ circuitId }),
+          queryKey: trpc.arrets.list.queryKey({ trajetId }),
         });
         toast.success("Arret supprime");
         setDeleteArret(null);
@@ -149,9 +150,9 @@ export function TabArrets({ circuitId }: TabArretsProps) {
 
   function handleFormSubmit(values: ArretFormValues) {
     if (editingArret) {
-      updateMutation.mutate({ id: editingArret.id, circuitId, data: values });
+      updateMutation.mutate({ id: editingArret.id, trajetId, data: values });
     } else {
-      createMutation.mutate({ circuitId, data: values });
+      createMutation.mutate({ trajetId, data: values });
     }
   }
 
@@ -167,6 +168,11 @@ export function TabArrets({ circuitId }: TabArretsProps) {
 
   const nextOrderIndex = arretsList ? arretsList.length : 0;
 
+  // Check if an arret is the auto-created etablissement stop (orderIndex 0, type etablissement)
+  function isAutoEtablissement(arret: ArretRow) {
+    return arret.type === "etablissement" && arret.orderIndex === 0;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -178,12 +184,12 @@ export function TabArrets({ circuitId }: TabArretsProps) {
 
       {!arretsList || arretsList.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-          <MapPin className="h-12 w-12 text-muted-foreground/50" />
+          <MapPin className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             Aucun arret
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ajoutez un premier arret pour ce circuit.
+            Ajoutez un premier arret pour ce trajet.
           </p>
         </div>
       ) : (
@@ -216,19 +222,29 @@ export function TabArrets({ circuitId }: TabArretsProps) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div>
-                      <span className="font-medium">{arret.name}</span>
-                      {arret.type === "usager" && arret.usagerAddressLabel && (
-                        <p className="text-sm text-muted-foreground">
-                          {arret.usagerAddressLabel}
-                        </p>
-                      )}
-                      {arret.type === "etablissement" &&
-                        arret.etablissementCity && (
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <span className="font-medium">{arret.name}</span>
+                        {arret.type === "usager" && arret.usagerAddressLabel && (
                           <p className="text-sm text-muted-foreground">
-                            {arret.etablissementCity}
+                            {arret.usagerAddressLabel}
                           </p>
                         )}
+                        {arret.type === "etablissement" &&
+                          arret.etablissementCity && (
+                            <p className="text-sm text-muted-foreground">
+                              {arret.etablissementCity}
+                            </p>
+                          )}
+                      </div>
+                      {isAutoEtablissement(arret) && (
+                        <Badge
+                          variant="outline"
+                          className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400 text-xs"
+                        >
+                          Ecole
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground max-w-[250px] truncate">
@@ -241,34 +257,36 @@ export function TabArrets({ circuitId }: TabArretsProps) {
                     {arret.waitTime ?? "\u2014"}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 cursor-pointer"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleEdit(arret)}
-                          className="cursor-pointer"
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Modifier
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setDeleteArret(arret)}
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Supprimer
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {!isAutoEtablissement(arret) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 cursor-pointer"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleEdit(arret)}
+                            className="cursor-pointer"
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Modifier
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setDeleteArret(arret)}
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -324,7 +342,7 @@ export function TabArrets({ circuitId }: TabArretsProps) {
               Annuler
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteArret && deleteMutation.mutate({ id: deleteArret.id, circuitId })}
+              onClick={() => deleteArret && deleteMutation.mutate({ id: deleteArret.id, trajetId })}
               disabled={deleteMutation.isPending}
               className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

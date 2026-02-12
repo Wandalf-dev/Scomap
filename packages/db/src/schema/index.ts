@@ -7,3 +7,5 @@ export * from "./usager-addresses";
 export * from "./circuits";
 export * from "./vehicules";
 export * from "./chauffeurs";
+export * from "./trajets";
+export * from "./usager-circuits";

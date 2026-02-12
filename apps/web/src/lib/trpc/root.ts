@@ -7,6 +7,8 @@ import { vehiculesRouter } from "./routers/vehicules";
 import { chauffeursRouter } from "./routers/chauffeurs";
 import { circuitsRouter } from "./routers/circuits";
 import { arretsRouter } from "./routers/arrets";
+import { trajetsRouter } from "./routers/trajets";
+import { usagerCircuitsRouter } from "./routers/usager-circuits";
 
 export const appRouter = createTRPCRouter({
   etablissements: etablissementsRouter,
@@ -17,6 +19,8 @@ export const appRouter = createTRPCRouter({
   chauffeurs: chauffeursRouter,
   circuits: circuitsRouter,
   arrets: arretsRouter,
+  trajets: trajetsRouter,
+  usagerCircuits: usagerCircuitsRouter,
 });
 
 export const createCaller = createCallerFactory(appRouter);

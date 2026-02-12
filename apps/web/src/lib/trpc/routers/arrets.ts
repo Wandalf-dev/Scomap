@@ -2,40 +2,40 @@ import { z } from "zod";
 import { eq, and, asc, isNull } from "drizzle-orm";
 import {
   arrets,
-  circuits,
+  trajets,
   usagerAddresses,
   usagers,
   etablissements,
 } from "@scomap/db/schema";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "../init";
-import { arretSchema } from "@/lib/validators/circuit";
+import { arretSchema } from "@/lib/validators/trajet";
 
 export const arretsRouter = createTRPCRouter({
   list: tenantProcedure
-    .input(z.object({ circuitId: z.string().uuid() }))
+    .input(z.object({ trajetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      // Verify circuit ownership
-      const circuit = await ctx.db
-        .select({ id: circuits.id })
-        .from(circuits)
+      // Verify trajet ownership
+      const trajet = await ctx.db
+        .select({ id: trajets.id })
+        .from(trajets)
         .where(
           and(
-            eq(circuits.id, input.circuitId),
-            eq(circuits.tenantId, ctx.tenantId),
-            isNull(circuits.deletedAt),
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
           ),
         )
         .limit(1);
 
-      if (circuit.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Circuit non trouve" });
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
 
       const rows = await ctx.db
         .select({
           id: arrets.id,
-          circuitId: arrets.circuitId,
+          trajetId: arrets.trajetId,
           type: arrets.type,
           usagerAddressId: arrets.usagerAddressId,
           etablissementId: arrets.etablissementId,
@@ -68,7 +68,7 @@ export const arretsRouter = createTRPCRouter({
         )
         .where(
           and(
-            eq(arrets.circuitId, input.circuitId),
+            eq(arrets.trajetId, input.trajetId),
             isNull(arrets.deletedAt),
           ),
         )
@@ -80,33 +80,33 @@ export const arretsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(
       z.object({
-        circuitId: z.string().uuid(),
+        trajetId: z.string().uuid(),
         data: arretSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Verify circuit ownership
-      const circuit = await ctx.db
-        .select({ id: circuits.id })
-        .from(circuits)
+      // Verify trajet ownership
+      const trajet = await ctx.db
+        .select({ id: trajets.id })
+        .from(trajets)
         .where(
           and(
-            eq(circuits.id, input.circuitId),
-            eq(circuits.tenantId, ctx.tenantId),
-            isNull(circuits.deletedAt),
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
           ),
         )
         .limit(1);
 
-      if (circuit.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Circuit non trouve" });
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
 
       const result = await ctx.db
         .insert(arrets)
         .values({
           tenantId: ctx.tenantId,
-          circuitId: input.circuitId,
+          trajetId: input.trajetId,
           type: input.data.type,
           usagerAddressId: input.data.usagerAddressId ?? null,
           etablissementId: input.data.etablissementId ?? null,
@@ -127,26 +127,26 @@ export const arretsRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string().uuid(),
-        circuitId: z.string().uuid(),
+        trajetId: z.string().uuid(),
         data: arretSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Verify circuit ownership
-      const circuit = await ctx.db
-        .select({ id: circuits.id })
-        .from(circuits)
+      // Verify trajet ownership
+      const trajet = await ctx.db
+        .select({ id: trajets.id })
+        .from(trajets)
         .where(
           and(
-            eq(circuits.id, input.circuitId),
-            eq(circuits.tenantId, ctx.tenantId),
-            isNull(circuits.deletedAt),
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
           ),
         )
         .limit(1);
 
-      if (circuit.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Circuit non trouve" });
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
 
       const result = await ctx.db
@@ -167,7 +167,7 @@ export const arretsRouter = createTRPCRouter({
         .where(
           and(
             eq(arrets.id, input.id),
-            eq(arrets.circuitId, input.circuitId),
+            eq(arrets.trajetId, input.trajetId),
           ),
         )
         .returning();
@@ -176,23 +176,23 @@ export const arretsRouter = createTRPCRouter({
     }),
 
   delete: tenantProcedure
-    .input(z.object({ id: z.string().uuid(), circuitId: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid(), trajetId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      // Verify circuit ownership
-      const circuit = await ctx.db
-        .select({ id: circuits.id })
-        .from(circuits)
+      // Verify trajet ownership
+      const trajet = await ctx.db
+        .select({ id: trajets.id })
+        .from(trajets)
         .where(
           and(
-            eq(circuits.id, input.circuitId),
-            eq(circuits.tenantId, ctx.tenantId),
-            isNull(circuits.deletedAt),
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
           ),
         )
         .limit(1);
 
-      if (circuit.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Circuit non trouve" });
+      if (trajet.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
 
       const result = await ctx.db
@@ -201,7 +201,7 @@ export const arretsRouter = createTRPCRouter({
         .where(
           and(
             eq(arrets.id, input.id),
-            eq(arrets.circuitId, input.circuitId),
+            eq(arrets.trajetId, input.trajetId),
           ),
         )
         .returning();

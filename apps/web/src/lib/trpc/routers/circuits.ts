@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { circuits } from "@scomap/db/schema";
+import { circuits, etablissements } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import {
   circuitSchema,
@@ -17,10 +17,14 @@ export const circuitsRouter = createTRPCRouter({
         description: circuits.description,
         isActive: circuits.isActive,
         operatingDays: circuits.operatingDays,
+        etablissementId: circuits.etablissementId,
+        etablissementName: etablissements.name,
+        etablissementCity: etablissements.city,
         createdAt: circuits.createdAt,
         updatedAt: circuits.updatedAt,
       })
       .from(circuits)
+      .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
       .where(
         and(
           eq(circuits.tenantId, ctx.tenantId),
@@ -40,10 +44,14 @@ export const circuitsRouter = createTRPCRouter({
           description: circuits.description,
           isActive: circuits.isActive,
           operatingDays: circuits.operatingDays,
+          etablissementId: circuits.etablissementId,
+          etablissementName: etablissements.name,
+          etablissementCity: etablissements.city,
           createdAt: circuits.createdAt,
           updatedAt: circuits.updatedAt,
         })
         .from(circuits)
+        .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
         .where(
           and(
             eq(circuits.id, input.id),
@@ -64,6 +72,7 @@ export const circuitsRouter = createTRPCRouter({
         .values({
           tenantId: ctx.tenantId,
           name: input.name,
+          etablissementId: input.etablissementId,
         })
         .returning();
 
@@ -78,6 +87,7 @@ export const circuitsRouter = createTRPCRouter({
         .values({
           tenantId: ctx.tenantId,
           name: input.name,
+          etablissementId: input.etablissementId,
           description: input.description || null,
           operatingDays: input.operatingDays ?? null,
         })
@@ -102,6 +112,7 @@ export const circuitsRouter = createTRPCRouter({
         .update(circuits)
         .set({
           name: input.data.name,
+          etablissementId: input.data.etablissementId,
           updatedAt: new Date(),
         })
         .where(
@@ -128,6 +139,7 @@ export const circuitsRouter = createTRPCRouter({
         .update(circuits)
         .set({
           name: input.data.name,
+          etablissementId: input.data.etablissementId,
           description: input.data.description || null,
           operatingDays: input.data.operatingDays ?? null,
           updatedAt: new Date(),
