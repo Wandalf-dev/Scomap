@@ -22,7 +22,7 @@ export const circuits = pgTable("circuits", {
   description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
   // Days of operation (bitmask or array)
-  operatingDays: jsonb("operating_days"), // e.g., [1,2,3,4,5] for weekdays
+  operatingDays: jsonb("operating_days").$type<number[]>(), // e.g., [1,2,3,4,5] for weekdays
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -34,10 +34,13 @@ export const circuits = pgTable("circuits", {
 
 export const arrets = pgTable("arrets", {
   id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
   circuitId: uuid("circuit_id")
     .notNull()
     .references(() => circuits.id, { onDelete: "cascade" }),
-  type: varchar("type", { length: 20 }), // 'usager' | 'etablissement'
+  type: varchar("type", { length: 20 }).notNull(), // 'usager' | 'etablissement'
   usagerAddressId: uuid("usager_address_id").references(
     () => usagerAddresses.id,
     { onDelete: "set null" },
@@ -59,6 +62,7 @@ export const arrets = pgTable("arrets", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export type Circuit = typeof circuits.$inferSelect;

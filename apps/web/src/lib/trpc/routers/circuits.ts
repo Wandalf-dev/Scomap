@@ -26,7 +26,8 @@ export const circuitsRouter = createTRPCRouter({
           eq(circuits.tenantId, ctx.tenantId),
           isNull(circuits.deletedAt),
         ),
-      );
+      )
+      .limit(500);
   }),
 
   getById: tenantProcedure

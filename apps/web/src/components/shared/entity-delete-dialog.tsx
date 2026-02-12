@@ -11,29 +11,31 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface EtablissementDeleteDialogProps {
+interface EntityDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
-  name: string;
   isPending: boolean;
+  entityName: string;
+  entityLabel: string;
 }
 
-export function EtablissementDeleteDialog({
+export function EntityDeleteDialog({
   open,
   onOpenChange,
   onConfirm,
-  name,
   isPending,
-}: EtablissementDeleteDialogProps) {
+  entityName,
+  entityLabel,
+}: EntityDeleteDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Supprimer l&apos;établissement</AlertDialogTitle>
+          <AlertDialogTitle>Supprimer {entityName}</AlertDialogTitle>
           <AlertDialogDescription>
-            Êtes-vous sûr de vouloir supprimer <strong>{name}</strong> ? Cette
-            action est irréversible.
+            Etes-vous sur de vouloir supprimer <strong>{entityLabel}</strong> ?
+            Cette action est irreversible.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

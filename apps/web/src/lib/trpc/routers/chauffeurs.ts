@@ -28,7 +28,8 @@ export const chauffeursRouter = createTRPCRouter({
           eq(chauffeurs.tenantId, ctx.tenantId),
           isNull(chauffeurs.deletedAt),
         ),
-      );
+      )
+      .limit(500);
   }),
 
   getById: tenantProcedure

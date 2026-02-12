@@ -36,6 +36,13 @@
       "when": 1770853821453,
       "tag": "0004_brown_black_crow",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770888907182,
+      "tag": "0005_sour_valkyrie",
+      "breakpoints": true
     }
   ]
 }

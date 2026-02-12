@@ -66,7 +66,12 @@ export const arretsRouter = createTRPCRouter({
           etablissements,
           eq(arrets.etablissementId, etablissements.id),
         )
-        .where(eq(arrets.circuitId, input.circuitId))
+        .where(
+          and(
+            eq(arrets.circuitId, input.circuitId),
+            isNull(arrets.deletedAt),
+          ),
+        )
         .orderBy(asc(arrets.orderIndex));
 
       return rows;
@@ -100,6 +105,7 @@ export const arretsRouter = createTRPCRouter({
       const result = await ctx.db
         .insert(arrets)
         .values({
+          tenantId: ctx.tenantId,
           circuitId: input.circuitId,
           type: input.data.type,
           usagerAddressId: input.data.usagerAddressId ?? null,
@@ -190,7 +196,8 @@ export const arretsRouter = createTRPCRouter({
       }
 
       const result = await ctx.db
-        .delete(arrets)
+        .update(arrets)
+        .set({ deletedAt: new Date() })
         .where(
           and(
             eq(arrets.id, input.id),

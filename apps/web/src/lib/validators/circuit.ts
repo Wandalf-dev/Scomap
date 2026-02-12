@@ -28,6 +28,13 @@ export const arretSchema = z.object({
   orderIndex: z.number().min(0),
   arrivalTime: z.string().optional(),
   waitTime: z.number().min(0).optional(),
+}).refine((data) => {
+  if (data.type === "usager") return !!data.usagerAddressId;
+  if (data.type === "etablissement") return !!data.etablissementId;
+  return false;
+}, {
+  message: "Veuillez selectionner un usager ou un etablissement",
+  path: ["name"],
 });
 
 export type ArretFormValues = z.infer<typeof arretSchema>;

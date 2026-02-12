@@ -43,7 +43,7 @@ interface CircuitData {
   name: string;
   description: string | null;
   isActive: boolean;
-  operatingDays: unknown;
+  operatingDays: number[] | null;
 }
 
 interface TabInformationsProps {
@@ -54,7 +54,7 @@ export function TabInformations({ circuit }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  const days = Array.isArray(circuit.operatingDays) ? (circuit.operatingDays as number[]) : [];
+  const days = circuit.operatingDays ?? [];
 
   const form = useForm<CircuitDetailFormValues>({
     resolver: zodResolver(circuitDetailSchema),
