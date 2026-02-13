@@ -97,7 +97,7 @@ async function addUsagerArret(
       postalCode: usagerAddresses.postalCode,
       latitude: usagerAddresses.latitude,
       longitude: usagerAddresses.longitude,
-      label: usagerAddresses.label,
+      type: usagerAddresses.type,
       usagerFirstName: usagers.firstName,
       usagerLastName: usagers.lastName,
     })
@@ -254,10 +254,12 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerId: usagerCircuits.usagerId,
           circuitId: usagerCircuits.circuitId,
           usagerAddressId: usagerCircuits.usagerAddressId,
+          arrivalNotification: usagerCircuits.arrivalNotification,
+          authorizationAlone: usagerCircuits.authorizationAlone,
           circuitName: circuits.name,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
-          addressLabel: usagerAddresses.label,
+          addressType: usagerAddresses.type,
           addressCity: usagerAddresses.city,
           addressAddress: usagerAddresses.address,
           daysAller: usagerAddresses.daysAller,
@@ -299,7 +301,7 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerFirstName: usagers.firstName,
           usagerLastName: usagers.lastName,
           usagerCode: usagers.code,
-          addressLabel: usagerAddresses.label,
+          addressType: usagerAddresses.type,
           addressCity: usagerAddresses.city,
           addressAddress: usagerAddresses.address,
           daysAller: usagerAddresses.daysAller,
@@ -346,6 +348,8 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerAddressId: input.usagerAddressId,
           daysAller: addrDaysAller.length > 0 ? addrDaysAller : null,
           daysRetour: addrDaysRetour.length > 0 ? addrDaysRetour : null,
+          arrivalNotification: input.arrivalNotification ?? false,
+          authorizationAlone: input.authorizationAlone ?? false,
         })
         .returning();
 
@@ -420,6 +424,8 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerAddressId: newAddressId,
           daysAller: addrDaysAller.length > 0 ? addrDaysAller : null,
           daysRetour: addrDaysRetour.length > 0 ? addrDaysRetour : null,
+          arrivalNotification: input.data.arrivalNotification ?? old.arrivalNotification,
+          authorizationAlone: input.data.authorizationAlone ?? old.authorizationAlone,
           updatedAt: new Date(),
         })
         .where(

@@ -148,7 +148,7 @@ export function UsagerSelector({
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       {addressesList.find(
                         (a) => a.id === selectedUsagerAddressId,
-                      )?.label ??
+                      )?.type ??
                         `Adresse ${addressesList.find((a) => a.id === selectedUsagerAddressId)?.position}`}
                     </span>
                   ) : (
@@ -166,7 +166,7 @@ export function UsagerSelector({
                       {addressesList.map((addr) => (
                         <CommandItem
                           key={addr.id}
-                          value={`${addr.label ?? ""} ${addr.address ?? ""} ${addr.city ?? ""}`}
+                          value={`${addr.type ?? ""} ${addr.address ?? ""} ${addr.city ?? ""}`}
                           onSelect={() => {
                             onSelect({
                               usagerAddressId: addr.id,
@@ -191,7 +191,7 @@ export function UsagerSelector({
                           />
                           <div className="flex flex-col">
                             <span className="font-medium">
-                              {addr.label ?? `Adresse ${addr.position}`}
+                              {addr.type ?? `Adresse ${addr.position}`}
                             </span>
                             <span className="text-sm text-muted-foreground">
                               {[addr.address, addr.city]

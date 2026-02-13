@@ -13,7 +13,7 @@ import { normalizeDays } from "@/lib/types/day-entry";
 function mapAddressData(data: UsagerAddressFormValues) {
   return {
     position: data.position,
-    label: data.label || null,
+    type: data.type || null,
     civility: data.civility || null,
     responsibleLastName: data.responsibleLastName || null,
     responsibleFirstName: data.responsibleFirstName || null,
@@ -24,7 +24,10 @@ function mapAddressData(data: UsagerAddressFormValues) {
     longitude: data.longitude ?? null,
     phone: data.phone || null,
     mobile: data.mobile || null,
+    secondaryPhone: data.secondaryPhone || null,
+    secondaryMobile: data.secondaryMobile || null,
     email: data.email === "" ? null : data.email || null,
+    authorizedPerson: data.authorizedPerson || null,
     observations: data.observations || null,
     daysAller: data.daysAller ?? null,
     daysRetour: data.daysRetour ?? null,
@@ -85,12 +88,32 @@ export const usagerAddressesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await assertUsagerOwnership(ctx.db, input.usagerId, ctx.tenantId);
 
+      // Auto-assign next position
+      const existing = await ctx.db
+        .select({ position: usagerAddresses.position })
+        .from(usagerAddresses)
+        .where(
+          and(
+            eq(usagerAddresses.usagerId, input.usagerId),
+            eq(usagerAddresses.tenantId, ctx.tenantId),
+          ),
+        );
+
+      const usedPositions = new Set(existing.map((r) => r.position));
+      let nextPosition = 1;
+      while (usedPositions.has(nextPosition) && nextPosition <= 4) nextPosition++;
+
+      if (nextPosition > 4) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Maximum 4 adresses par usager" });
+      }
+
       const result = await ctx.db
         .insert(usagerAddresses)
         .values({
           usagerId: input.usagerId,
           tenantId: ctx.tenantId,
           ...mapAddressData(input.data),
+          position: nextPosition,
         })
         .returning();
 
@@ -120,6 +143,28 @@ export const usagerAddressesRouter = createTRPCRouter({
         .returning();
 
       return result[0] ?? null;
+    }),
+
+  reorder: tenantProcedure
+    .input(
+      z.object({
+        items: z.array(z.object({ id: z.string().uuid(), position: z.number().int().min(1).max(4) })),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await Promise.all(
+        input.items.map((item) =>
+          ctx.db
+            .update(usagerAddresses)
+            .set({ position: item.position, updatedAt: new Date() })
+            .where(
+              and(
+                eq(usagerAddresses.id, item.id),
+                eq(usagerAddresses.tenantId, ctx.tenantId),
+              ),
+            ),
+        ),
+      );
     }),
 
   delete: tenantProcedure

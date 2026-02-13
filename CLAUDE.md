@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⛔ RÈGLE CRITIQUE — PAS DE PLAN SAUF DEMANDE EXPLICITE
+
+**NE JAMAIS entrer en mode plan (EnterPlanMode) sauf si l'utilisateur le demande explicitement.**
+- Quand on te demande de faire un truc → tu le fais directement.
+- Pas de plan, pas de "voici mon approche", pas de "je vais d'abord analyser".
+- Le seul moment où tu fais un plan c'est quand on te dit `/epct`, `/ultra-think`, ou "fais-moi un plan".
+- En cas de doute sur l'implémentation → pose une question rapide, ne fais pas un plan.
+
 ## Project Overview
 
 Scomap is a French B2B SaaS for school transport management. It manages students, schools, routes, schedules, drivers, vehicles, and billing for transport operators and local authorities.

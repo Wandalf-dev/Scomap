@@ -44,7 +44,7 @@
 }
 
 :root {
-  /* Solar Dusk - Light Theme */
+  /* Solar Dusk — Light */
   --radius: 0.3rem;
 
   --background: #FDFBF7;
@@ -92,49 +92,94 @@
 }
 
 .dark {
-  /* Solar Dusk - Dark Theme */
-  --background: #1C1917;
-  --foreground: #F5F5F4;
+  /*
+   * Solar Dusk — Dark
+   * page(950) → sidebar/muted/inputs(900) → cards/popovers(800) → borders(700) → input-borders(600)
+   */
+  --background: #0c0a09;
+  --foreground: #fafaf9;
 
   --card: #292524;
-  --card-foreground: #F5F5F4;
+  --card-foreground: #fafaf9;
 
   --popover: #292524;
-  --popover-foreground: #F5F5F4;
+  --popover-foreground: #fafaf9;
 
-  --primary: #F97316;
-  --primary-foreground: #FFFFFF;
+  --primary: #f97316;
+  --primary-foreground: #ffffff;
 
-  --secondary: #57534E;
-  --secondary-foreground: #E7E5E4;
+  --secondary: #44403c;
+  --secondary-foreground: #fafaf9;
 
-  --muted: #292524;
-  --muted-foreground: #A8A29E;
+  --muted: #1c1917;
+  --muted-foreground: #a8a29e;
 
-  --accent: #44403C;
-  --accent-foreground: #E7E5E4;
+  --accent: #44403c;
+  --accent-foreground: #fafaf9;
 
-  --destructive: #DC2626;
-  --destructive-foreground: #FFFFFF;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
 
-  --border: #44403C;
-  --input: #44403C;
-  --ring: #F97316;
+  --border: #44403c;
+  --input: #44403c;
+  --ring: #f97316;
 
-  --chart-1: #F97316;
-  --chart-2: #D97706;
-  --chart-3: #EAB308;
-  --chart-4: #A8A29E;
-  --chart-5: #78716C;
+  --chart-1: #f97316;
+  --chart-2: #d97706;
+  --chart-3: #eab308;
+  --chart-4: #a8a29e;
+  --chart-5: #78716c;
 
-  --sidebar: #292524;
-  --sidebar-foreground: #F5F5F4;
-  --sidebar-primary: #F97316;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #3C2A1E;
-  --sidebar-accent-foreground: #F97316;
-  --sidebar-border: #44403C;
-  --sidebar-ring: #F97316;
+  --sidebar: #1c1917;
+  --sidebar-foreground: #fafaf9;
+  --sidebar-primary: #f97316;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #292524;
+  --sidebar-accent-foreground: #f97316;
+  --sidebar-border: #44403c;
+  --sidebar-ring: #f97316;
+}
+
+/*
+ * Dark mode direct overrides — html.dark + !important to guarantee override.
+ * page #0c0a09(950) → sidebar/inputs #1c1917(900) → cards #292524(800) → borders #44403c(700)
+ */
+html.dark body {
+  background-color: #0c0a09 !important;
+}
+
+html.dark [data-slot="card"] {
+  background-color: #292524 !important;
+  border-color: #44403c !important;
+}
+
+html.dark [data-slot="input"],
+html.dark [data-slot="textarea"] {
+  background-color: #44403c !important;
+  border-color: #78716c !important;
+}
+
+html.dark [data-slot="select-trigger"] {
+  background-color: #44403c !important;
+  border-color: #78716c !important;
+}
+
+html.dark [data-slot="popover-content"],
+html.dark [data-slot="dropdown-menu-content"],
+html.dark [data-slot="select-content"],
+html.dark [data-slot="command"] {
+  background-color: #292524 !important;
+  border-color: #44403c !important;
+}
+
+html.dark [data-slot="dialog-content"],
+html.dark [data-slot="alert-dialog-content"] {
+  background-color: #1c1917 !important;
+  border-color: #44403c !important;
+}
+
+html.dark [data-slot="sidebar"] {
+  background-color: #1c1917 !important;
 }
 
 @keyframes fade-in {
@@ -163,20 +208,17 @@
   }
 }
 
-/* Ensure consistent font rendering across different DPI levels */
 @media (-webkit-min-device-pixel-ratio: 1.5), (min-resolution: 144dpi) {
   body {
     -webkit-font-smoothing: subpixel-antialiased;
   }
 }
 
-/* Fix for sidebar "none" mode height issue */
 .sidebar-none-mode [data-slot="sidebar"] {
   height: 100vh !important;
   min-height: 100vh !important;
 }
 
-/* Smooth scrolling for the entire page */
 html {
   scroll-behavior: smooth;
 }

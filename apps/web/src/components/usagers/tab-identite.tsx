@@ -7,6 +7,10 @@ import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import {
   usagerDetailSchema,
+  USAGER_STATUSES,
+  USAGER_STATUS_LABELS,
+  USAGER_REGIMES,
+  USAGER_REGIME_LABELS,
   type UsagerDetailFormValues,
 } from "@/lib/validators/usager";
 import {
@@ -33,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { User, GraduationCap, Bus, MessageSquareText } from "lucide-react";
 
 const GENDERS = [
   { value: "M", label: "Masculin" },
@@ -46,9 +51,16 @@ interface UsagerData {
   lastName: string;
   birthDate: string | null;
   gender: string | null;
+  status: string;
+  regime: string | null;
   etablissementId: string | null;
   etablissementName: string | null;
+  secondaryEtablissementId: string | null;
+  secondaryEtablissementName: string | null;
   transportStartDate: string | null;
+  transportEndDate: string | null;
+  transportParticularity: string | null;
+  specificity: string | null;
   notes: string | null;
 }
 
@@ -72,8 +84,14 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
       lastName: usager.lastName,
       birthDate: usager.birthDate ?? "",
       gender: (usager.gender as "M" | "F" | "") ?? "",
+      status: (usager.status as typeof USAGER_STATUSES[number]) ?? "brouillon",
+      regime: (usager.regime as typeof USAGER_REGIMES[number] | "") ?? "",
       etablissementId: usager.etablissementId ?? "",
+      secondaryEtablissementId: usager.secondaryEtablissementId ?? "",
       transportStartDate: usager.transportStartDate ?? null,
+      transportEndDate: usager.transportEndDate ?? null,
+      transportParticularity: usager.transportParticularity ?? "",
+      specificity: usager.specificity ?? "",
       notes: usager.notes ?? "",
     },
   });
@@ -105,7 +123,10 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
         {/* Identité */}
         <Card>
           <CardHeader>
-            <CardTitle>Identité</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              Identité
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
@@ -191,28 +212,81 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
           </CardContent>
         </Card>
 
-        {/* Établissement & Transport */}
+        {/* Scolarité */}
         <Card>
           <CardHeader>
-            <CardTitle>Établissement & Transport</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              Scolarité
+            </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="etablissementId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Établissement principal</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {etablissements?.map((e) => (
+                          <SelectItem key={e.id} value={e.id} className="cursor-pointer">
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="secondaryEtablissementId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Établissement secondaire</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Aucun" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {etablissements?.map((e) => (
+                          <SelectItem key={e.id} value={e.id} className="cursor-pointer">
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
-              name="etablissementId"
+              name="regime"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Établissement</FormLabel>
+                <FormItem className="max-w-xs">
+                  <FormLabel>Régime</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value ?? ""}>
                     <FormControl>
                       <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="Sélectionner un établissement" />
+                        <SelectValue placeholder="Sélectionner" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {etablissements?.map((e) => (
-                        <SelectItem key={e.id} value={e.id} className="cursor-pointer">
-                          {e.name}
+                      {USAGER_REGIMES.map((r) => (
+                        <SelectItem key={r} value={r} className="cursor-pointer">
+                          {USAGER_REGIME_LABELS[r]}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -221,20 +295,90 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                 </FormItem>
               )}
             />
+          </CardContent>
+        </Card>
+
+        {/* Transport */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bus className="h-4 w-4 text-muted-foreground" />
+              Transport
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Statut</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? "brouillon"}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {USAGER_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s} className="cursor-pointer">
+                            {USAGER_STATUS_LABELS[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="transportStartDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date début transport</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value || null)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="transportEndDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date fin transport</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value || null)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
-              name="transportStartDate"
+              name="transportParticularity"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date de debut de transport</FormLabel>
+                  <FormLabel>Particularité transport</FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(e.target.value || null)
-                      }
-                    />
+                    <Input placeholder="Ex: fauteuil roulant, accompagnateur requis..." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -243,21 +387,42 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
           </CardContent>
         </Card>
 
-        {/* Observations */}
+        {/* Notes & Spécificité */}
         <Card>
           <CardHeader>
-            <CardTitle>Observations</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+              Observations
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4">
+            <FormField
+              control={form.control}
+              name="specificity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Spécificité (visible sur feuilles de route)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Informations visibles sur les documents de transport..."
+                      rows={2}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem>
+                  <FormLabel>Notes internes</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Notes libres..."
-                      rows={4}
+                      rows={3}
                       {...field}
                     />
                   </FormControl>

@@ -3,6 +3,7 @@ import {
   uuid,
   timestamp,
   jsonb,
+  boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
@@ -33,6 +34,8 @@ export const usagerCircuits = pgTable(
     daysRetour: jsonb("days_retour").$type<
       number[] | { day: number; parity: "all" | "even" | "odd" }[]
     >(),
+    arrivalNotification: boolean("arrival_notification").notNull().default(false),
+    authorizationAlone: boolean("authorization_alone").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

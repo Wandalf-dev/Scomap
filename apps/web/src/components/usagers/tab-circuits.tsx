@@ -30,6 +30,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import {
   Select,
@@ -48,20 +49,25 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, Route } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Pencil, Trash2, Route, Bell, ShieldCheck } from "lucide-react";
 import { DayBadges } from "@/components/shared/day-badges";
+import { ADDRESS_TYPE_LABELS } from "@/lib/validators/usager-address";
 import type { DayEntry } from "@/lib/types/day-entry";
 
 interface UsagerCircuitRow {
   id: string;
   circuitId: string;
   usagerAddressId: string | null;
+  arrivalNotification: boolean;
+  authorizationAlone: boolean;
   daysAller: DayEntry[];
   daysRetour: DayEntry[];
   circuitName: string;
   etablissementName: string | null;
   etablissementCity: string | null;
-  addressLabel: string | null;
+  addressType: string | null;
   addressCity: string | null;
   addressAddress: string | null;
 }
@@ -94,7 +100,7 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
     trpc.usagerCircuits.create.mutationOptions({
       onSuccess: () => {
         invalidate();
-        toast.success("Circuit associe");
+        toast.success("Circuit associé");
         setFormOpen(false);
       },
       onError: () => {
@@ -107,7 +113,7 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
     trpc.usagerCircuits.update.mutationOptions({
       onSuccess: () => {
         invalidate();
-        toast.success("Jours de PEC modifies");
+        toast.success("Circuit modifié");
         setFormOpen(false);
         setEditingItem(null);
       },
@@ -121,7 +127,7 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
     trpc.usagerCircuits.delete.mutationOptions({
       onSuccess: () => {
         invalidate();
-        toast.success("Circuit dissocie");
+        toast.success("Circuit dissocié");
         setDeleteItem(null);
       },
       onError: () => {
@@ -138,6 +144,11 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
   function handleEdit(item: UsagerCircuitRow) {
     setEditingItem(item);
     setFormOpen(true);
+  }
+
+  function getAddressLabel(type: string | null): string {
+    if (!type) return "";
+    return ADDRESS_TYPE_LABELS[type as keyof typeof ADDRESS_TYPE_LABELS] ?? type;
   }
 
   // Circuits already linked (to filter selector)
@@ -173,7 +184,7 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
             Aucun circuit
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Associez un circuit a cet usager pour definir ses jours de prise en
+            Associez un circuit à cet usager pour définir ses jours de prise en
             charge.
           </p>
         </div>
@@ -183,10 +194,11 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Circuit</TableHead>
-                <TableHead>Etablissement</TableHead>
+                <TableHead>Établissement</TableHead>
                 <TableHead>Adresse</TableHead>
                 <TableHead>Jours aller</TableHead>
                 <TableHead>Jours retour</TableHead>
+                <TableHead>Options</TableHead>
                 <TableHead className="w-[80px]" />
               </TableRow>
             </TableHeader>
@@ -211,9 +223,9 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
                     )}
                   </TableCell>
                   <TableCell>
-                    {item.addressLabel ? (
+                    {item.addressType ? (
                       <span className="text-sm">
-                        {item.addressLabel}
+                        {getAddressLabel(item.addressType)}
                         {item.addressCity && (
                           <span className="text-muted-foreground ml-1">
                             ({item.addressCity})
@@ -229,6 +241,25 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
                   </TableCell>
                   <TableCell>
                     <DayBadges days={item.daysRetour} label="R" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1.5">
+                      {item.arrivalNotification && (
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <Bell className="h-3 w-3" />
+                          Notif
+                        </Badge>
+                      )}
+                      {item.authorizationAlone && (
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <ShieldCheck className="h-3 w-3" />
+                          Seul
+                        </Badge>
+                      )}
+                      {!item.arrivalNotification && !item.authorizationAlone && (
+                        <span className="text-muted-foreground/60">&mdash;</span>
+                      )}
+                    </div>
                   </TableCell>
 
                   <TableCell>
@@ -270,6 +301,8 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
             usagerId,
             circuitId: values.circuitId,
             usagerAddressId: values.usagerAddressId,
+            arrivalNotification: values.arrivalNotification,
+            authorizationAlone: values.authorizationAlone,
           });
         }}
         onSubmitUpdate={(values) => {
@@ -278,6 +311,8 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
               id: editingItem.id,
               data: {
                 usagerAddressId: values.usagerAddressId,
+                arrivalNotification: values.arrivalNotification,
+                authorizationAlone: values.authorizationAlone,
               },
             });
           }
@@ -327,8 +362,10 @@ export function TabCircuits({ usagerId }: TabCircuitsProps) {
 // --- Circuit Link Dialog ---
 
 const linkFormSchema = z.object({
-  circuitId: z.string().uuid("Selectionnez un circuit"),
-  usagerAddressId: z.string().uuid("Selectionnez une adresse"),
+  circuitId: z.string().uuid("Sélectionnez un circuit"),
+  usagerAddressId: z.string().uuid("Sélectionnez une adresse"),
+  arrivalNotification: z.boolean(),
+  authorizationAlone: z.boolean(),
 });
 
 type LinkFormValues = z.infer<typeof linkFormSchema>;
@@ -362,6 +399,8 @@ function CircuitLinkDialog({
     defaultValues: {
       circuitId: "",
       usagerAddressId: "",
+      arrivalNotification: false,
+      authorizationAlone: false,
     },
   });
 
@@ -375,11 +414,15 @@ function CircuitLinkDialog({
         form.reset({
           circuitId: editingItem.circuitId,
           usagerAddressId: editingItem.usagerAddressId ?? "",
+          arrivalNotification: editingItem.arrivalNotification,
+          authorizationAlone: editingItem.authorizationAlone,
         });
       } else {
         form.reset({
           circuitId: "",
           usagerAddressId: "",
+          arrivalNotification: false,
+          authorizationAlone: false,
         });
       }
     }
@@ -394,12 +437,17 @@ function CircuitLinkDialog({
     }
   }
 
+  function getAddressTypeLabel(type: string | null): string {
+    if (!type) return "";
+    return ADDRESS_TYPE_LABELS[type as keyof typeof ADDRESS_TYPE_LABELS] ?? type;
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Modifier les jours de PEC" : "Associer un circuit"}
+            {isEdit ? "Modifier l'association" : "Associer un circuit"}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -420,7 +468,7 @@ function CircuitLinkDialog({
                     >
                       <FormControl>
                         <SelectTrigger className="w-full cursor-pointer">
-                          <SelectValue placeholder="Selectionnez un circuit" />
+                          <SelectValue placeholder="Sélectionnez un circuit" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -461,7 +509,7 @@ function CircuitLinkDialog({
                   >
                     <FormControl>
                       <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="Selectionnez une adresse" />
+                        <SelectValue placeholder="Sélectionnez une adresse" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -471,7 +519,7 @@ function CircuitLinkDialog({
                           value={addr.id}
                           className="cursor-pointer"
                         >
-                          {addr.label ?? `Adresse ${addr.position}`}
+                          {getAddressTypeLabel(addr.type) || `Adresse ${addr.position}`}
                           {addr.address && ` — ${addr.address}`}
                           {addr.city && `, ${addr.city}`}
                         </SelectItem>
@@ -482,6 +530,52 @@ function CircuitLinkDialog({
                 </FormItem>
               )}
             />
+
+            {/* Options */}
+            <div className="space-y-4 rounded-[0.3rem] border p-4">
+              <FormField
+                control={form.control}
+                name="arrivalNotification"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel>Notification d&apos;arrivée</FormLabel>
+                      <FormDescription>
+                        Envoyer une notification à l&apos;arrivée du véhicule
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="cursor-pointer"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="authorizationAlone"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel>Autorisation de rentrer seul</FormLabel>
+                      <FormDescription>
+                        L&apos;usager est autorisé à rentrer seul à son domicile
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="cursor-pointer"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button
@@ -507,4 +601,3 @@ function CircuitLinkDialog({
     </Dialog>
   );
 }
-

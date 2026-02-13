@@ -9,6 +9,16 @@ import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
 import { TabIdentite } from "./tab-identite";
 import { TabAdresses } from "./tab-adresses";
 import { TabCircuits } from "./tab-circuits";
+import { USAGER_STATUS_LABELS, USAGER_REGIME_LABELS } from "@/lib/validators/usager";
+
+const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  brouillon: "outline",
+  en_attente: "secondary",
+  actif: "default",
+  suspendu: "secondary",
+  refuse: "destructive",
+  archive: "outline",
+};
 
 interface UsagerDetailClientProps {
   id: string;
@@ -29,7 +39,7 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.list.queryKey(),
         });
-        toast.success("Usager supprime");
+        toast.success("Usager supprimé");
         router.push("/usagers");
       },
       onError: () => {
@@ -46,10 +56,22 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
       entityName="Usager"
       title={usager ? `${usager.firstName} ${usager.lastName}` : ""}
       badges={
-        usager?.gender && (
-          <Badge variant="secondary">
-            {usager.gender === "M" ? "Masculin" : "Feminin"}
-          </Badge>
+        usager && (
+          <div className="flex gap-2">
+            <Badge variant={STATUS_VARIANTS[usager.status] ?? "outline"}>
+              {USAGER_STATUS_LABELS[usager.status as keyof typeof USAGER_STATUS_LABELS] ?? usager.status}
+            </Badge>
+            {usager.gender && (
+              <Badge variant="secondary">
+                {usager.gender === "M" ? "Masculin" : "Féminin"}
+              </Badge>
+            )}
+            {usager.regime && (
+              <Badge variant="secondary">
+                {USAGER_REGIME_LABELS[usager.regime as keyof typeof USAGER_REGIME_LABELS] ?? usager.regime}
+              </Badge>
+            )}
+          </div>
         )
       }
       onDelete={() => usager && deleteMutation.mutate({ id: usager.id })}
@@ -59,12 +81,12 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
       tabs={[
         {
           value: "identite",
-          label: "Identite",
+          label: "Élève",
           content: usager ? <TabIdentite usager={usager} /> : null,
         },
         {
           value: "adresses",
-          label: "Adresses",
+          label: "Adresses & Représentants",
           content: usager ? <TabAdresses usagerId={usager.id} /> : null,
         },
         {

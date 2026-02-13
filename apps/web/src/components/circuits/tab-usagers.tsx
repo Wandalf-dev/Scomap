@@ -61,7 +61,7 @@ interface UsagerCircuitRow {
   usagerFirstName: string;
   usagerLastName: string;
   usagerCode: string | null;
-  addressLabel: string | null;
+  addressType: string | null;
   addressCity: string | null;
   addressAddress: string | null;
 }
@@ -206,9 +206,9 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
                   </TableCell>
                   <TableCell>{item.usagerFirstName}</TableCell>
                   <TableCell>
-                    {item.addressLabel ? (
+                    {item.addressType ? (
                       <span className="text-sm">
-                        {item.addressLabel}
+                        {item.addressType}
                         {item.addressCity && (
                           <span className="text-muted-foreground ml-1">
                             ({item.addressCity})
@@ -485,7 +485,7 @@ function UsagerLinkDialog({
                             value={addr.id}
                             className="cursor-pointer"
                           >
-                            {addr.label ?? `Adresse ${addr.position}`}
+                            {addr.type ?? `Adresse ${addr.position}`}
                             {addr.address && ` — ${addr.address}`}
                             {addr.city && `, ${addr.city}`}
                           </SelectItem>

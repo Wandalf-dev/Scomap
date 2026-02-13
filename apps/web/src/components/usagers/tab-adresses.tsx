@@ -1,13 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   usagerAddressSchema,
+  ADDRESS_TYPES,
+  ADDRESS_TYPE_LABELS,
   type UsagerAddressFormValues,
 } from "@/lib/validators/usager-address";
 import {
@@ -35,6 +53,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,11 +70,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, MapPin, Phone, Mail, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin, Phone, Mail, UserCheck, GripVertical } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input";
-import { DayPecGrid } from "@/components/shared/day-pec-grid";
-import { DayBadges } from "@/components/shared/day-badges";
-import { normalizeDays } from "@/lib/types/day-entry";
+import { DayPecGrid, type OccupiedDay } from "@/components/shared/day-pec-grid";
+import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
 import type { UsagerAddress } from "@scomap/db/schema";
 
 const CIVILITIES = [
@@ -63,12 +81,6 @@ const CIVILITIES = [
   { value: "Mme", label: "Mme" },
 ];
 
-const LABELS = [
-  { value: "Domicile", label: "Domicile" },
-  { value: "Père", label: "Père" },
-  { value: "Mère", label: "Mère" },
-  { value: "Autre", label: "Autre" },
-];
 
 interface TabAdressesProps {
   usagerId: string;
@@ -86,12 +98,16 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     trpc.usagerAddresses.list.queryOptions({ usagerId }),
   );
 
+  const invalidateAddresses = () => {
+    queryClient.invalidateQueries({
+      queryKey: trpc.usagerAddresses.list.queryKey({ usagerId }),
+    });
+  };
+
   const createMutation = useMutation(
     trpc.usagerAddresses.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagerAddresses.list.queryKey({ usagerId }),
-        });
+        invalidateAddresses();
         toast.success("Adresse ajoutée");
         setFormOpen(false);
       },
@@ -104,9 +120,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
   const updateMutation = useMutation(
     trpc.usagerAddresses.update.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagerAddresses.list.queryKey({ usagerId }),
-        });
+        invalidateAddresses();
         toast.success("Adresse modifiée");
         setFormOpen(false);
         setEditingAddress(null);
@@ -120,9 +134,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
   const deleteMutation = useMutation(
     trpc.usagerAddresses.delete.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagerAddresses.list.queryKey({ usagerId }),
-        });
+        invalidateAddresses();
         toast.success("Adresse supprimée");
         setDeleteAddress(null);
       },
@@ -132,7 +144,75 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     }),
   );
 
+  // Mutation pour mettre à jour les jours de PEC inline
+  const updateDaysMutation = useMutation(
+    trpc.usagerAddresses.update.mutationOptions({
+      onSuccess: () => {
+        invalidateAddresses();
+        toast.success("Jours de PEC enregistrés");
+      },
+      onError: () => {
+        toast.error("Erreur lors de la mise à jour des jours");
+      },
+    }),
+  );
+
+  const listQueryKey = trpc.usagerAddresses.list.queryKey({ usagerId });
+
+  const reorderMutation = useMutation(
+    trpc.usagerAddresses.reorder.mutationOptions({
+      onMutate: async ({ items }) => {
+        await queryClient.cancelQueries({ queryKey: listQueryKey });
+        const previous = queryClient.getQueryData(listQueryKey);
+
+        queryClient.setQueryData(listQueryKey, (old: typeof addresses) => {
+          if (!old) return old;
+          const posMap = new Map(items.map((i) => [i.id, i.position]));
+          return old
+            .map((a) => ({ ...a, position: posMap.get(a.id) ?? a.position }))
+            .sort((a, b) => a.position - b.position);
+        });
+
+        return { previous };
+      },
+      onSuccess: () => {
+        toast.success("Ordre des adresses mis à jour");
+      },
+      onError: (_err, _vars, context) => {
+        if (context?.previous) {
+          queryClient.setQueryData(listQueryKey, context.previous);
+        }
+        toast.error("Erreur lors du réordonnancement");
+      },
+      onSettled: () => {
+        invalidateAddresses();
+      },
+    }),
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
+
   const addressCount = addresses?.length ?? 0;
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !addresses) return;
+
+    const oldIndex = addresses.findIndex((a) => a.id === active.id);
+    const newIndex = addresses.findIndex((a) => a.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(addresses, oldIndex, newIndex);
+    const items = reordered.map((a, i) => ({ id: a.id, position: i + 1 }));
+    reorderMutation.mutate({ items });
+  }
+
+  function getPositionLabel(position: number): string {
+    return position === 1 ? "Adresse principale" : `Adresse ${position}`;
+  }
 
   function handleCreate() {
     setEditingAddress(null);
@@ -150,6 +230,54 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     } else {
       createMutation.mutate({ usagerId, data: values });
     }
+  }
+
+  function buildDaysData(a: UsagerAddress) {
+    return {
+      position: a.position,
+      type: (a.type ?? "") as typeof ADDRESS_TYPES[number] | "",
+      civility: a.civility ?? "",
+      responsibleLastName: a.responsibleLastName ?? "",
+      responsibleFirstName: a.responsibleFirstName ?? "",
+      address: a.address ?? "",
+      city: a.city ?? "",
+      postalCode: a.postalCode ?? "",
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      phone: a.phone ?? "",
+      mobile: a.mobile ?? "",
+      secondaryPhone: a.secondaryPhone ?? "",
+      secondaryMobile: a.secondaryMobile ?? "",
+      email: a.email ?? "",
+      authorizedPerson: a.authorizedPerson ?? "",
+      observations: a.observations ?? "",
+    };
+  }
+
+  function handleDaysSave(addr: UsagerAddress, aller: DayEntry[], retour: DayEntry[]) {
+    updateDaysMutation.mutate({
+      id: addr.id,
+      data: { ...buildDaysData(addr), daysAller: aller, daysRetour: retour },
+    });
+  }
+
+  function getOccupiedDays(excludeId: string, direction: "aller" | "retour"): OccupiedDay[] {
+    if (!addresses) return [];
+    const result: OccupiedDay[] = [];
+    for (const other of addresses) {
+      if (other.id === excludeId) continue;
+      const days = normalizeDays(direction === "aller" ? other.daysAller : other.daysRetour);
+      const label = getPositionLabel(other.position);
+      for (const d of days) {
+        result.push({ day: d.day, parity: d.parity, label });
+      }
+    }
+    return result;
+  }
+
+  function getTypeLabel(type: string | null): string {
+    if (!type) return "";
+    return ADDRESS_TYPE_LABELS[type as keyof typeof ADDRESS_TYPE_LABELS] ?? type;
   }
 
   if (isLoading) {
@@ -186,85 +314,33 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {addresses.map((addr) => (
-            <Card key={addr.id}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">
-                    {addr.label || `Adresse ${addr.position}`}
-                  </CardTitle>
-                  {addr.responsibleLastName && (
-                    <span className="text-sm text-muted-foreground">
-                      — {addr.civility} {addr.responsibleFirstName} {addr.responsibleLastName}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 cursor-pointer"
-                    onClick={() => handleEdit(addr)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    <span className="sr-only">Modifier</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 cursor-pointer text-destructive hover:text-destructive"
-                    onClick={() => setDeleteAddress(addr)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Supprimer</span>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-2 text-sm">
-                {addr.address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span>
-                      {addr.address}
-                      {addr.postalCode || addr.city
-                        ? ` — ${[addr.postalCode, addr.city].filter(Boolean).join(" ")}`
-                        : ""}
-                    </span>
-                  </div>
-                )}
-                {(addr.phone || addr.mobile) && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span>
-                      {[addr.phone, addr.mobile].filter(Boolean).join(" / ")}
-                    </span>
-                  </div>
-                )}
-                {addr.email && (
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span>{addr.email}</span>
-                  </div>
-                )}
-                {addr.observations && (
-                  <p className="mt-1 text-muted-foreground italic">
-                    {addr.observations}
-                  </p>
-                )}
-                {(normalizeDays(addr.daysAller).length > 0 || normalizeDays(addr.daysRetour).length > 0) && (
-                  <div className="mt-2 flex items-center gap-4">
-                    <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="flex gap-4">
-                      <DayBadges days={addr.daysAller} label="A" />
-                      <DayBadges days={addr.daysRetour} label="R" />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={addresses.map((a) => a.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-4">
+              {addresses.map((addr) => (
+                <SortableAddressCard
+                  key={addr.id}
+                  addr={addr}
+                  positionLabel={getPositionLabel(addr.position)}
+                  typeLabel={getTypeLabel(addr.type)}
+                  occupiedAller={getOccupiedDays(addr.id, "aller")}
+                  occupiedRetour={getOccupiedDays(addr.id, "retour")}
+                  onEdit={handleEdit}
+                  onDelete={setDeleteAddress}
+                  onDaysSave={handleDaysSave}
+                  canDrag={addressCount > 1}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Form Dialog */}
@@ -279,7 +355,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
           editingAddress
             ? {
                 position: editingAddress.position,
-                label: editingAddress.label ?? "",
+                type: (editingAddress.type as typeof ADDRESS_TYPES[number]) ?? "",
                 civility: editingAddress.civility ?? "",
                 responsibleLastName: editingAddress.responsibleLastName ?? "",
                 responsibleFirstName: editingAddress.responsibleFirstName ?? "",
@@ -290,7 +366,10 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
                 longitude: editingAddress.longitude ?? null,
                 phone: editingAddress.phone ?? "",
                 mobile: editingAddress.mobile ?? "",
+                secondaryPhone: editingAddress.secondaryPhone ?? "",
+                secondaryMobile: editingAddress.secondaryMobile ?? "",
                 email: editingAddress.email ?? "",
+                authorizedPerson: editingAddress.authorizedPerson ?? "",
                 observations: editingAddress.observations ?? "",
                 daysAller: normalizeDays(editingAddress.daysAller),
                 daysRetour: normalizeDays(editingAddress.daysRetour),
@@ -312,7 +391,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
             <AlertDialogTitle>Supprimer l&apos;adresse</AlertDialogTitle>
             <AlertDialogDescription>
               Êtes-vous sûr de vouloir supprimer l&apos;adresse{" "}
-              <strong>{deleteAddress?.label || `n°${deleteAddress?.position}`}</strong> ?
+              <strong>{getTypeLabel(deleteAddress?.type ?? null) || `n°${deleteAddress?.position}`}</strong> ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -330,6 +409,152 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// --- Sortable Address Card ---
+
+interface SortableAddressCardProps {
+  addr: UsagerAddress & { daysAller: DayEntry[]; daysRetour: DayEntry[] };
+  positionLabel: string;
+  typeLabel: string;
+  occupiedAller: OccupiedDay[];
+  occupiedRetour: OccupiedDay[];
+  onEdit: (addr: UsagerAddress) => void;
+  onDelete: (addr: UsagerAddress) => void;
+  onDaysSave: (addr: UsagerAddress, aller: DayEntry[], retour: DayEntry[]) => void;
+  canDrag: boolean;
+}
+
+function SortableAddressCard({
+  addr,
+  positionLabel,
+  typeLabel,
+  occupiedAller,
+  occupiedRetour,
+  onEdit,
+  onDelete,
+  onDaysSave,
+  canDrag,
+}: SortableAddressCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: addr.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+
+  return (
+    <Card ref={setNodeRef} style={style}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <div className="flex items-center gap-2">
+          {canDrag && (
+            <button
+              type="button"
+              className="cursor-grab touch-none text-muted-foreground hover:text-foreground transition-colors"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-5 w-5" />
+            </button>
+          )}
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+            <CardTitle className="text-base">
+              {positionLabel}
+            </CardTitle>
+            {typeLabel && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-[0.3rem]">
+                {typeLabel}
+              </span>
+            )}
+            {addr.responsibleLastName && (
+              <span className="text-sm text-muted-foreground">
+                — {addr.civility} {addr.responsibleFirstName} {addr.responsibleLastName}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 cursor-pointer"
+            onClick={() => onEdit(addr)}
+          >
+            <Pencil className="h-4 w-4" />
+            <span className="sr-only">Modifier</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 cursor-pointer text-destructive hover:text-destructive"
+            onClick={() => onDelete(addr)}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Supprimer</span>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-2 text-sm">
+        {addr.address && (
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>
+              {addr.address}
+              {addr.postalCode || addr.city
+                ? ` — ${[addr.postalCode, addr.city].filter(Boolean).join(" ")}`
+                : ""}
+            </span>
+          </div>
+        )}
+        {(addr.phone || addr.mobile || addr.secondaryPhone || addr.secondaryMobile) && (
+          <div className="flex items-center gap-2">
+            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>
+              {[addr.phone, addr.mobile, addr.secondaryPhone, addr.secondaryMobile].filter(Boolean).join(" / ")}
+            </span>
+          </div>
+        )}
+        {addr.email && (
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>{addr.email}</span>
+          </div>
+        )}
+        {addr.authorizedPerson && (
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>Personne autorisée : {addr.authorizedPerson}</span>
+          </div>
+        )}
+        {addr.observations && (
+          <p className="mt-1 text-muted-foreground italic">
+            {addr.observations}
+          </p>
+        )}
+
+        {/* Jours de PEC inline sous l'adresse */}
+        <div className="mt-3 border-t pt-3">
+          <DayPecGrid
+            daysAller={normalizeDays(addr.daysAller)}
+            daysRetour={normalizeDays(addr.daysRetour)}
+            occupiedAller={occupiedAller}
+            occupiedRetour={occupiedRetour}
+            onSave={(aller, retour) => onDaysSave(addr, aller, retour)}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -356,7 +581,7 @@ function AddressFormDialog({
 }: AddressFormDialogProps) {
   const emptyValues: UsagerAddressFormValues = {
     position: nextPosition,
-    label: "",
+    type: "",
     civility: "",
     responsibleLastName: "",
     responsibleFirstName: "",
@@ -367,7 +592,10 @@ function AddressFormDialog({
     longitude: null,
     phone: "",
     mobile: "",
+    secondaryPhone: "",
+    secondaryMobile: "",
     email: "",
+    authorizedPerson: "",
     observations: "",
     daysAller: [],
     daysRetour: [],
@@ -378,15 +606,14 @@ function AddressFormDialog({
     defaultValues: defaultValues ?? emptyValues,
   });
 
-  const handleOpenChange = (open: boolean) => {
+  useEffect(() => {
     if (open) {
       form.reset(defaultValues ?? emptyValues);
     }
-    onOpenChange(open);
-  };
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -395,51 +622,30 @@ function AddressFormDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="label"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Label</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                      <FormControl>
-                        <SelectTrigger className="w-full cursor-pointer">
-                          <SelectValue placeholder="Sélectionner" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {LABELS.map((l) => (
-                          <SelectItem key={l.value} value={l.value} className="cursor-pointer">
-                            {l.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="position"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Position</FormLabel>
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={4}
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      />
+                      <SelectTrigger className="w-full cursor-pointer">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                    <SelectContent>
+                      {ADDRESS_TYPES.map((t) => (
+                        <SelectItem key={t} value={t} className="cursor-pointer">
+                          {ADDRESS_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Responsable */}
             <div className="grid grid-cols-3 gap-4">
@@ -593,7 +799,7 @@ function AddressFormDialog({
                   <FormItem>
                     <FormLabel>Téléphone fixe</FormLabel>
                     <FormControl>
-                      <Input placeholder="01 23 45 67 89" {...field} />
+                      <PhoneInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -606,7 +812,36 @@ function AddressFormDialog({
                   <FormItem>
                     <FormLabel>Portable</FormLabel>
                     <FormControl>
-                      <Input placeholder="06 12 34 56 78" {...field} />
+                      <PhoneInput value={field.value} onChange={field.onChange} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="secondaryPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Téléphone fixe secondaire</FormLabel>
+                    <FormControl>
+                      <PhoneInput value={field.value} onChange={field.onChange} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="secondaryMobile"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Portable secondaire</FormLabel>
+                    <FormControl>
+                      <PhoneInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -628,11 +863,18 @@ function AddressFormDialog({
               )}
             />
 
-            <DayPecGrid
-              daysAller={form.watch("daysAller") ?? []}
-              daysRetour={form.watch("daysRetour") ?? []}
-              onChangeAller={(days) => form.setValue("daysAller", days)}
-              onChangeRetour={(days) => form.setValue("daysRetour", days)}
+            <FormField
+              control={form.control}
+              name="authorizedPerson"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Personne autorisée à récupérer l&apos;enfant</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nom et prénom" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             <FormField

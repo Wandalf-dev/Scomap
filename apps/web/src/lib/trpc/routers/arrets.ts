@@ -55,7 +55,7 @@ export const arretsRouter = createTRPCRouter({
           usagerId: usagers.id,
           usagerFirstName: usagers.firstName,
           usagerLastName: usagers.lastName,
-          usagerAddressLabel: usagerAddresses.label,
+          usagerAddressType: usagerAddresses.type,
           // Joined etablissement info
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,

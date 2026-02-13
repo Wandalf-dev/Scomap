@@ -86,7 +86,7 @@ interface ArretRow {
   usagerId: string | null;
   usagerFirstName: string | null;
   usagerLastName: string | null;
-  usagerAddressLabel: string | null;
+  usagerAddressType: string | null;
   etablissementName: string | null;
   etablissementCity: string | null;
 }

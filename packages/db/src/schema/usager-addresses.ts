@@ -20,7 +20,7 @@ export const usagerAddresses = pgTable("usager_addresses", {
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
   position: integer("position").notNull().default(1),
-  label: varchar("label", { length: 50 }),
+  type: varchar("type", { length: 30 }),
   civility: varchar("civility", { length: 5 }),
   responsibleLastName: varchar("responsible_last_name", { length: 100 }),
   responsibleFirstName: varchar("responsible_first_name", { length: 100 }),
@@ -31,7 +31,10 @@ export const usagerAddresses = pgTable("usager_addresses", {
   longitude: doublePrecision("longitude"),
   phone: varchar("phone", { length: 20 }),
   mobile: varchar("mobile", { length: 20 }),
+  secondaryPhone: varchar("secondary_phone", { length: 20 }),
+  secondaryMobile: varchar("secondary_mobile", { length: 20 }),
   email: varchar("email", { length: 255 }),
+  authorizedPerson: varchar("authorized_person", { length: 200 }),
   observations: text("observations"),
   daysAller: jsonb("days_aller").$type<
     number[] | { day: number; parity: "all" | "even" | "odd" }[]
