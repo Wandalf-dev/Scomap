@@ -132,7 +132,6 @@ export const trajetsRouter = createTRPCRouter({
           circuitName: circuits.name,
           circuitStartDate: circuits.startDate,
           circuitEndDate: circuits.endDate,
-          circuitOperatingDays: circuits.operatingDays,
           circuitIsActive: circuits.isActive,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
@@ -175,12 +174,9 @@ export const trajetsRouter = createTRPCRouter({
       // Effective dates/days (trajet override or circuit fallback)
       const recurrence = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
       const normalizedRecDays = normalizeDays(recurrence?.daysOfWeek);
-      const normalizedCircuitDays = normalizeDays(row.circuitOperatingDays);
       const effectiveStartDate = row.startDate ?? row.circuitStartDate ?? null;
       const effectiveEndDate = row.endDate ?? row.circuitEndDate ?? null;
-      const effectiveDaysOfWeek = normalizedRecDays.length
-        ? normalizedRecDays
-        : normalizedCircuitDays;
+      const effectiveDaysOfWeek = normalizedRecDays;
 
       return {
         ...row,
@@ -618,7 +614,6 @@ export const trajetsRouter = createTRPCRouter({
           recurrence: trajets.recurrence,
           circuitStartDate: circuits.startDate,
           circuitEndDate: circuits.endDate,
-          circuitOperatingDays: circuits.operatingDays,
         })
         .from(trajets)
         .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
@@ -642,10 +637,7 @@ export const trajetsRouter = createTRPCRouter({
         daysOfWeek: unknown;
       } | null;
       const normalizedRecDays = normalizeDays(recurrence?.daysOfWeek);
-      const normalizedCircuitDays = normalizeDays(t.circuitOperatingDays);
-      const effectiveDays: DayEntry[] = normalizedRecDays.length
-        ? normalizedRecDays
-        : normalizedCircuitDays;
+      const effectiveDays: DayEntry[] = normalizedRecDays;
 
       if (effectiveDays.length === 0) {
         throw new TRPCError({

@@ -30,6 +30,40 @@ export const USAGER_REGIME_LABELS: Record<typeof USAGER_REGIMES[number], string>
   externe: "Externe",
 };
 
+export const USAGER_TRANSPORT_TYPES = [
+  "taxi_collectif",
+  "taxi_individuel",
+  "vehicule_adapte",
+  "transport_collectif",
+  "transport_en_commun",
+  "vehicule_personnel",
+  "ambulance_vsl",
+] as const;
+
+export const USAGER_TRANSPORT_TYPE_LABELS: Record<typeof USAGER_TRANSPORT_TYPES[number], string> = {
+  taxi_collectif: "Taxi collectif",
+  taxi_individuel: "Taxi individuel",
+  vehicule_adapte: "Véhicule adapté (TPMR)",
+  transport_collectif: "Bus / Autocar scolaire",
+  transport_en_commun: "Transport en commun",
+  vehicule_personnel: "Véhicule personnel (famille)",
+  ambulance_vsl: "Ambulance / VSL",
+};
+
+/** Types de transport qui nécessitent un circuit géré par l'opérateur */
+export const CIRCUIT_TRANSPORT_TYPES: Set<string> = new Set([
+  "taxi_collectif",
+  "taxi_individuel",
+  "vehicule_adapte",
+  "transport_collectif",
+]);
+
+/** Vérifie si un type de transport est compatible avec un circuit (vrai si compatible ou non défini) */
+export function isCircuitCompatibleTransport(transportType: string | null | undefined): boolean {
+  if (!transportType) return true; // pas de type défini = on ne bloque pas
+  return CIRCUIT_TRANSPORT_TYPES.has(transportType);
+}
+
 // Schéma pour la création rapide (dialog de la liste)
 export const usagerSchema = z.object({
   firstName: z.string().min(1, "Prénom requis"),

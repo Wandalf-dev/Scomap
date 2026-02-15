@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TRPCReactProvider } from "@/lib/trpc/client";
 
@@ -30,6 +31,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <NextTopLoader
+            color="#f97316"
+            height={2}
+            showSpinner={false}
+            shadow={false}
+          />
           <TRPCReactProvider>
             {children}
             <Toaster richColors />

@@ -327,6 +327,21 @@ export const usagerCircuitsRouter = createTRPCRouter({
       }));
     }),
 
+  countByCircuit: tenantProcedure
+    .input(z.object({ circuitId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const result = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(usagerCircuits)
+        .where(
+          and(
+            eq(usagerCircuits.circuitId, input.circuitId),
+            eq(usagerCircuits.tenantId, ctx.tenantId),
+          ),
+        );
+      return result[0]?.count ?? 0;
+    }),
+
   create: tenantProcedure
     .input(usagerCircuitSchema)
     .mutation(async ({ ctx, input }) => {
@@ -496,6 +511,26 @@ export const usagerCircuitsRouter = createTRPCRouter({
           ),
         )
         .returning();
+
+      // If no more usagers on this circuit, set it inactive
+      if (old) {
+        const remaining = await ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(usagerCircuits)
+          .where(
+            and(
+              eq(usagerCircuits.circuitId, old.circuitId),
+              eq(usagerCircuits.tenantId, ctx.tenantId),
+            ),
+          );
+
+        if ((remaining[0]?.count ?? 0) === 0) {
+          await ctx.db
+            .update(circuits)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(circuits.id, old.circuitId));
+        }
+      }
 
       return result[0] ?? null;
     }),

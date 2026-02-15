@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dayEntrySchema } from "@/lib/types/day-entry";
+import { USAGER_TRANSPORT_TYPES } from "@/lib/validators/usager";
 
 export const ADDRESS_TYPES = [
   "parents",
@@ -40,6 +41,7 @@ export const usagerAddressSchema = z.object({
   secondaryMobile: z.string().optional(),
   email: z.string().email("Email invalide").or(z.literal("")).optional(),
   authorizedPerson: z.string().optional(),
+  transportType: z.enum(USAGER_TRANSPORT_TYPES).optional().or(z.literal("")),
   observations: z.string().optional(),
   daysAller: z.array(dayEntrySchema).optional(),
   daysRetour: z.array(dayEntrySchema).optional(),

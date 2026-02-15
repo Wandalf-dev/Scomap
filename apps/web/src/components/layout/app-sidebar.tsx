@@ -71,11 +71,11 @@ export function AppSidebar({ user, signOutAction, ...props }: AppSidebarProps) {
                   alt="Scomap"
                   width={32}
                   height={32}
-                  className="rounded-lg invert sepia-[0.3] brightness-[0.7] dark:invert-0 dark:sepia-0 dark:brightness-100"
+                  className="rounded-lg invert-0 brightness-100"
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Scomap</span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="truncate text-xs text-sidebar-foreground/60">
                     Transport Scolaire
                   </span>
                 </div>

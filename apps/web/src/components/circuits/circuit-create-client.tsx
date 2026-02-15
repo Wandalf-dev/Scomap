@@ -29,7 +29,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EtablissementSelector } from "./etablissement-selector";
-import { DaySelector } from "@/components/shared/day-selector";
 
 export function CircuitCreateClient() {
   const trpc = useTRPC();
@@ -42,13 +41,6 @@ export function CircuitCreateClient() {
       name: "",
       etablissementId: "",
       description: "",
-      operatingDays: [
-        { day: 1, parity: "all" },
-        { day: 2, parity: "all" },
-        { day: 3, parity: "all" },
-        { day: 4, parity: "all" },
-        { day: 5, parity: "all" },
-      ],
     },
   });
 
@@ -155,28 +147,6 @@ export function CircuitCreateClient() {
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Jours d'operation */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Jours d&apos;operation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="operatingDays"
-                render={({ field }) => (
-                  <FormItem>
-                    <DaySelector
-                      value={field.value ?? []}
-                      onChange={field.onChange}
-                    />
                     <FormMessage />
                   </FormItem>
                 )}

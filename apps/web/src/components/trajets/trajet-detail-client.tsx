@@ -264,7 +264,6 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
         }}
         circuitStartDate={trajet.circuitStartDate ?? null}
         circuitEndDate={trajet.circuitEndDate ?? null}
-        circuitOperatingDays={(trajet.circuitOperatingDays as DayEntry[] | null) ?? null}
       />
 
       {/* Action bar */}

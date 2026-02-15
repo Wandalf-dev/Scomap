@@ -7,7 +7,7 @@ import {
   circuitSchema,
   circuitDetailSchema,
 } from "@/lib/validators/circuit";
-import { normalizeDays } from "@/lib/types/day-entry";
+
 
 export const circuitsRouter = createTRPCRouter({
   list: tenantProcedure.query(async ({ ctx }) => {
@@ -17,7 +17,6 @@ export const circuitsRouter = createTRPCRouter({
         name: circuits.name,
         description: circuits.description,
         isActive: circuits.isActive,
-        operatingDays: circuits.operatingDays,
         startDate: circuits.startDate,
         endDate: circuits.endDate,
         etablissementId: circuits.etablissementId,
@@ -38,7 +37,6 @@ export const circuitsRouter = createTRPCRouter({
 
     return rows.map((row) => ({
       ...row,
-      operatingDays: normalizeDays(row.operatingDays),
     }));
   }),
 
@@ -51,8 +49,7 @@ export const circuitsRouter = createTRPCRouter({
           name: circuits.name,
           description: circuits.description,
           isActive: circuits.isActive,
-          operatingDays: circuits.operatingDays,
-          startDate: circuits.startDate,
+            startDate: circuits.startDate,
           endDate: circuits.endDate,
           etablissementId: circuits.etablissementId,
           etablissementName: etablissements.name,
@@ -73,7 +70,7 @@ export const circuitsRouter = createTRPCRouter({
 
       const row = result[0] ?? null;
       if (!row) return null;
-      return { ...row, operatingDays: normalizeDays(row.operatingDays) };
+      return row;
     }),
 
   create: tenantProcedure
@@ -101,7 +98,6 @@ export const circuitsRouter = createTRPCRouter({
           name: input.name,
           etablissementId: input.etablissementId,
           description: input.description || null,
-          operatingDays: input.operatingDays ?? null,
           startDate: input.startDate || null,
           endDate: input.endDate || null,
         })
@@ -155,7 +151,6 @@ export const circuitsRouter = createTRPCRouter({
           name: input.data.name,
           etablissementId: input.data.etablissementId,
           description: input.data.description || null,
-          operatingDays: input.data.operatingDays ?? null,
           startDate: input.data.startDate || null,
           endDate: input.data.endDate || null,
           updatedAt: new Date(),

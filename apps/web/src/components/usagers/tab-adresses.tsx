@@ -29,6 +29,10 @@ import {
   type UsagerAddressFormValues,
 } from "@/lib/validators/usager-address";
 import {
+  USAGER_TRANSPORT_TYPES,
+  USAGER_TRANSPORT_TYPE_LABELS,
+} from "@/lib/validators/usager";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -70,7 +74,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, MapPin, Phone, Mail, UserCheck, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin, Phone, Mail, UserCheck, GripVertical, Bus } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input";
 import { DayPecGrid, type OccupiedDay } from "@/components/shared/day-pec-grid";
 import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
@@ -149,6 +153,9 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     trpc.usagerAddresses.update.mutationOptions({
       onSuccess: () => {
         invalidateAddresses();
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
+        });
         toast.success("Jours de PEC enregistrés");
       },
       onError: () => {
@@ -250,6 +257,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
       secondaryMobile: a.secondaryMobile ?? "",
       email: a.email ?? "",
       authorizedPerson: a.authorizedPerson ?? "",
+      transportType: (a.transportType as typeof USAGER_TRANSPORT_TYPES[number] | "") ?? "",
       observations: a.observations ?? "",
     };
   }
@@ -370,6 +378,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
                 secondaryMobile: editingAddress.secondaryMobile ?? "",
                 email: editingAddress.email ?? "",
                 authorizedPerson: editingAddress.authorizedPerson ?? "",
+                transportType: (editingAddress.transportType as typeof USAGER_TRANSPORT_TYPES[number] | "") ?? "",
                 observations: editingAddress.observations ?? "",
                 daysAller: normalizeDays(editingAddress.daysAller),
                 daysRetour: normalizeDays(editingAddress.daysRetour),
@@ -537,6 +546,12 @@ function SortableAddressCard({
             <span>Personne autorisée : {addr.authorizedPerson}</span>
           </div>
         )}
+        {addr.transportType && (
+          <div className="flex items-center gap-2">
+            <Bus className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>{USAGER_TRANSPORT_TYPE_LABELS[addr.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS] ?? addr.transportType}</span>
+          </div>
+        )}
         {addr.observations && (
           <p className="mt-1 text-muted-foreground italic">
             {addr.observations}
@@ -596,6 +611,7 @@ function AddressFormDialog({
     secondaryMobile: "",
     email: "",
     authorizedPerson: "",
+    transportType: "",
     observations: "",
     daysAller: [],
     daysRetour: [],
@@ -872,6 +888,31 @@ function AddressFormDialog({
                   <FormControl>
                     <Input placeholder="Nom et prénom" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="transportType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type de transport</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                    <FormControl>
+                      <SelectTrigger className="w-full cursor-pointer">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {USAGER_TRANSPORT_TYPES.map((t) => (
+                        <SelectItem key={t} value={t} className="cursor-pointer">
+                          {USAGER_TRANSPORT_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

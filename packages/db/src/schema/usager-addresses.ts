@@ -35,6 +35,7 @@ export const usagerAddresses = pgTable("usager_addresses", {
   secondaryMobile: varchar("secondary_mobile", { length: 20 }),
   email: varchar("email", { length: 255 }),
   authorizedPerson: varchar("authorized_person", { length: 200 }),
+  transportType: varchar("transport_type", { length: 30 }),
   observations: text("observations"),
   daysAller: jsonb("days_aller").$type<
     number[] | { day: number; parity: "all" | "even" | "odd" }[]

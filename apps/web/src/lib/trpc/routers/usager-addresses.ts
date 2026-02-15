@@ -28,6 +28,7 @@ function mapAddressData(data: UsagerAddressFormValues) {
     secondaryMobile: data.secondaryMobile || null,
     email: data.email === "" ? null : data.email || null,
     authorizedPerson: data.authorizedPerson || null,
+    transportType: data.transportType || null,
     observations: data.observations || null,
     daysAller: data.daysAller ?? null,
     daysRetour: data.daysRetour ?? null,

@@ -8,19 +8,17 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Trash2, Route, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { CircuitFormDialog } from "./circuit-form-dialog";
-import { DayBadges } from "@/components/shared/day-badges";
 import type { CircuitFormValues } from "@/lib/validators/circuit";
-import type { DayEntry } from "@/lib/types/day-entry";
 
 interface CircuitRow {
   id: string;
   name: string;
   description: string | null;
   isActive: boolean;
-  operatingDays: DayEntry[];
   etablissementId: string;
   etablissementName: string | null;
   etablissementCity: string | null;
@@ -28,12 +26,10 @@ interface CircuitRow {
 
 type CircuitFilters = {
   name: string;
-  status: string;
 };
 
 const EMPTY_FILTERS: CircuitFilters = {
   name: "",
-  status: "all",
 };
 
 export function CircuitsClient() {
@@ -41,6 +37,7 @@ export function CircuitsClient() {
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingItem, setEditingItem] = useState<CircuitRow | null>(null);
@@ -49,6 +46,10 @@ export function CircuitsClient() {
   const { data: circuitsList, isLoading, error } = useQuery(
     trpc.circuits.list.queryOptions(),
   );
+
+  const activeCircuits = circuitsList?.filter((c) => c.isActive) ?? [];
+  const inactiveCircuits = circuitsList?.filter((c) => !c.isActive) ?? [];
+  const displayedCircuits = activeTab === "active" ? activeCircuits : inactiveCircuits;
 
   const createMutation = useMutation(
     trpc.circuits.create.mutationOptions({
@@ -105,8 +106,30 @@ export function CircuitsClient() {
   }
 
   return (
+    <div className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "inactive")}>
+        <TabsList>
+          <TabsTrigger value="active" className="cursor-pointer">
+            Actifs
+            {!isLoading && (
+              <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
+                {activeCircuits.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="inactive" className="cursor-pointer">
+            Inactifs
+            {!isLoading && inactiveCircuits.length > 0 && (
+              <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
+                {inactiveCircuits.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
     <DataList<CircuitRow, CircuitFilters>
-      data={circuitsList}
+      data={displayedCircuits}
       isLoading={isLoading}
       error={error}
       title="Circuits"
@@ -141,48 +164,15 @@ export function CircuitsClient() {
               <span className="text-muted-foreground/60">&mdash;</span>
             ),
         },
-        {
-          key: "operatingDays",
-          header: "Jours",
-          render: (row) => <DayBadges days={row.operatingDays} />,
-        },
-        {
-          key: "status",
-          header: "Statut",
-          render: (row) => (
-            <Badge
-              variant={row.isActive ? "default" : "secondary"}
-              className={
-                row.isActive
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                  : ""
-              }
-            >
-              {row.isActive ? "Actif" : "Inactif"}
-            </Badge>
-          ),
-        },
       ]}
       getRowId={(row) => row.id}
       onRowClick={(row) => router.push(`/circuits/${row.id}`)}
       filters={[
         { key: "name", label: "Nom", type: "text" },
-        {
-          key: "status",
-          label: "Statut",
-          type: "select",
-          options: [
-            { value: "all", label: "Tous" },
-            { value: "active", label: "Actif" },
-            { value: "inactive", label: "Inactif" },
-          ],
-        },
       ]}
       emptyFilters={EMPTY_FILTERS}
       filterFn={(row, filters) => {
         if (filters.name && !row.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
-        if (filters.status === "active" && !row.isActive) return false;
-        if (filters.status === "inactive" && row.isActive) return false;
         return true;
       }}
       actions={[
@@ -231,5 +221,6 @@ export function CircuitsClient() {
         isPending={deleteMutation.isPending}
       />
     </DataList>
+    </div>
   );
 }

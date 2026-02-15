@@ -36,7 +36,7 @@ import { CircuitSelector } from "./circuit-selector";
 import { ChauffeurSelector } from "./chauffeur-selector";
 import { VehiculeSelector } from "./vehicule-selector";
 import { DaySelector } from "@/components/shared/day-selector";
-import { formatDaysShort, normalizeDays, type DayEntry } from "@/lib/types/day-entry";
+import type { DayEntry } from "@/lib/types/day-entry";
 
 interface TrajetData {
   id: string;
@@ -58,10 +58,9 @@ interface TabInformationsProps {
   trajet: TrajetData;
   circuitStartDate: string | null;
   circuitEndDate: string | null;
-  circuitOperatingDays: DayEntry[] | null;
 }
 
-export function TabInformations({ trajet, circuitStartDate, circuitEndDate, circuitOperatingDays }: TabInformationsProps) {
+export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -211,11 +210,6 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate, circ
                           }
                         />
                       </FormControl>
-                      {circuitOperatingDays && circuitOperatingDays.length > 0 && (!field.value?.daysOfWeek || field.value.daysOfWeek.length === 0) && (
-                        <p className="text-xs text-muted-foreground">
-                          Herite du circuit : {formatDaysShort(normalizeDays(circuitOperatingDays))}
-                        </p>
-                      )}
                       <FormMessage />
                     </FormItem>
                   )}

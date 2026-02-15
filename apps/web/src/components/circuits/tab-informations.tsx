@@ -27,15 +27,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EtablissementSelector } from "./etablissement-selector";
-import { DaySelector } from "@/components/shared/day-selector";
-import type { DayEntry } from "@/lib/types/day-entry";
 
 interface CircuitData {
   id: string;
   name: string;
   description: string | null;
   isActive: boolean;
-  operatingDays: DayEntry[] | null;
   startDate: string | null;
   endDate: string | null;
   etablissementId: string;
@@ -49,15 +46,12 @@ export function TabInformations({ circuit }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  const days = circuit.operatingDays ?? [];
-
   const form = useForm<CircuitDetailFormValues>({
     resolver: zodResolver(circuitDetailSchema),
     defaultValues: {
       name: circuit.name,
       etablissementId: circuit.etablissementId,
       description: circuit.description ?? "",
-      operatingDays: days,
       startDate: circuit.startDate ?? null,
       endDate: circuit.endDate ?? null,
     },
@@ -151,28 +145,6 @@ export function TabInformations({ circuit }: TabInformationsProps) {
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Jours d'operation */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Jours d&apos;operation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="operatingDays"
-              render={({ field }) => (
-                <FormItem>
-                  <DaySelector
-                    value={field.value ?? []}
-                    onChange={field.onChange}
-                  />
                   <FormMessage />
                 </FormItem>
               )}

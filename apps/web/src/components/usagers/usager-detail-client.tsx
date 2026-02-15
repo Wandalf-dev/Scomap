@@ -58,16 +58,11 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
       badges={
         usager && (
           <div className="flex gap-2">
-            <Badge variant={STATUS_VARIANTS[usager.status] ?? "outline"}>
+            <Badge variant={STATUS_VARIANTS[usager.status] ?? "outline"} className="rounded-[0.5rem]">
               {USAGER_STATUS_LABELS[usager.status as keyof typeof USAGER_STATUS_LABELS] ?? usager.status}
             </Badge>
-            {usager.gender && (
-              <Badge variant="secondary">
-                {usager.gender === "M" ? "Masculin" : "Féminin"}
-              </Badge>
-            )}
             {usager.regime && (
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="rounded-[0.5rem]">
                 {USAGER_REGIME_LABELS[usager.regime as keyof typeof USAGER_REGIME_LABELS] ?? usager.regime}
               </Badge>
             )}
@@ -92,7 +87,7 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
         {
           value: "circuits",
           label: "Circuits",
-          content: usager ? <TabCircuits usagerId={usager.id} /> : null,
+          content: usager ? <TabCircuits usagerId={usager.id} usager={usager} /> : null,
         },
       ]}
     />

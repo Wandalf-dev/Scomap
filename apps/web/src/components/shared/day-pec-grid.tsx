@@ -103,13 +103,13 @@ function Cell({
       className={cn(
         "size-8 rounded-[3px] transition-colors relative",
         locked
-          ? "bg-muted/40 dark:bg-muted/20 cursor-not-allowed"
+          ? "bg-muted/40 dark:bg-[#44403c] cursor-not-allowed"
           : "cursor-pointer",
         on && !locked
           ? color === "orange"
             ? "bg-amber-500 dark:bg-orange-500"
             : "bg-blue-500 dark:bg-blue-400"
-          : !locked && "bg-muted dark:bg-muted/60 hover:bg-muted-foreground/15",
+          : !locked && "bg-muted dark:bg-[#44403c] hover:bg-muted-foreground/15 dark:hover:bg-[#57534e]",
       )}
     >
       {locked && (
@@ -283,7 +283,10 @@ export function DayPecGrid({
     schedule();
   }
 
-  useEffect(() => () => { clearTimeout(timer.current); }, []);
+  useEffect(() => () => {
+    clearTimeout(timer.current);
+    if (dirty.current) flush();
+  }, [flush]);
 
   const everythingOn = isAllOn(localAller) && isAllOn(localRetour);
 
@@ -324,7 +327,7 @@ export function DayPecGrid({
         </button>
       </div>
 
-      <div className="flex gap-4 rounded-[0.3rem] bg-muted/40 p-3">
+      <div className="flex gap-4 rounded-lg border bg-accent p-4">
         <DirectionBlock label="Aller" color="orange" days={localAller} occupied={occupiedAller} onChange={handleAller} />
         <div className="w-px bg-border shrink-0" />
         <DirectionBlock label="Retour" color="blue" days={localRetour} occupied={occupiedRetour} onChange={handleRetour} />
