@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
-import { toast } from "sonner";
-import { CalendarDays, Pencil, XCircle, RefreshCw } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, XCircle, RefreshCw } from "lucide-react";
+import { CalendarDateRangeIcon } from "@/components/ui/calendar-date-range-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,8 +187,8 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
           ))}
         </div>
       ) : !occurrences || occurrences.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-12">
-          <CalendarDays className="h-10 w-10 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-12">
+          <CalendarDateRangeIcon size={40} className="text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
             Aucune occurrence. Generez des occurrences a partir de la recurrence.
           </p>

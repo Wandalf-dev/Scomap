@@ -126,7 +126,7 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
   if (geoArrets.length === 0) {
     return (
       <div
-        className={`flex items-center justify-center rounded-[0.3rem] border border-dashed border-border bg-muted/30 text-sm text-muted-foreground ${className ?? ""}`}
+        className={`flex items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 bg-muted/30 text-sm text-muted-foreground ${className ?? ""}`}
       >
         Aucun arret avec coordonnees GPS
       </div>

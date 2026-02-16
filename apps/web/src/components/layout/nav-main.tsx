@@ -1,6 +1,6 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
+import { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,6 +12,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
+interface AnimatedIconHandle {
+  startAnimation: () => void;
+  stopAnimation: () => void;
+}
+
 export function NavMain({
   label,
   items,
@@ -20,10 +25,11 @@ export function NavMain({
   items: {
     title: string;
     url: string;
-    icon?: LucideIcon;
+    icon?: React.ElementType;
   }[];
 }) {
   const pathname = usePathname();
+  const iconRefs = useRef<Record<string, AnimatedIconHandle | null>>({});
 
   return (
     <SidebarGroup>
@@ -37,8 +43,19 @@ export function NavMain({
               className="cursor-pointer"
               isActive={pathname.startsWith(item.url)}
             >
-              <Link href={item.url}>
-                {item.icon && <item.icon />}
+              <Link
+                href={item.url}
+                onMouseEnter={() => iconRefs.current[item.title]?.startAnimation()}
+                onMouseLeave={() => iconRefs.current[item.title]?.stopAnimation()}
+              >
+                {item.icon && (
+                  <item.icon
+                    size={16}
+                    ref={(el: AnimatedIconHandle | null) => {
+                      iconRefs.current[item.title] = el;
+                    }}
+                  />
+                )}
                 <span>{item.title}</span>
               </Link>
             </SidebarMenuButton>

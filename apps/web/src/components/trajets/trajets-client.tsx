@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Pencil, Trash2, Navigation, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
 import { Badge } from "@/components/ui/badge";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
@@ -117,7 +118,7 @@ export function TrajetsClient() {
       error={error}
       title="Trajets"
       description="Gerez vos trajets de transport"
-      emptyIcon={Navigation}
+      emptyIcon={ArrowPathRoundedSquareIcon}
       emptyTitle="Aucun trajet"
       emptyDescription="Commencez par ajouter votre premier trajet."
       addButtonLabel="Ajouter un trajet"
@@ -144,14 +145,13 @@ export function TrajetsClient() {
           key: "direction",
           header: "Direction",
           render: (row) => (
-            <Badge
-              variant="outline"
-              className={
-                row.direction === "aller"
-                  ? "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400"
-                  : "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-400"
-              }
-            >
+            <Badge variant="outline">
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full ${
+                  row.direction === "aller" ? "bg-blue-500" : "bg-purple-500"
+                }`}
+              />
               {row.direction === "aller" ? "Aller" : "Retour"}
             </Badge>
           ),
@@ -160,23 +160,19 @@ export function TrajetsClient() {
           key: "etat",
           header: "Etat",
           render: (row) => {
-            if (!row.etat || row.etat === "brouillon") {
-              return (
-                <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
-                  Brouillon
-                </Badge>
-              );
-            }
-            if (row.etat === "ok") {
-              return (
-                <Badge variant="outline" className="border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
-                  Ok
-                </Badge>
-              );
-            }
+            const etat = row.etat || "brouillon";
+            const dotColor =
+              etat === "ok"
+                ? "bg-emerald-500"
+                : etat === "anomalie"
+                  ? "bg-red-500"
+                  : "bg-amber-500";
+            const label =
+              etat === "ok" ? "Ok" : etat === "anomalie" ? "Anomalie" : "Brouillon";
             return (
-              <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-700 dark:text-red-400">
-                Anomalie
+              <Badge variant="outline">
+                <span aria-hidden="true" className={`size-1.5 rounded-full ${dotColor}`} />
+                {label}
               </Badge>
             );
           },

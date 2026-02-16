@@ -74,14 +74,16 @@ export function EntityDetailLayout({
     return (
       <div className="space-y-4">
         <Button
-          variant="ghost"
+          variant="outline"
+          effect="expandIcon"
+          icon={ArrowLeft}
+          iconPlacement="left"
           onClick={() => router.push(backHref)}
           className="cursor-pointer"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
-        <div className="rounded-[0.3rem] border border-dashed border-border p-12 text-center">
+        <div className="rounded-[0.3rem] border border-dashed border-muted-foreground/25 p-12 text-center">
           <p className="text-muted-foreground">{entityName} non trouve.</p>
         </div>
       </div>
@@ -94,12 +96,14 @@ export function EntityDetailLayout({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
-            variant="ghost"
+            variant="outline"
+            effect="expandIcon"
+            icon={ArrowLeft}
+            iconPlacement="left"
             size="sm"
             onClick={() => router.push(backHref)}
             className="cursor-pointer"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
           <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
@@ -109,11 +113,13 @@ export function EntityDetailLayout({
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
-              variant="outline"
+              variant="destructive"
+              effect="expandIcon"
+              icon={Trash2}
+              iconPlacement="right"
               size="sm"
-              className="cursor-pointer text-destructive hover:text-destructive"
+              className="cursor-pointer"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
               Supprimer
             </Button>
           </AlertDialogTrigger>

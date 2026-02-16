@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { ArrowLeft } from "lucide-react";
 import {
   trajetDetailSchema,
@@ -88,12 +88,14 @@ export function TrajetCreateClient() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
-          variant="ghost"
+          variant="outline"
+          effect="expandIcon"
+          icon={ArrowLeft}
+          iconPlacement="left"
           size="sm"
           onClick={() => router.push("/trajets")}
           className="cursor-pointer"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
         <h1 className="text-2xl font-semibold text-foreground">

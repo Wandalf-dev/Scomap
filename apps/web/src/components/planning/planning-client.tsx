@@ -6,8 +6,8 @@ import { useTRPC } from "@/lib/trpc/client";
 import {
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
 } from "lucide-react";
+import { CalendarDateRangeIcon } from "@/components/ui/calendar-date-range-icon";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -169,8 +169,8 @@ export function PlanningClient() {
             occurrences={[]}
             onOccurrenceClick={setSelectedOccurrence}
           />
-          <div className="mt-4 flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-8">
-            <CalendarDays className="h-10 w-10 text-muted-foreground" />
+          <div className="mt-4 flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-8">
+            <CalendarDateRangeIcon size={40} className="text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
               Aucune occurrence pour cette periode.
             </p>

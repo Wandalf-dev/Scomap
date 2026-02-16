@@ -2,18 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import {
-  LayoutDashboard,
-  School,
-  Users,
-  Route,
-  Map,
-  Calendar,
-  Truck,
-  UserCog,
-  Receipt,
-} from "lucide-react";
-
 import { NavMain } from "@/components/layout/nav-main";
 import { NavUser } from "@/components/layout/nav-user";
 import {
@@ -26,25 +14,35 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
+import { RectangleGroupIcon } from "@/components/ui/rectangle-group-icon";
+import { BuildingOffice2Icon } from "@/components/ui/building-office2-icon";
+import { UsersIcon } from "@/components/ui/users-icon";
+import { ShareIcon } from "@/components/ui/share-icon";
+import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
+import { CalendarCogIcon } from "@/components/ui/calendar-cog-icon";
+import { TruckIcon } from "@/components/ui/truck-icon";
+import { UserIcon } from "@/components/ui/user-icon";
+import { DocumentCurrencyEuroIcon } from "@/components/ui/document-currency-euro-icon";
+
 const data = {
   navGroups: [
     {
       label: "Navigation",
       items: [
-        { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-        { title: "Établissements", url: "/etablissements", icon: School },
-        { title: "Usagers", url: "/usagers", icon: Users },
-        { title: "Circuits", url: "/circuits", icon: Route },
-        { title: "Trajets", url: "/trajets", icon: Map },
-        { title: "Planning", url: "/planning", icon: Calendar },
+        { title: "Dashboard", url: "/dashboard", icon: RectangleGroupIcon },
+        { title: "Établissements", url: "/etablissements", icon: BuildingOffice2Icon },
+        { title: "Usagers", url: "/usagers", icon: UsersIcon },
+        { title: "Circuits", url: "/circuits", icon: ShareIcon },
+        { title: "Trajets", url: "/trajets", icon: ArrowPathRoundedSquareIcon },
+        { title: "Planning", url: "/planning", icon: CalendarCogIcon },
       ],
     },
     {
       label: "Gestion",
       items: [
-        { title: "Véhicules", url: "/vehicules", icon: Truck },
-        { title: "Chauffeurs", url: "/chauffeurs", icon: UserCog },
-        { title: "Facturation", url: "/facturation", icon: Receipt },
+        { title: "Véhicules", url: "/vehicules", icon: TruckIcon },
+        { title: "Chauffeurs", url: "/chauffeurs", icon: UserIcon },
+        { title: "Facturation", url: "/facturation", icon: DocumentCurrencyEuroIcon },
       ],
     },
   ],

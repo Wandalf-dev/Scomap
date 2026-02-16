@@ -4,7 +4,6 @@ import NextTopLoader from "nextjs-toploader";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TRPCReactProvider } from "@/lib/trpc/client";
 
-import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const inter = Inter({
@@ -39,7 +38,6 @@ export default function RootLayout({
           />
           <TRPCReactProvider>
             {children}
-            <Toaster richColors />
           </TRPCReactProvider>
         </ThemeProvider>
       </body>

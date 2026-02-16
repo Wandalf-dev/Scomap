@@ -1,7 +1,16 @@
 "use client";
 
-import React from "react";
-import { Layout, Moon, RotateCcw, Settings, Sun, X } from "lucide-react";
+import React, { useRef } from "react";
+import {
+  Layout,
+  Loader2,
+  RotateCcw,
+  Save,
+  X,
+} from "lucide-react";
+import { Cog6ToothIcon } from "@/components/ui/cog6-tooth-icon";
+import { SunIcon } from "@/components/ui/sun-icon";
+import { MoonIcon } from "@/components/ui/moon-icon";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +26,7 @@ import { useSidebarConfig } from "@/hooks/use-sidebar-config";
 import { radiusOptions } from "@/config/theme-customizer-constants";
 import { LayoutTab } from "./layout-tab";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/sonner";
 
 interface ThemeCustomizerProps {
   open: boolean;
@@ -25,13 +35,18 @@ interface ThemeCustomizerProps {
 
 export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
   const { theme, setTheme } = useTheme();
-  const { config: sidebarConfig, updateConfig: updateSidebarConfig } =
-    useSidebarConfig();
-  const [selectedRadius, setSelectedRadius] = React.useState("0.3rem");
+  const {
+    config: sidebarConfig,
+    radius,
+    updateConfig: updateSidebarConfig,
+    updateRadius,
+    savePreferences,
+    isSaving,
+    hasUnsavedChanges,
+  } = useSidebarConfig();
 
   const handleReset = () => {
-    setSelectedRadius("0.3rem");
-    applyRadius("0.3rem");
+    updateRadius("0.5rem");
     updateSidebarConfig({
       variant: "inset",
       collapsible: "offcanvas",
@@ -39,13 +54,9 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
     });
   };
 
-  const applyRadius = (radius: string) => {
-    document.documentElement.style.setProperty("--radius", radius);
-  };
-
-  const handleRadiusSelect = (radius: string) => {
-    setSelectedRadius(radius);
-    applyRadius(radius);
+  const handleSave = () => {
+    savePreferences();
+    toast.success("Préférences enregistrées");
   };
 
   return (
@@ -57,7 +68,7 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
         <SheetHeader className="space-y-0 p-4 pb-2">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary/10 rounded-lg">
-              <Settings className="h-4 w-4" />
+              <Cog6ToothIcon size={16} />
             </div>
             <SheetTitle className="text-lg font-semibold">
               Customizer
@@ -98,7 +109,7 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
                   onClick={() => setTheme("light")}
                   className="cursor-pointer"
                 >
-                  <Sun className="h-4 w-4 mr-1" />
+                  <SunIcon size={16} className="mr-1" />
                   Light
                 </Button>
                 <Button
@@ -107,7 +118,7 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
                   onClick={() => setTheme("dark")}
                   className="cursor-pointer"
                 >
-                  <Moon className="h-4 w-4 mr-1" />
+                  <MoonIcon size={16} className="mr-1" />
                   Dark
                 </Button>
               </div>
@@ -123,11 +134,11 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
                   <div
                     key={option.value}
                     className={`relative cursor-pointer rounded-md p-3 border transition-colors ${
-                      selectedRadius === option.value
+                      radius === option.value
                         ? "border-primary"
                         : "border-border hover:border-border/60"
                     }`}
-                    onClick={() => handleRadiusSelect(option.value)}
+                    onClick={() => updateRadius(option.value)}
                   >
                     <div className="text-center">
                       <div className="text-xs font-medium">{option.name}</div>
@@ -149,6 +160,22 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
           {/* Layout Tab content */}
           <LayoutTab />
         </div>
+
+        {/* Save Button - sticky bottom */}
+        <div className="border-t p-4">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || !hasUnsavedChanges}
+            className="w-full cursor-pointer"
+          >
+            {isSaving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            {isSaving ? "Enregistrement..." : "Enregistrer"}
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -160,17 +187,20 @@ export function ThemeCustomizerTrigger({
   onClick: () => void;
 }) {
   const { config: sidebarConfig } = useSidebarConfig();
+  const cogRef = useRef<import("@/components/ui/cog6-tooth-icon").Cog6ToothIconHandle>(null);
 
   return (
     <Button
       onClick={onClick}
+      onMouseEnter={() => cogRef.current?.startAnimation()}
+      onMouseLeave={() => cogRef.current?.stopAnimation()}
       size="icon"
       className={cn(
         "fixed top-1/2 -translate-y-1/2 h-12 w-12 rounded-full shadow-lg z-50 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer",
         sidebarConfig.side === "left" ? "right-4" : "left-4"
       )}
     >
-      <Settings className="h-5 w-5" />
+      <Cog6ToothIcon ref={cogRef} size={20} />
     </Button>
   );
 }

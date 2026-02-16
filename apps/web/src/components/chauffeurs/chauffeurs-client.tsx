@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Pencil, Trash2, UserCog, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { UserIcon } from "@/components/ui/user-icon";
 import { Badge } from "@/components/ui/badge";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
@@ -109,7 +110,7 @@ export function ChauffeursClient() {
       error={error}
       title="Chauffeurs"
       description="Gerez vos chauffeurs"
-      emptyIcon={UserCog}
+      emptyIcon={UserIcon}
       emptyTitle="Aucun chauffeur"
       emptyDescription="Commencez par ajouter votre premier chauffeur."
       addButtonLabel="Ajouter un chauffeur"
@@ -153,14 +154,13 @@ export function ChauffeursClient() {
           key: "status",
           header: "Statut",
           render: (row) => (
-            <Badge
-              variant={row.isActive ? "default" : "secondary"}
-              className={
-                row.isActive
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                  : ""
-              }
-            >
+            <Badge variant="outline">
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full ${
+                  row.isActive ? "bg-emerald-500" : "bg-muted-foreground/64"
+                }`}
+              />
               {row.isActive ? "Actif" : "Inactif"}
             </Badge>
           ),

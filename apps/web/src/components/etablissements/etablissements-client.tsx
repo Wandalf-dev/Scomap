@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Pencil, Trash2, School, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { BuildingOffice2Icon } from "@/components/ui/building-office2-icon";
 import { Badge } from "@/components/ui/badge";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
@@ -130,7 +131,7 @@ export function EtablissementsClient() {
       error={error}
       title="Etablissements"
       description="Gerez les etablissements scolaires"
-      emptyIcon={School}
+      emptyIcon={BuildingOffice2Icon}
       emptyTitle="Aucun etablissement"
       emptyDescription="Commencez par ajouter votre premier etablissement."
       addButtonLabel="Ajouter un etablissement"

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   etablissementContactSchema,
   type EtablissementContactFormValues,
@@ -59,7 +59,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { UsersIcon } from "@/components/ui/users-icon";
 import type { EtablissementContact } from "@scomap/db/schema";
 
 const CIVILITIES = [
@@ -167,8 +168,8 @@ export function TabInterlocuteurs({ etablissementId }: TabInterlocuteursProps) {
       </div>
 
       {!contacts || contacts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-          <Users className="h-12 w-12 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
+          <UsersIcon size={48} className="text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             Aucun interlocuteur
           </h3>

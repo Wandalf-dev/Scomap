@@ -71,7 +71,7 @@ interface DataListProps<TRow, TFilters extends Record<string, string>> {
   error?: unknown;
   title: string;
   description: string;
-  emptyIcon: LucideIcon;
+  emptyIcon: React.ElementType;
   emptyTitle: string;
   emptyDescription: string;
   addButtonLabel: string;
@@ -280,8 +280,8 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           ))}
         </div>
       ) : !data || data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-          <EmptyIcon className="h-12 w-12 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
+          <EmptyIcon size={48} className="text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             {emptyTitle}
           </h3>
@@ -301,11 +301,11 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
         <div className="overflow-hidden rounded-[0.3rem] border border-border bg-card">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/60 hover:bg-muted/60 border-b border-border">
+              <TableRow className="bg-accent hover:bg-accent">
                 {columns.map((col) => (
                   <TableHead
                     key={col.key}
-                    className={`h-10 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${
+                    className={`${
                       col.sortable
                         ? "cursor-pointer select-none hover:text-foreground transition-colors"
                         : ""
@@ -326,7 +326,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                     )}
                   </TableHead>
                 ))}
-                <TableHead className="h-10 w-[50px]" />
+                <TableHead className="w-[50px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -337,7 +337,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                     className="h-32 text-center"
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <EmptyIcon className="h-8 w-8 text-muted-foreground" />
+                      <EmptyIcon size={32} className="text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         Aucun resultat pour ces filtres
                       </p>
@@ -351,10 +351,10 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                     className="cursor-pointer group transition-colors"
                     onClick={() => onRowClick(row)}
                   >
-                    {columns.map((col) => (
+                    {columns.map((col, colIdx) => (
                       <TableCell
                         key={col.key}
-                        className={`px-4 py-3 ${col.className ?? ""}`}
+                        className={`${colIdx === 0 ? "font-medium" : ""} ${col.className ?? ""}`}
                       >
                         {col.render(row)}
                       </TableCell>

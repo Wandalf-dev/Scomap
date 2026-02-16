@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { z } from "zod";
 import {
   Dialog,
@@ -52,7 +52,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Route, Bell, ShieldCheck, Link, SquarePlus, ArrowLeft, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Bell, ShieldCheck, Link, SquarePlus, ArrowLeft, AlertTriangle } from "lucide-react";
+import { ShareIcon } from "@/components/ui/share-icon";
 import { DayMiniGrid } from "@/components/shared/day-mini-grid";
 import { ADDRESS_TYPE_LABELS } from "@/lib/validators/usager-address";
 import {
@@ -201,8 +202,8 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
       </div>
 
       {!linkedCircuits || linkedCircuits.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-          <Route className="h-12 w-12 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
+          <ShareIcon size={48} className="text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             Aucun circuit
           </h3>

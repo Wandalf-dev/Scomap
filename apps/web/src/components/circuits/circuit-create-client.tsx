@@ -5,8 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { ArrowLeft, Tag, CalendarDays, School, FileText } from "lucide-react";
 import {
   circuitDetailSchema,
   type CircuitDetailFormValues,
@@ -22,13 +22,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { EtablissementSelector } from "./etablissement-selector";
+
+function SectionTitle({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ElementType;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-[0.5rem] bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
+      <Icon className="h-3.5 w-3.5" />
+      {children}
+    </span>
+  );
+}
 
 export function CircuitCreateClient() {
   const trpc = useTRPC();
@@ -50,11 +59,11 @@ export function CircuitCreateClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
         });
-        toast.success("Circuit cree");
+        toast.success("Circuit créé");
         router.push(data?.id ? `/circuits/${data.id}` : "/circuits");
       },
       onError: () => {
-        toast.error("Erreur lors de la creation");
+        toast.error("Erreur lors de la création");
       },
     }),
   );
@@ -68,12 +77,14 @@ export function CircuitCreateClient() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
-          variant="ghost"
+          variant="outline"
+          effect="expandIcon"
+          icon={ArrowLeft}
+          iconPlacement="left"
           size="sm"
           onClick={() => router.push("/circuits")}
           className="cursor-pointer"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
         <h1 className="text-2xl font-semibold text-foreground">
@@ -82,13 +93,11 @@ export function CircuitCreateClient() {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Identification */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Identification</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          {/* Identification + Période côte à côte */}
+          <div className="grid grid-cols-2 gap-8">
+            <section className="space-y-4">
+              <SectionTitle icon={Tag}>Identification</SectionTitle>
               <FormField
                 control={form.control}
                 name="name"
@@ -102,61 +111,109 @@ export function CircuitCreateClient() {
                   </FormItem>
                 )}
               />
-            </CardContent>
-          </Card>
+            </section>
 
-          {/* Etablissement de destination */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Etablissement de destination</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="etablissementId"
-                render={() => (
-                  <FormItem>
-                    <EtablissementSelector
-                      selectedEtablissementId={form.watch("etablissementId") || null}
-                      onSelect={(result) => {
-                        form.setValue("etablissementId", result.etablissementId, { shouldValidate: true });
-                      }}
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+            <section className="space-y-4">
+              <SectionTitle icon={CalendarDays}>Période</SectionTitle>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date de début</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value || null)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="endDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date de fin</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value || null)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </section>
+          </div>
+
+          {/* Établissement de destination */}
+          <section className="space-y-4">
+            <SectionTitle icon={School}>
+              Établissement de destination
+            </SectionTitle>
+            <FormField
+              control={form.control}
+              name="etablissementId"
+              render={() => (
+                <FormItem>
+                  <EtablissementSelector
+                    selectedEtablissementId={
+                      form.watch("etablissementId") || null
+                    }
+                    onSelect={(result) => {
+                      form.setValue(
+                        "etablissementId",
+                        result.etablissementId,
+                        { shouldValidate: true }
+                      );
+                    }}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </section>
 
           {/* Description */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Description</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Description du circuit..."
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+          <section className="space-y-4">
+            <SectionTitle icon={FileText}>Description</SectionTitle>
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Description du circuit..."
+                      rows={4}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </section>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-              {mutation.isPending ? "Creation..." : "Creer le circuit"}
+            <Button
+              type="submit"
+              disabled={mutation.isPending}
+              className="cursor-pointer"
+            >
+              {mutation.isPending ? "Création..." : "Créer le circuit"}
             </Button>
           </div>
         </form>

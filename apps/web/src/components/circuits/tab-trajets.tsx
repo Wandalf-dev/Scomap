@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
 import { DayBadges } from "@/components/shared/day-badges";
 import type { DayEntry } from "@/lib/types/day-entry";
 
@@ -41,8 +41,8 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
 
   if (!trajets || trajets.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
-        <ArrowRightLeft className="h-12 w-12 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
+        <ArrowPathRoundedSquareIcon size={48} className="text-muted-foreground" />
         <h3 className="mt-4 text-lg font-medium text-foreground">
           Aucun trajet
         </h3>

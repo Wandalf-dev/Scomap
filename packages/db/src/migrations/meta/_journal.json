@@ -120,6 +120,13 @@
       "when": 1771060000000,
       "tag": "0016_move_transport_type_to_addresses",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1771070000000,
+      "tag": "0017_add_user_preferences",
+      "breakpoints": true
     }
   ]
 }

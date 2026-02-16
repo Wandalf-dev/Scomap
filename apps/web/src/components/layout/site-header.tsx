@@ -1,16 +1,19 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { useRef } from "react";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/layout/mode-toggle";
+import { Cog6ToothIcon, type Cog6ToothIconHandle } from "@/components/ui/cog6-tooth-icon";
 
 interface SiteHeaderProps {
   onOpenCustomizer?: () => void;
 }
 
 export function SiteHeader({ onOpenCustomizer }: SiteHeaderProps) {
+  const cogRef = useRef<Cog6ToothIconHandle>(null);
+
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
@@ -26,9 +29,11 @@ export function SiteHeader({ onOpenCustomizer }: SiteHeaderProps) {
               variant="outline"
               size="icon"
               onClick={onOpenCustomizer}
+              onMouseEnter={() => cogRef.current?.startAnimation()}
+              onMouseLeave={() => cogRef.current?.stopAnimation()}
               className="cursor-pointer"
             >
-              <Settings className="h-[1.2rem] w-[1.2rem]" />
+              <Cog6ToothIcon ref={cogRef} size={18} />
               <span className="sr-only">Customizer</span>
             </Button>
           )}

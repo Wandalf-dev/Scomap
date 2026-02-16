@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   DndContext,
   closestCenter,
@@ -312,7 +312,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
       </div>
 
       {!addresses || addresses.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-border py-16">
+        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
           <MapPin className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             Aucune adresse

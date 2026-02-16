@@ -6,6 +6,7 @@ import {
   timestamp,
   pgEnum,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 
@@ -20,6 +21,7 @@ export const users = pgTable("users", {
   name: varchar("name", { length: 255 }),
   passwordHash: text("password_hash"),
   role: userRoleEnum("role").notNull().default("user"),
+  preferences: jsonb("preferences").$type<Record<string, unknown>>(),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -45,6 +45,7 @@
 
 :root {
   --radius: 0.5rem;
+  --dot: oklch(0.9 0 180);
 
   --background: oklch(0.982 0 161.565);
   --foreground: oklch(0.244 0 169.695);
@@ -92,6 +93,7 @@
 
 .dark {
   --radius: 0.5rem;
+  --dot: oklch(0.24 0 180);
 
   --background: oklch(0.178 0 180);
   --foreground: oklch(0.949 0 180);
@@ -137,6 +139,12 @@
   --sidebar-ring: oklch(0.689 0.19 45.166);
 }
 
+@keyframes shine {
+  0% { background-position: 200% 0; }
+  25% { background-position: -200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -150,6 +158,10 @@
 
 .animate-fade-in {
   animation: fade-in 0.25s ease-out;
+}
+
+.animate-shine {
+  animation: shine 3s ease-out infinite;
 }
 
 @layer base {
@@ -176,6 +188,18 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Make sidebar-inset a containing block for fixed-position toasts */
+[data-slot="sidebar-inset"] {
+  transform: translateZ(0);
+}
+
+/* Dot grid pattern on main content areas */
+[data-slot="sidebar-inset"],
+.dot-pattern {
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 
 ::view-transition-old(root),

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Pencil, Trash2, Users, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { UsersIcon } from "@/components/ui/users-icon";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { UsagerFormDialog } from "./usager-form-dialog";
@@ -153,7 +154,7 @@ export function UsagersClient() {
       error={error}
       title="Usagers"
       description="Gerez les eleves transportes"
-      emptyIcon={Users}
+      emptyIcon={UsersIcon}
       emptyTitle="Aucun usager"
       emptyDescription="Commencez par ajouter votre premier usager."
       addButtonLabel="Ajouter un usager"

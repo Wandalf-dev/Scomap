@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   ArrowLeft,
   Trash2,
@@ -133,7 +133,7 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
-        <div className="rounded-[0.3rem] border border-dashed border-border p-12 text-center">
+        <div className="rounded-[0.3rem] border border-dashed border-muted-foreground/25 p-12 text-center">
           <p className="text-muted-foreground">Trajet non trouve.</p>
         </div>
       </div>

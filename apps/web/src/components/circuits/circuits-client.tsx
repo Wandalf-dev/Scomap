@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Pencil, Trash2, Route, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { ShareIcon } from "@/components/ui/share-icon";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataList } from "@/components/shared/data-list";
@@ -134,7 +135,7 @@ export function CircuitsClient() {
       error={error}
       title="Circuits"
       description="Gerez vos circuits de transport"
-      emptyIcon={Route}
+      emptyIcon={ShareIcon}
       emptyTitle="Aucun circuit"
       emptyDescription="Commencez par ajouter votre premier circuit."
       addButtonLabel="Ajouter un circuit"

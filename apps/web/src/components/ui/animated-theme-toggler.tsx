@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useRef } from "react"
-import { Moon, Sun } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTheme } from "next-themes"
 import { flushSync } from "react-dom"
 
 import { cn } from "@/lib/utils"
+import { MoonIcon } from "@/components/ui/moon-icon"
+import { SunIcon } from "@/components/ui/sun-icon"
 
 interface AnimatedThemeTogglerProps extends React.ComponentPropsWithoutRef<"button"> {
   duration?: number
@@ -17,7 +18,10 @@ export const AnimatedThemeToggler = ({
   ...props
 }: AnimatedThemeTogglerProps) => {
   const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => setMounted(true), [])
 
   const toggleTheme = useCallback(async () => {
     if (!buttonRef.current) return
@@ -66,7 +70,7 @@ export const AnimatedThemeToggler = ({
       className={cn("cursor-pointer", className)}
       {...props}
     >
-      {resolvedTheme === "dark" ? <Sun /> : <Moon />}
+      {mounted ? (resolvedTheme === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />) : <MoonIcon size={18} />}
       <span className="sr-only">Toggle theme</span>
     </button>
   )

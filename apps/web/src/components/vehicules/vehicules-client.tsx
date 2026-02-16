@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Pencil, Trash2, Truck, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { TruckIcon } from "@/components/ui/truck-icon";
 import { Badge } from "@/components/ui/badge";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
@@ -110,7 +111,7 @@ export function VehiculesClient() {
       error={error}
       title="Vehicules"
       description="Gerez votre flotte de vehicules"
-      emptyIcon={Truck}
+      emptyIcon={TruckIcon}
       emptyTitle="Aucun vehicule"
       emptyDescription="Commencez par ajouter votre premier vehicule."
       addButtonLabel="Ajouter un vehicule"
@@ -159,14 +160,13 @@ export function VehiculesClient() {
           key: "status",
           header: "Statut",
           render: (row) => (
-            <Badge
-              variant={row.isActive ? "default" : "secondary"}
-              className={
-                row.isActive
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                  : ""
-              }
-            >
+            <Badge variant="outline">
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full ${
+                  row.isActive ? "bg-emerald-500" : "bg-muted-foreground/64"
+                }`}
+              />
               {row.isActive ? "Actif" : "Inactif"}
             </Badge>
           ),

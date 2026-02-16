@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ThemeCustomizer } from "@/components/theme-customizer";
+import { Toaster } from "@/components/ui/sonner";
 import { useSidebarConfig } from "@/hooks/use-sidebar-config";
 
 interface DashboardShellProps {
@@ -46,6 +47,7 @@ export function DashboardShell({
             side={config.side}
           />
           <SidebarInset>
+            <Toaster />
             <SiteHeader onOpenCustomizer={() => setThemeCustomizerOpen(true)} />
             <div className="flex flex-1 flex-col">
               <div className="@container/main flex flex-1 flex-col gap-2">
@@ -60,6 +62,7 @@ export function DashboardShell({
       ) : (
         <>
           <SidebarInset>
+            <Toaster />
             <SiteHeader onOpenCustomizer={() => setThemeCustomizerOpen(true)} />
             <div className="flex flex-1 flex-col">
               <div className="@container/main flex flex-1 flex-col gap-2">
