@@ -52,7 +52,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Bell, ShieldCheck, Link, SquarePlus, ArrowLeft, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Bell, ShieldCheck, Link, SquarePlus, ArrowLeft, AlertTriangle, ExternalLink } from "lucide-react";
+import NextLink from "next/link";
 import { ShareIcon } from "@/components/ui/share-icon";
 import { DayMiniGrid } from "@/components/shared/day-mini-grid";
 import { ADDRESS_TYPE_LABELS } from "@/lib/validators/usager-address";
@@ -213,7 +214,7 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
           </p>
         </div>
       ) : (
-        <div className="rounded-[0.3rem] border">
+        <div className="rounded-[0.3rem] border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -230,7 +231,21 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
               {linkedCircuits.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
-                    {item.circuitName}
+                    <span className="inline-flex items-center gap-1.5 group/link">
+                      <NextLink
+                        href={`/circuits/${item.circuitId}`}
+                        className="text-foreground hover:text-primary transition-colors cursor-pointer"
+                      >
+                        {item.circuitName}
+                      </NextLink>
+                      <NextLink
+                        href={`/circuits/${item.circuitId}`}
+                        target="_blank"
+                        className="opacity-0 group-hover/link:opacity-70 hover:!opacity-100 transition-opacity cursor-pointer text-muted-foreground hover:text-primary"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </NextLink>
+                    </span>
                   </TableCell>
                   <TableCell>
                     {item.etablissementName ? (

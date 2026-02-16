@@ -239,7 +239,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-[0.3rem] border border-border">
+        <div className="overflow-x-auto rounded-[0.3rem] border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">

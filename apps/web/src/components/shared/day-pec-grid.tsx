@@ -103,13 +103,13 @@ function Cell({
       className={cn(
         "size-8 rounded-[3px] transition-colors relative",
         locked
-          ? "bg-muted/40 dark:bg-[#44403c] cursor-not-allowed"
+          ? "bg-muted/40 cursor-not-allowed"
           : "cursor-pointer",
         on && !locked
           ? color === "orange"
             ? "bg-amber-500 dark:bg-orange-500"
             : "bg-blue-500 dark:bg-blue-400"
-          : !locked && "bg-muted dark:bg-[#44403c] hover:bg-muted-foreground/15 dark:hover:bg-[#57534e]",
+          : !locked && "bg-muted hover:bg-muted-foreground/15",
       )}
     >
       {locked && (

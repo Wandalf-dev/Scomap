@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,11 +36,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { QuestionMarkCircleIcon } from "@/components/ui/question-mark-circle-icon";
 
 const GENDERS = [
   { value: "M", label: "Masculin" },
   { value: "F", label: "Féminin" },
 ];
+
+function toUpperCase(value: string) {
+  return value.toUpperCase();
+}
+
+function capitalize(value: string) {
+  return value
+    .split(/(-|\s)/)
+    .map((part) =>
+      part.length > 0 && part !== "-" && part !== " "
+        ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+        : part
+    )
+    .join("");
+}
 
 export function UsagerCreateClient() {
   const trpc = useTRPC();
@@ -48,6 +71,10 @@ export function UsagerCreateClient() {
 
   const { data: etablissements } = useQuery(
     trpc.etablissements.list.queryOptions(),
+  );
+
+  const { data: settings } = useQuery(
+    trpc.tenantSettings.get.queryOptions(),
   );
 
   const form = useForm<UsagerDetailFormValues>({
@@ -59,6 +86,19 @@ export function UsagerCreateClient() {
       birthDate: "",
       gender: "",
       etablissementId: "",
+      transportStartDate: settings?.schoolYearStart ?? null,
+      transportEndDate: settings?.schoolYearEnd ?? null,
+      notes: "",
+    },
+    values: {
+      code: "",
+      firstName: "",
+      lastName: "",
+      birthDate: "",
+      gender: "",
+      etablissementId: "",
+      transportStartDate: settings?.schoolYearStart ?? null,
+      transportEndDate: settings?.schoolYearEnd ?? null,
       notes: "",
     },
   });
@@ -118,7 +158,11 @@ export function UsagerCreateClient() {
                     <FormItem>
                       <FormLabel>Nom</FormLabel>
                       <FormControl>
-                        <Input placeholder="Nom" {...field} />
+                        <Input
+                          placeholder="Nom"
+                          {...field}
+                          onChange={(e) => field.onChange(toUpperCase(e.target.value))}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -131,7 +175,11 @@ export function UsagerCreateClient() {
                     <FormItem>
                       <FormLabel>Prénom</FormLabel>
                       <FormControl>
-                        <Input placeholder="Prénom" {...field} />
+                        <Input
+                          placeholder="Prénom"
+                          {...field}
+                          onChange={(e) => field.onChange(capitalize(e.target.value))}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -145,9 +193,11 @@ export function UsagerCreateClient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Date de naissance</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
+                      <DatePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        toYear={new Date().getFullYear()}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -219,6 +269,77 @@ export function UsagerCreateClient() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Transport */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Transport</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="transportStartDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-1">
+                      <FormLabel>Date début transport</FormLabel>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-pointer text-muted-foreground">
+                              <QuestionMarkCircleIcon size={16} />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            Date de début de transport de l&apos;usager, pré-remplie
+                            à partir des paramètres de l&apos;année scolaire. Elle sera
+                            reprise automatiquement lors de la création d&apos;un circuit.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      clearable
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="transportEndDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-1">
+                      <FormLabel>Date fin transport</FormLabel>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-pointer text-muted-foreground">
+                              <QuestionMarkCircleIcon size={16} />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            Date de fin de transport de l&apos;usager, pré-remplie
+                            à partir des paramètres de l&apos;année scolaire. Elle sera
+                            reprise automatiquement lors de la création d&apos;un circuit.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      clearable
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

@@ -95,6 +95,20 @@ export function ChauffeursClient() {
     }),
   );
 
+  const deleteManyMutation = useMutation(
+    trpc.chauffeurs.deleteMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.chauffeurs.list.queryKey(),
+        });
+        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la suppression");
+      },
+    }),
+  );
+
   function handleFormSubmit(values: ChauffeurFormValues) {
     if (formMode === "create") {
       createMutation.mutate(values);
@@ -108,6 +122,8 @@ export function ChauffeursClient() {
       data={chauffeursList}
       isLoading={isLoading}
       error={error}
+      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+      isBulkDeleting={deleteManyMutation.isPending}
       title="Chauffeurs"
       description="Gerez vos chauffeurs"
       emptyIcon={UserIcon}

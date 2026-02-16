@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { usagers, etablissements } from "@scomap/db/schema";
+import { usagers, etablissements, tenantSettings } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import { usagerSchema, usagerDetailSchema } from "@/lib/validators/usager";
 import { alias } from "drizzle-orm/pg-core";
@@ -52,8 +52,10 @@ export const usagersRouter = createTRPCRouter({
           regime: usagers.regime,
           etablissementId: usagers.etablissementId,
           etablissementName: etablissements.name,
+          etablissementType: etablissements.type,
           secondaryEtablissementId: usagers.secondaryEtablissementId,
           secondaryEtablissementName: secondaryEtab.name,
+          classe: usagers.classe,
           transportStartDate: usagers.transportStartDate,
           transportEndDate: usagers.transportEndDate,
           transportParticularity: usagers.transportParticularity,
@@ -80,6 +82,17 @@ export const usagersRouter = createTRPCRouter({
   create: tenantProcedure
     .input(usagerSchema)
     .mutation(async ({ ctx, input }) => {
+      // Récupérer les dates d'année scolaire pour pré-remplir
+      const settings = await ctx.db
+        .select({
+          schoolYearStart: tenantSettings.schoolYearStart,
+          schoolYearEnd: tenantSettings.schoolYearEnd,
+        })
+        .from(tenantSettings)
+        .where(eq(tenantSettings.tenantId, ctx.tenantId))
+        .limit(1)
+        .then((rows) => rows[0]);
+
       const result = await ctx.db
         .insert(usagers)
         .values({
@@ -89,6 +102,8 @@ export const usagersRouter = createTRPCRouter({
           birthDate: input.birthDate || null,
           gender: input.gender || null,
           etablissementId: input.etablissementId || null,
+          transportStartDate: settings?.schoolYearStart ?? null,
+          transportEndDate: settings?.schoolYearEnd ?? null,
         })
         .returning();
 
@@ -111,6 +126,7 @@ export const usagersRouter = createTRPCRouter({
           regime: input.regime || null,
           etablissementId: input.etablissementId || null,
           secondaryEtablissementId: input.secondaryEtablissementId || null,
+          classe: input.classe || null,
           transportStartDate: input.transportStartDate || null,
           transportEndDate: input.transportEndDate || null,
           transportParticularity: input.transportParticularity || null,
@@ -146,6 +162,7 @@ export const usagersRouter = createTRPCRouter({
           regime: input.data.regime || null,
           etablissementId: input.data.etablissementId || null,
           secondaryEtablissementId: input.data.secondaryEtablissementId || null,
+          classe: input.data.classe || null,
           transportStartDate: input.data.transportStartDate || null,
           transportEndDate: input.data.transportEndDate || null,
           transportParticularity: input.data.transportParticularity || null,
@@ -181,5 +198,25 @@ export const usagersRouter = createTRPCRouter({
         .returning();
 
       return result[0] ?? null;
+    }),
+
+  deleteMany: tenantProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()) }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.ids.length === 0) return { deleted: 0 };
+
+      const result = await ctx.db
+        .update(usagers)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(usagers.tenantId, ctx.tenantId),
+            inArray(usagers.id, input.ids),
+            isNull(usagers.deletedAt),
+          ),
+        )
+        .returning({ id: usagers.id });
+
+      return { deleted: result.length };
     }),
 });

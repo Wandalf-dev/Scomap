@@ -29,6 +29,7 @@ export const usagers = pgTable("usagers", {
   gender: varchar("gender", { length: 1 }),
   status: varchar("status", { length: 20 }).notNull().default("brouillon"),
   regime: varchar("regime", { length: 30 }),
+  classe: varchar("classe", { length: 30 }),
   transportStartDate: date("transport_start_date"),
   transportEndDate: date("transport_end_date"),
   transportParticularity: text("transport_particularity"),

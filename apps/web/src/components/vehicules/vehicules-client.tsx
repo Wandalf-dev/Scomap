@@ -96,6 +96,20 @@ export function VehiculesClient() {
     }),
   );
 
+  const deleteManyMutation = useMutation(
+    trpc.vehicules.deleteMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.vehicules.list.queryKey(),
+        });
+        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la suppression");
+      },
+    }),
+  );
+
   function handleFormSubmit(values: VehiculeFormValues) {
     if (formMode === "create") {
       createMutation.mutate(values);
@@ -109,6 +123,8 @@ export function VehiculesClient() {
       data={vehiculesList}
       isLoading={isLoading}
       error={error}
+      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+      isBulkDeleting={deleteManyMutation.isPending}
       title="Vehicules"
       description="Gerez votre flotte de vehicules"
       emptyIcon={TruckIcon}

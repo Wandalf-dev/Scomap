@@ -28,7 +28,7 @@ export function DayMiniGrid({ days, color = "orange" }: DayMiniGridProps) {
     ? "bg-amber-500 dark:bg-orange-500"
     : "bg-blue-500 dark:bg-blue-400";
 
-  const colorOff = "bg-muted/60 dark:bg-[#44403c]";
+  const colorOff = "bg-muted/60";
 
   return (
     <div className="inline-flex flex-col gap-px">

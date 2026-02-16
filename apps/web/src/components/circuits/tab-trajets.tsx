@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useTRPC } from "@/lib/trpc/client";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExternalLink } from "lucide-react";
 import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
 import { DayBadges } from "@/components/shared/day-badges";
 import type { DayEntry } from "@/lib/types/day-entry";
@@ -23,7 +24,6 @@ interface TabTrajetsProps {
 
 export function TabTrajets({ circuitId }: TabTrajetsProps) {
   const trpc = useTRPC();
-  const router = useRouter();
 
   const { data: trajets, isLoading } = useQuery(
     trpc.trajets.listByCircuit.queryOptions({ circuitId }),
@@ -54,7 +54,7 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
   }
 
   return (
-    <div className="rounded-[0.3rem] border">
+    <div className="rounded-[0.3rem] border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
@@ -74,12 +74,24 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
               daysOfWeek: DayEntry[];
             } | null;
             return (
-              <TableRow
-                key={trajet.id}
-                className="cursor-pointer"
-                onClick={() => router.push(`/trajets/${trajet.id}`)}
-              >
-                <TableCell className="font-medium">{trajet.name}</TableCell>
+              <TableRow key={trajet.id}>
+                <TableCell className="font-medium">
+                  <span className="inline-flex items-center gap-1.5 group/link">
+                    <Link
+                      href={`/trajets/${trajet.id}`}
+                      className="text-foreground hover:text-primary transition-colors cursor-pointer"
+                    >
+                      {trajet.name}
+                    </Link>
+                    <Link
+                      href={`/trajets/${trajet.id}`}
+                      target="_blank"
+                      className="opacity-0 group-hover/link:opacity-70 hover:!opacity-100 transition-opacity cursor-pointer text-muted-foreground hover:text-primary"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                  </span>
+                </TableCell>
                 <TableCell>
                   <Badge
                     variant={

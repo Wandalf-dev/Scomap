@@ -181,7 +181,7 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
           </p>
         </div>
       ) : (
-        <div className="rounded-[0.3rem] border">
+        <div className="rounded-[0.3rem] border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>

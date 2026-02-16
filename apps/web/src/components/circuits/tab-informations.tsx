@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { EtablissementSelector } from "./etablissement-selector";
 import { Tag, CalendarDays, School, FileText } from "lucide-react";
@@ -119,15 +120,11 @@ export function TabInformations({ circuit }: TabInformationsProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date de début</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value || null)
-                        }
-                      />
-                    </FormControl>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      clearable
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -138,15 +135,11 @@ export function TabInformations({ circuit }: TabInformationsProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date de fin</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value || null)
-                        }
-                      />
-                    </FormControl>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      clearable
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

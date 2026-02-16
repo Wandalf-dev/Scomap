@@ -1,11 +1,13 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/layout/mode-toggle";
 import { Cog6ToothIcon, type Cog6ToothIconHandle } from "@/components/ui/cog6-tooth-icon";
+import { CalendarCogIcon, type CalendarCogIconHandle } from "@/components/ui/calendar-cog-icon";
 
 interface SiteHeaderProps {
   onOpenCustomizer?: () => void;
@@ -13,6 +15,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ onOpenCustomizer }: SiteHeaderProps) {
   const cogRef = useRef<Cog6ToothIconHandle>(null);
+  const calendarRef = useRef<CalendarCogIconHandle>(null);
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -24,6 +27,22 @@ export function SiteHeader({ onOpenCustomizer }: SiteHeaderProps) {
         />
         <div className="flex-1" />
         <div className="ml-auto flex items-center gap-2">
+          <Link href="/planning">
+            <Button
+              variant="outline"
+              size="icon"
+              onMouseEnter={() => calendarRef.current?.startAnimation()}
+              onMouseLeave={() => calendarRef.current?.stopAnimation()}
+              className="cursor-pointer"
+            >
+              <CalendarCogIcon ref={calendarRef} size={18} />
+              <span className="sr-only">Planning</span>
+            </Button>
+          </Link>
+          <Separator
+            orientation="vertical"
+            className="mx-1 data-[orientation=vertical]:h-4"
+          />
           {onOpenCustomizer && (
             <Button
               variant="outline"

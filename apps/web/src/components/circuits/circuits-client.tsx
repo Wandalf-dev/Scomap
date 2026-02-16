@@ -98,6 +98,20 @@ export function CircuitsClient() {
     }),
   );
 
+  const deleteManyMutation = useMutation(
+    trpc.circuits.deleteMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.circuits.list.queryKey(),
+        });
+        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la suppression");
+      },
+    }),
+  );
+
   function handleFormSubmit(values: CircuitFormValues) {
     if (formMode === "create") {
       createMutation.mutate(values);
@@ -133,6 +147,8 @@ export function CircuitsClient() {
       data={displayedCircuits}
       isLoading={isLoading}
       error={error}
+      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+      isBulkDeleting={deleteManyMutation.isPending}
       title="Circuits"
       description="Gerez vos circuits de transport"
       emptyIcon={ShareIcon}

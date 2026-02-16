@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { circuits, etablissements, trajets, usagerCircuits } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
@@ -203,5 +203,47 @@ export const circuitsRouter = createTRPCRouter({
       }
 
       return result[0] ?? null;
+    }),
+
+  deleteMany: tenantProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()) }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.ids.length === 0) return { deleted: 0 };
+
+      const now = new Date();
+
+      const result = await ctx.db
+        .update(circuits)
+        .set({ deletedAt: now })
+        .where(
+          and(
+            eq(circuits.tenantId, ctx.tenantId),
+            inArray(circuits.id, input.ids),
+            isNull(circuits.deletedAt),
+          ),
+        )
+        .returning({ id: circuits.id });
+
+      if (result.length > 0) {
+        const deletedIds = result.map((r) => r.id);
+
+        // Soft-delete all trajets of these circuits
+        await ctx.db
+          .update(trajets)
+          .set({ deletedAt: now })
+          .where(
+            and(
+              inArray(trajets.circuitId, deletedIds),
+              isNull(trajets.deletedAt),
+            ),
+          );
+
+        // Delete usager-circuit associations
+        await ctx.db
+          .delete(usagerCircuits)
+          .where(inArray(usagerCircuits.circuitId, deletedIds));
+      }
+
+      return { deleted: result.length };
     }),
 });

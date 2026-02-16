@@ -103,6 +103,20 @@ export function TrajetsClient() {
     }),
   );
 
+  const deleteManyMutation = useMutation(
+    trpc.trajets.deleteMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.trajets.list.queryKey(),
+        });
+        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la suppression");
+      },
+    }),
+  );
+
   function handleFormSubmit(values: TrajetFormValues) {
     if (formMode === "create") {
       createMutation.mutate(values);
@@ -116,6 +130,8 @@ export function TrajetsClient() {
       data={trajetsList}
       isLoading={isLoading}
       error={error}
+      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+      isBulkDeleting={deleteManyMutation.isPending}
       title="Trajets"
       description="Gerez vos trajets de transport"
       emptyIcon={ArrowPathRoundedSquareIcon}

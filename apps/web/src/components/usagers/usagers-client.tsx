@@ -120,6 +120,20 @@ export function UsagersClient() {
     }),
   );
 
+  const deleteManyMutation = useMutation(
+    trpc.usagers.deleteMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagers.list.queryKey(),
+        });
+        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la suppression");
+      },
+    }),
+  );
+
   function handleSort(column: string) {
     const col = column as SortColumn;
     if (sortColumn === col) {
@@ -152,6 +166,8 @@ export function UsagersClient() {
       data={usagersList}
       isLoading={isLoading}
       error={error}
+      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+      isBulkDeleting={deleteManyMutation.isPending}
       title="Usagers"
       description="Gerez les eleves transportes"
       emptyIcon={UsersIcon}

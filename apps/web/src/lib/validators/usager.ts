@@ -50,6 +50,35 @@ export const USAGER_TRANSPORT_TYPE_LABELS: Record<typeof USAGER_TRANSPORT_TYPES[
   ambulance_vsl: "Ambulance / VSL",
 };
 
+export const ETABLISSEMENT_TYPES = [
+  "ecole",
+  "college",
+] as const;
+
+export const ETABLISSEMENT_TYPE_LABELS: Record<typeof ETABLISSEMENT_TYPES[number], string> = {
+  ecole: "École",
+  college: "Collège",
+};
+
+export const CLASSES_BY_TYPE: Record<typeof ETABLISSEMENT_TYPES[number], { value: string; label: string }[]> = {
+  ecole: [
+    { value: "ps", label: "PS" },
+    { value: "ms", label: "MS" },
+    { value: "gs", label: "GS" },
+    { value: "cp", label: "CP" },
+    { value: "ce1", label: "CE1" },
+    { value: "ce2", label: "CE2" },
+    { value: "cm1", label: "CM1" },
+    { value: "cm2", label: "CM2" },
+  ],
+  college: [
+    { value: "6eme", label: "6ème" },
+    { value: "5eme", label: "5ème" },
+    { value: "4eme", label: "4ème" },
+    { value: "3eme", label: "3ème" },
+  ],
+};
+
 /** Types de transport qui nécessitent un circuit géré par l'opérateur */
 export const CIRCUIT_TRANSPORT_TYPES: Set<string> = new Set([
   "taxi_collectif",
@@ -86,6 +115,7 @@ export const usagerDetailSchema = z.object({
   regime: z.enum(USAGER_REGIMES).optional().or(z.literal("")),
   etablissementId: z.string().uuid().optional().or(z.literal("")),
   secondaryEtablissementId: z.string().uuid().optional().or(z.literal("")),
+  classe: z.string().optional().or(z.literal("")),
   transportStartDate: z.string().nullable().optional(),
   transportEndDate: z.string().nullable().optional(),
   transportParticularity: z.string().optional(),

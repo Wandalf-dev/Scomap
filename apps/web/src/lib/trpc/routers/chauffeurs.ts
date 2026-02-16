@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { chauffeurs } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
@@ -211,5 +211,25 @@ export const chauffeursRouter = createTRPCRouter({
         .returning();
 
       return result[0] ?? null;
+    }),
+
+  deleteMany: tenantProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()) }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.ids.length === 0) return { deleted: 0 };
+
+      const result = await ctx.db
+        .update(chauffeurs)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(chauffeurs.tenantId, ctx.tenantId),
+            inArray(chauffeurs.id, input.ids),
+            isNull(chauffeurs.deletedAt),
+          ),
+        )
+        .returning({ id: chauffeurs.id });
+
+      return { deleted: result.length };
     }),
 });

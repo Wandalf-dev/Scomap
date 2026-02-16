@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -219,15 +220,11 @@ export function TrajetCreateClient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Date de debut</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value ?? ""}
-                          onChange={(e) =>
-                            field.onChange(e.target.value || null)
-                          }
-                        />
-                      </FormControl>
+                      <DatePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        clearable
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -239,15 +236,11 @@ export function TrajetCreateClient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Date de fin (optionnel)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value ?? ""}
-                          onChange={(e) =>
-                            field.onChange(e.target.value || null)
-                          }
-                        />
-                      </FormControl>
+                      <DatePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        clearable
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

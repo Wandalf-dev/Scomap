@@ -116,6 +116,20 @@ export function EtablissementsClient() {
     }),
   );
 
+  const deleteManyMutation = useMutation(
+    trpc.etablissements.deleteMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.etablissements.list.queryKey(),
+        });
+        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la suppression");
+      },
+    }),
+  );
+
   function handleFormSubmit(values: EtablissementFormValues) {
     if (formMode === "create") {
       createMutation.mutate(values);
@@ -129,6 +143,8 @@ export function EtablissementsClient() {
       data={etablissements}
       isLoading={isLoading}
       error={error}
+      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+      isBulkDeleting={deleteManyMutation.isPending}
       title="Etablissements"
       description="Gerez les etablissements scolaires"
       emptyIcon={BuildingOffice2Icon}

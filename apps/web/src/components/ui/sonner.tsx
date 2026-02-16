@@ -9,7 +9,7 @@ function GoeyToaster() {
 
   return (
     <GoeyToasterBase
-      position="top-center"
+      position="top-right"
       theme={resolvedTheme === "dark" ? "dark" : "light"}
     />
   )

@@ -20,6 +20,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -37,6 +38,21 @@ const GENDERS = [
   { value: "M", label: "Masculin" },
   { value: "F", label: "Féminin" },
 ];
+
+function toUpperCase(value: string) {
+  return value.toUpperCase();
+}
+
+function capitalize(value: string) {
+  return value
+    .split(/(-|\s)/)
+    .map((part) =>
+      part.length > 0 && part !== "-" && part !== " "
+        ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+        : part
+    )
+    .join("");
+}
 
 interface UsagerFormDialogProps {
   open: boolean;
@@ -108,7 +124,11 @@ export function UsagerFormDialog({
                   <FormItem>
                     <FormLabel>Nom</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nom" {...field} />
+                      <Input
+                        placeholder="Nom"
+                        {...field}
+                        onChange={(e) => field.onChange(toUpperCase(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -121,7 +141,11 @@ export function UsagerFormDialog({
                   <FormItem>
                     <FormLabel>Prénom</FormLabel>
                     <FormControl>
-                      <Input placeholder="Prénom" {...field} />
+                      <Input
+                        placeholder="Prénom"
+                        {...field}
+                        onChange={(e) => field.onChange(capitalize(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,9 +160,11 @@ export function UsagerFormDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date de naissance</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      toYear={new Date().getFullYear()}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

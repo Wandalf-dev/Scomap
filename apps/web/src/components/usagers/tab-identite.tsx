@@ -11,6 +11,8 @@ import {
   USAGER_STATUS_LABELS,
   USAGER_REGIMES,
   USAGER_REGIME_LABELS,
+  ETABLISSEMENT_TYPE_LABELS,
+  CLASSES_BY_TYPE,
   type UsagerDetailFormValues,
 } from "@/lib/validators/usager";
 import {
@@ -23,8 +25,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -33,11 +35,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { User, GraduationCap, Bus, MessageSquareText } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { QuestionMarkCircleIcon } from "@/components/ui/question-mark-circle-icon";
 
 const GENDERS = [
   { value: "M", label: "Masculin" },
   { value: "F", label: "Féminin" },
 ];
+
+function toUpperCase(value: string) {
+  return value.toUpperCase();
+}
+
+function capitalize(value: string) {
+  return value
+    .split(/(-|\s)/)
+    .map((part) =>
+      part.length > 0 && part !== "-" && part !== " "
+        ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+        : part
+    )
+    .join("");
+}
 
 interface UsagerData {
   id: string;
@@ -50,8 +74,10 @@ interface UsagerData {
   regime: string | null;
   etablissementId: string | null;
   etablissementName: string | null;
+  etablissementType: string | null;
   secondaryEtablissementId: string | null;
   secondaryEtablissementName: string | null;
+  classe: string | null;
   transportStartDate: string | null;
   transportEndDate: string | null;
   transportParticularity: string | null;
@@ -92,6 +118,7 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
       regime: (usager.regime as typeof USAGER_REGIMES[number] | "") ?? "",
       etablissementId: usager.etablissementId ?? "",
       secondaryEtablissementId: usager.secondaryEtablissementId ?? "",
+      classe: usager.classe ?? "",
       transportStartDate: usager.transportStartDate ?? null,
       transportEndDate: usager.transportEndDate ?? null,
       transportParticularity: usager.transportParticularity ?? "",
@@ -123,121 +150,154 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* Identité */}
-        <section className="space-y-4">
-          <SectionTitle icon={User}>Identité</SectionTitle>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="lastName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nom" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="firstName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prénom</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Prénom" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        {/* Identité + Scolarité côte à côte */}
+        <div className="grid grid-cols-2 gap-5">
+          {/* Identité */}
+          <section className="space-y-4 rounded-[0.5rem] border border-border bg-card p-5">
+            <SectionTitle icon={User}>Identité</SectionTitle>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nom</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Nom"
+                        {...field}
+                        onChange={(e) => field.onChange(toUpperCase(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prénom</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Prénom"
+                        {...field}
+                        onChange={(e) => field.onChange(capitalize(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="birthDate"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Date de naissance</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
+                  <DatePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    toYear={new Date().getFullYear()}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="gender"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Genre</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="gender"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Genre</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {GENDERS.map((g) => (
+                          <SelectItem key={g.value} value={g.value} className="cursor-pointer">
+                            {g.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Code usager</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
+                      <Input placeholder="Code" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {GENDERS.map((g) => (
-                        <SelectItem key={g.value} value={g.value} className="cursor-pointer">
-                          {g.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="code"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Code usager</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Code" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </section>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </section>
 
-        <Separator />
-
-        {/* Scolarité */}
-        <section className="space-y-4">
-          <SectionTitle icon={GraduationCap}>Scolarité</SectionTitle>
-          <div className="grid grid-cols-2 gap-4">
+          {/* Scolarité */}
+          <section className="space-y-4 rounded-[0.5rem] border border-border bg-card p-5">
+            <SectionTitle icon={GraduationCap}>Scolarité</SectionTitle>
             <FormField
               control={form.control}
               name="etablissementId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Établissement principal</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                    <FormControl>
-                      <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {etablissements?.map((e) => (
-                        <SelectItem key={e.id} value={e.id} className="cursor-pointer">
-                          {e.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const selectedEtab = etablissements?.find((e) => e.id === field.value);
+                const etabType = selectedEtab?.type as keyof typeof CLASSES_BY_TYPE | undefined;
+                const typeLabel = etabType && ETABLISSEMENT_TYPE_LABELS[etabType];
+                return (
+                  <FormItem>
+                    <FormLabel>
+                      Établissement principal
+                      {typeLabel && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          ({typeLabel})
+                        </span>
+                      )}
+                    </FormLabel>
+                    <Select onValueChange={(val) => {
+                      field.onChange(val);
+                      // Reset classe quand on change d'établissement
+                      const newEtab = etablissements?.find((e) => e.id === val);
+                      const newType = newEtab?.type as keyof typeof CLASSES_BY_TYPE | undefined;
+                      const currentClasse = form.getValues("classe");
+                      if (newType && currentClasse) {
+                        const validClasses = CLASSES_BY_TYPE[newType]?.map((c) => c.value) ?? [];
+                        if (!validClasses.includes(currentClasse)) {
+                          form.setValue("classe", "");
+                        }
+                      }
+                    }} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {etablissements?.map((e) => (
+                          <SelectItem key={e.id} value={e.id} className="cursor-pointer">
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
             <FormField
               control={form.control}
@@ -263,37 +323,71 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                 </FormItem>
               )}
             />
-          </div>
-          <FormField
-            control={form.control}
-            name="regime"
-            render={({ field }) => (
-              <FormItem className="max-w-xs">
-                <FormLabel>Régime</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                  <FormControl>
-                    <SelectTrigger className="w-full cursor-pointer">
-                      <SelectValue placeholder="Sélectionner" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {USAGER_REGIMES.map((r) => (
-                      <SelectItem key={r} value={r} className="cursor-pointer">
-                        {USAGER_REGIME_LABELS[r]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </section>
-
-        <Separator />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="classe"
+                render={({ field }) => {
+                  const selectedEtabId = form.watch("etablissementId");
+                  const selectedEtab = etablissements?.find((e) => e.id === selectedEtabId);
+                  const etabType = selectedEtab?.type as keyof typeof CLASSES_BY_TYPE | undefined;
+                  const classes = etabType ? CLASSES_BY_TYPE[etabType] ?? [] : [];
+                  return (
+                    <FormItem>
+                      <FormLabel>Classe</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                        disabled={classes.length === 0}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full cursor-pointer">
+                            <SelectValue placeholder={classes.length === 0 ? "Sélectionnez un établissement" : "Sélectionner"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {classes.map((c) => (
+                            <SelectItem key={c.value} value={c.value} className="cursor-pointer">
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+              <FormField
+                control={form.control}
+                name="regime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Régime</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Sélectionner" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {USAGER_REGIMES.map((r) => (
+                          <SelectItem key={r} value={r} className="cursor-pointer">
+                            {USAGER_REGIME_LABELS[r]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </section>
+        </div>
 
         {/* Transport */}
-        <section className="space-y-4">
+        <section className="space-y-4 rounded-[0.5rem] border border-border bg-card p-5">
           <SectionTitle icon={Bus}>Transport</SectionTitle>
           <div className="grid grid-cols-3 gap-4">
             <FormField
@@ -325,16 +419,28 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
               name="transportStartDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date début transport</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(e.target.value || null)
-                      }
-                    />
-                  </FormControl>
+                  <div className="flex items-center gap-1">
+                    <FormLabel>Date début transport</FormLabel>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-pointer text-muted-foreground">
+                            <QuestionMarkCircleIcon size={16} />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          Date de début de transport de l&apos;usager, pré-remplie
+                          à partir des paramètres de l&apos;année scolaire. Elle sera
+                          reprise automatiquement lors de la création d&apos;un circuit.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <DatePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    clearable
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -344,16 +450,28 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
               name="transportEndDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date fin transport</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(e.target.value || null)
-                      }
-                    />
-                  </FormControl>
+                  <div className="flex items-center gap-1">
+                    <FormLabel>Date fin transport</FormLabel>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-pointer text-muted-foreground">
+                            <QuestionMarkCircleIcon size={16} />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          Date de fin de transport de l&apos;usager, pré-remplie
+                          à partir des paramètres de l&apos;année scolaire. Elle sera
+                          reprise automatiquement lors de la création d&apos;un circuit.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <DatePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    clearable
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -374,10 +492,8 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
           />
         </section>
 
-        <Separator />
-
         {/* Observations */}
-        <section className="space-y-4">
+        <section className="space-y-4 rounded-[0.5rem] border border-border bg-card p-5">
           <SectionTitle icon={MessageSquareText}>Observations</SectionTitle>
           <FormField
             control={form.control}

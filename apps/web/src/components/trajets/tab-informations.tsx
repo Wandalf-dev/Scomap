@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -222,15 +223,11 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date de debut</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value || null)
-                        }
-                      />
-                    </FormControl>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      clearable
+                    />
                     {circuitStartDate && !field.value && (
                       <p className="text-xs text-muted-foreground">
                         Herite du circuit : {circuitStartDate}
@@ -247,15 +244,11 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Date de fin</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value || null)
-                        }
-                      />
-                    </FormControl>
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      clearable
+                    />
                     {circuitEndDate && !field.value && (
                       <p className="text-xs text-muted-foreground">
                         Herite du circuit : {circuitEndDate}
