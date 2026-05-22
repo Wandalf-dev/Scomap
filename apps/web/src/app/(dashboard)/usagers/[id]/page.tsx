@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { UsagerDetailClient } from "@/components/usagers/usager-detail-client";
+
+export const metadata: Metadata = { title: "Fiche usager" };
 
 interface UsagerDetailPageProps {
   params: Promise<{ id: string }>;

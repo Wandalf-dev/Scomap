@@ -10,3 +10,4 @@ export * from "./chauffeurs";
 export * from "./trajets";
 export * from "./usager-circuits";
 export * from "./tenant-settings";
+export * from "./tenant-counters";

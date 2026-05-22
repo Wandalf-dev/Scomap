@@ -9,7 +9,7 @@ import {
 
 interface DayMiniGridProps {
   days: DayEntry[] | number[] | null;
-  color?: "orange" | "blue";
+  color?: "aller" | "retour" | "orange" | "blue";
 }
 
 function isActive(entries: DayEntry[], day: number, parity: "even" | "odd"): boolean {
@@ -21,14 +21,18 @@ function isActive(entries: DayEntry[], day: number, parity: "even" | "odd"): boo
 const PARITY_LABEL: Record<string, string> = { even: "P", odd: "I" };
 const parities: ("even" | "odd")[] = ["even", "odd"];
 
-export function DayMiniGrid({ days, color = "orange" }: DayMiniGridProps) {
+export function DayMiniGrid({ days, color = "aller" }: DayMiniGridProps) {
   const entries = normalizeDays(days);
 
-  const colorOn = color === "orange"
-    ? "bg-amber-500 dark:bg-orange-500"
-    : "bg-blue-500 dark:bg-blue-400";
+  // Backwards compat: "orange" → "aller", "blue" → "retour"
+  const variant = color === "orange" ? "aller" : color === "blue" ? "retour" : color;
 
-  const colorOff = "bg-muted/60";
+  const colorOn =
+    variant === "aller"
+      ? "bg-primary text-primary-foreground"
+      : "bg-foreground/85 text-background";
+
+  const colorOff = "bg-muted/40";
 
   return (
     <div className="inline-flex flex-col gap-px">
@@ -45,7 +49,7 @@ export function DayMiniGrid({ days, color = "orange" }: DayMiniGridProps) {
                   key={`${d}-${parity}`}
                   className={cn(
                     "size-4 rounded-[2px] flex items-center justify-center text-[7px] font-semibold",
-                    on ? cn(colorOn, "text-white") : cn(colorOff, "text-muted-foreground/50"),
+                    on ? colorOn : cn(colorOff, "text-muted-foreground/50"),
                   )}
                   title={`${DAY_LABELS_FULL[d]} (sem. ${parity === "even" ? "paire" : "impaire"}) — ${on ? "Actif" : "Inactif"}`}
                 >

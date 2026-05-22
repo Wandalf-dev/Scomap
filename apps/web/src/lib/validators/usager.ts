@@ -116,7 +116,7 @@ export const usagerDetailSchema = z.object({
   etablissementId: z.string().uuid().optional().or(z.literal("")),
   secondaryEtablissementId: z.string().uuid().optional().or(z.literal("")),
   classe: z.string().optional().or(z.literal("")),
-  transportStartDate: z.string().nullable().optional(),
+  transportStartDate: z.string().min(1, "Date de début de transport requise"),
   transportEndDate: z.string().nullable().optional(),
   transportParticularity: z.string().optional(),
   specificity: z.string().optional(),

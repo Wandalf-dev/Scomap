@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "nextjs-toploader/app";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
 import {
   usagerDetailSchema,
   USAGER_STATUSES,
@@ -101,6 +106,11 @@ function SectionTitle({ icon: Icon, children }: { icon: React.ElementType; child
 export function TabIdentite({ usager }: TabIdentiteProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const exitAfterSaveRef = useRef(false);
+  const formId = "usager-identite-form";
 
   const { data: etablissements } = useQuery(
     trpc.etablissements.list.queryOptions(),
@@ -119,7 +129,7 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
       etablissementId: usager.etablissementId ?? "",
       secondaryEtablissementId: usager.secondaryEtablissementId ?? "",
       classe: usager.classe ?? "",
-      transportStartDate: usager.transportStartDate ?? null,
+      transportStartDate: usager.transportStartDate ?? "",
       transportEndDate: usager.transportEndDate ?? null,
       transportParticularity: usager.transportParticularity ?? "",
       specificity: usager.specificity ?? "",
@@ -129,7 +139,7 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
 
   const mutation = useMutation(
     trpc.usagers.updateDetail.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.getById.queryKey({ id: usager.id }),
         });
@@ -137,9 +147,16 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
           queryKey: trpc.usagers.list.queryKey(),
         });
         toast.success("Usager enregistré");
+        // Reset form to mark it clean (isDirty = false)
+        form.reset(variables.data);
+        if (exitAfterSaveRef.current) {
+          router.push("/usagers");
+        }
+        exitAfterSaveRef.current = false;
       },
       onError: () => {
         toast.error("Erreur lors de l'enregistrement");
+        exitAfterSaveRef.current = false;
       },
     }),
   );
@@ -148,9 +165,51 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
     mutation.mutate({ id: usager.id, data: values });
   }
 
+  // Sync form dirty state with the layout's unsaved-changes context
+  const isDirty = form.formState.isDirty;
+  useEffect(() => {
+    unsaved?.setDirty("usager-identite", isDirty);
+    return () => unsaved?.setDirty("usager-identite", false);
+  }, [isDirty, unsaved]);
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      {headerActions?.target &&
+        createPortal(
+          <>
+            <Button
+              type="submit"
+              form={formId}
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = false;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && !exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer"}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = true;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer et quitter"}
+            </Button>
+          </>,
+          headerActions.target,
+        )}
+      <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         {/* Identité + Scolarité côte à côte */}
         <div className="grid grid-cols-2 gap-5">
           {/* Identité */}
@@ -420,7 +479,10 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center gap-1">
-                    <FormLabel>Date début transport</FormLabel>
+                    <FormLabel>
+                      Date début transport
+                      <span className="text-destructive">*</span>
+                    </FormLabel>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -430,8 +492,9 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs">
                           Date de début de transport de l&apos;usager, pré-remplie
-                          à partir des paramètres de l&apos;année scolaire. Elle sera
-                          reprise automatiquement lors de la création d&apos;un circuit.
+                          à partir des paramètres de l&apos;année scolaire. Champ
+                          obligatoire car utilisé pour générer les trajets et
+                          initialiser les circuits associés.
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -439,7 +502,6 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                   <DatePicker
                     value={field.value}
                     onChange={field.onChange}
-                    clearable
                   />
                   <FormMessage />
                 </FormItem>
@@ -531,11 +593,6 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
           />
         </section>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
       </form>
     </Form>
   );

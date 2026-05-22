@@ -53,34 +53,36 @@ export default async function AuthLayout({
   const tenantSlug = await getTenantSlug();
 
   return (
-    <div className="dot-pattern grid min-h-svh lg:grid-cols-2">
+    <>
       <Toaster />
-      {/* Left column - Form */}
-      <div className="flex flex-col gap-4 p-6 md:p-10">
-        <div className="flex justify-center gap-2 md:justify-start">
-          <Link href="/" className="flex items-center gap-2 font-medium">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold">
-              S
+      <div className="dot-pattern grid min-h-svh lg:grid-cols-2">
+        {/* Left column - Form */}
+        <div className="flex flex-col gap-4 p-6 md:p-10">
+          <div className="flex justify-center gap-2 md:justify-start">
+            <Link href="/" className="flex items-center gap-2 font-medium">
+              <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold">
+                S
+              </div>
+              Scomap
+              {tenantSlug && (
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  — {tenantSlug}
+                </span>
+              )}
+            </Link>
+          </div>
+          <div className="flex flex-1 items-center justify-center">
+            <div className="w-full max-w-md">
+              {children}
             </div>
-            Scomap
-            {tenantSlug && (
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                — {tenantSlug}
-              </span>
-            )}
-          </Link>
-        </div>
-        <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-md">
-            {children}
           </div>
         </div>
-      </div>
 
-      {/* Right column - Quote */}
-      <div className="bg-muted relative hidden lg:flex flex-col items-center justify-center p-10">
-        <QuoteDisplay />
+        {/* Right column - Quote */}
+        <div className="bg-muted relative hidden lg:flex flex-col items-center justify-center p-10">
+          <QuoteDisplay />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

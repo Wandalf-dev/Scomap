@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { PlanningClient } from "@/components/planning/planning-client";
+
+export const metadata: Metadata = { title: "Planning" };
 
 function getWeekRange() {
   const now = new Date();

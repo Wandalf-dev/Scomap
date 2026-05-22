@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useRouter } from "nextjs-toploader/app";
 import {
   Plus,
   MoreHorizontal,
   X,
   ListFilter,
+  Filter,
+  Columns3,
+  RotateCcw,
+  GripVertical,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Download,
+  DownloadCloud,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -19,6 +25,41 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { exportToXlsx } from "@/lib/utils/export-xlsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -60,6 +101,8 @@ export interface ColumnConfig<TRow> {
   className?: string;
   sortable?: boolean;
   render: (row: TRow) => React.ReactNode;
+  /** Raw value used for xlsx export (defaults to row[key]) */
+  exportValue?: (row: TRow) => string | number | Date | null | undefined;
 }
 
 export interface FilterConfig {
@@ -104,9 +147,274 @@ interface DataListProps<TRow, TFilters extends Record<string, string>> {
   onBulkDelete?: (ids: string[]) => void;
   isBulkDeleting?: boolean;
   children?: React.ReactNode;
+  /** localStorage key for persisting column visibility/order. If omitted, picker is hidden. */
+  storageKey?: string;
+  /** Default visible column keys. If omitted, all are visible. */
+  defaultVisibleColumns?: string[];
 }
 
 const PAGE_SIZE_OPTIONS = [50, 100, 500, 1000];
+
+/**
+ * Returns a compact list of pages to display (0-indexed) with "..." for gaps.
+ * Always includes first and last; centers a window around the current page.
+ */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i);
+  }
+  const pages: (number | "...")[] = [0];
+  const windowStart = Math.max(1, current - 1);
+  const windowEnd = Math.min(total - 2, current + 1);
+  if (windowStart > 1) pages.push("...");
+  for (let i = windowStart; i <= windowEnd; i++) pages.push(i);
+  if (windowEnd < total - 2) pages.push("...");
+  pages.push(total - 1);
+  return pages;
+}
+
+function FilterChip({
+  config,
+  value,
+  defaultOpen,
+  onChange,
+  onRemove,
+  onOpened,
+}: {
+  config: FilterConfig;
+  value: string;
+  defaultOpen?: boolean;
+  onChange: (value: string) => void;
+  onRemove: () => void;
+  onOpened?: () => void;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  const hasValue = config.type === "select" ? value && value !== "all" : !!value;
+  const display = (() => {
+    if (!hasValue) return null;
+    if (config.type === "select") {
+      return config.options?.find((o) => o.value === value)?.label ?? value;
+    }
+    return value;
+  })();
+
+  useEffect(() => {
+    if (defaultOpen) {
+      setOpen(true);
+      onOpened?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultOpen]);
+
+  return (
+    <div className="inline-flex h-8 items-center rounded-md border border-border bg-secondary text-sm">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1 cursor-pointer hover:bg-secondary/80 rounded-l-md transition-colors"
+          >
+            <span className="font-medium text-foreground">{config.label}</span>
+            {hasValue ? (
+              <>
+                <span className="text-muted-foreground">:</span>
+                <span className="text-foreground">{display}</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground italic">définir</span>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-2" align="start">
+          {config.type === "text" ? (
+            <Input
+              autoFocus
+              placeholder={config.placeholder ?? "Rechercher…"}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setOpen(false);
+              }}
+              className="h-8 w-full text-sm"
+            />
+          ) : (
+            <Select
+              value={value || "all"}
+              onValueChange={(v) => {
+                onChange(v);
+                setOpen(false);
+              }}
+            >
+              <SelectTrigger className="h-8 w-full cursor-pointer text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {config.options?.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={opt.value}
+                    className="cursor-pointer"
+                  >
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </PopoverContent>
+      </Popover>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex h-full w-7 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 rounded-r-md transition-colors cursor-pointer border-l border-border"
+        aria-label="Retirer le filtre"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function ColumnFilter({
+  config,
+  value,
+  active,
+  onChange,
+  onClear,
+}: {
+  config: FilterConfig;
+  value: string;
+  active: boolean;
+  onChange: (value: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded transition-colors cursor-pointer ${
+            active
+              ? "bg-primary/15 text-primary hover:bg-primary/25"
+              : "text-muted-foreground/50 hover:text-foreground hover:bg-muted"
+          }`}
+          aria-label={`Filtrer ${config.label}`}
+        >
+          <Filter className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-64 p-2"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Filtrer {config.label}
+          </span>
+          {active && (
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Effacer
+            </button>
+          )}
+        </div>
+        {config.type === "text" ? (
+          <Input
+            autoFocus
+            placeholder={config.placeholder ?? "Rechercher…"}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setOpen(false);
+            }}
+            className="h-8 w-full text-sm"
+          />
+        ) : (
+          <Select
+            value={value || "all"}
+            onValueChange={(v) => {
+              onChange(v);
+              setOpen(false);
+            }}
+          >
+            <SelectTrigger className="h-8 w-full cursor-pointer text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {config.options?.map((opt) => (
+                <SelectItem
+                  key={opt.value}
+                  value={opt.value}
+                  className="cursor-pointer"
+                >
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function SortableColumnRow({
+  id,
+  header,
+  checked,
+  onToggle,
+}: {
+  id: string;
+  header: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded-sm"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground"
+        aria-label="Réorganiser"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <Checkbox
+        checked={checked}
+        onCheckedChange={onToggle}
+        className="cursor-pointer"
+        id={`col-${id}`}
+      />
+      <label
+        htmlFor={`col-${id}`}
+        className="flex-1 cursor-pointer text-sm select-none"
+      >
+        {header}
+      </label>
+    </div>
+  );
+}
 
 function SortIcon({ column, sortColumn, sortDirection }: {
   column: string;
@@ -144,10 +452,43 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   onBulkDelete,
   isBulkDeleting,
   children,
+  storageKey,
+  defaultVisibleColumns,
 }: DataListProps<TRow, TFilters>) {
   const router = useRouter();
   const [filterValues, setFilterValues] = useState<TFilters>(emptyFilters);
-  const [showFilters, setShowFilters] = useState(false);
+
+  // Active filter chips — keys explicitly added by the user
+  const [activeFilterKeys, setActiveFilterKeys] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    filterConfigs.forEach((fc) => {
+      const v = (emptyFilters as Record<string, string>)[fc.key];
+      // Initially none are active
+      void v;
+    });
+    return set;
+  });
+  const [justAddedKey, setJustAddedKey] = useState<string | null>(null);
+
+  function addActiveFilter(key: string) {
+    setActiveFilterKeys((prev) => new Set(prev).add(key));
+    setJustAddedKey(key);
+  }
+
+  function removeActiveFilter(key: string) {
+    const fc = filterConfigs.find((f) => f.key === key);
+    setActiveFilterKeys((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+    if (fc) {
+      setFilterValues((prev) => ({
+        ...prev,
+        [key]: fc.type === "select" ? "all" : "",
+      }));
+    }
+  }
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -156,6 +497,106 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   // Pagination
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(0);
+
+  // Column visibility + order (persisted)
+  const allColumnKeys = useMemo(() => columns.map((c) => c.key), [columns]);
+  const visibilityStorageKey = storageKey ? `datalist:${storageKey}:visibility` : null;
+  const orderStorageKey = storageKey ? `datalist:${storageKey}:order` : null;
+
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    if (typeof window === "undefined" || !visibilityStorageKey) return new Set();
+    try {
+      const raw = localStorage.getItem(visibilityStorageKey);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch {}
+    // Initial: hide columns not in defaultVisibleColumns
+    if (defaultVisibleColumns) {
+      return new Set(allColumnKeys.filter((k) => !defaultVisibleColumns.includes(k)));
+    }
+    return new Set();
+  });
+
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    if (typeof window === "undefined" || !orderStorageKey) return allColumnKeys;
+    try {
+      const raw = localStorage.getItem(orderStorageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as string[];
+        // Merge: keep saved order for known keys, append any new keys at end
+        const known = new Set(allColumnKeys);
+        const ordered = saved.filter((k) => known.has(k));
+        const missing = allColumnKeys.filter((k) => !ordered.includes(k));
+        return [...ordered, ...missing];
+      }
+    } catch {}
+    return allColumnKeys;
+  });
+
+  // Persist
+  useEffect(() => {
+    if (!visibilityStorageKey) return;
+    try {
+      localStorage.setItem(visibilityStorageKey, JSON.stringify([...hiddenColumns]));
+    } catch {}
+  }, [hiddenColumns, visibilityStorageKey]);
+
+  useEffect(() => {
+    if (!orderStorageKey) return;
+    try {
+      localStorage.setItem(orderStorageKey, JSON.stringify(columnOrder));
+    } catch {}
+  }, [columnOrder, orderStorageKey]);
+
+  function toggleColumn(key: string) {
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const pickerSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  function handleColumnDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setColumnOrder((prev) => {
+      const oldIdx = prev.indexOf(String(active.id));
+      const newIdx = prev.indexOf(String(over.id));
+      if (oldIdx === -1 || newIdx === -1) return prev;
+      return arrayMove(prev, oldIdx, newIdx);
+    });
+  }
+
+  function resetColumns() {
+    setHiddenColumns(
+      defaultVisibleColumns
+        ? new Set(allColumnKeys.filter((k) => !defaultVisibleColumns.includes(k)))
+        : new Set(),
+    );
+    setColumnOrder(allColumnKeys);
+  }
+
+  // Derived: visible + ordered columns
+  const visibleColumns = useMemo(() => {
+    const byKey = new Map(columns.map((c) => [c.key, c]));
+    return columnOrder
+      .filter((k) => !hiddenColumns.has(k))
+      .map((k) => byKey.get(k))
+      .filter((c): c is ColumnConfig<TRow> => Boolean(c));
+  }, [columns, columnOrder, hiddenColumns]);
+
+  // All columns (ordered) for the picker
+  const orderedColumns = useMemo(() => {
+    const byKey = new Map(columns.map((c) => [c.key, c]));
+    return columnOrder
+      .map((k) => byKey.get(k))
+      .filter((c): c is ColumnConfig<TRow> => Boolean(c));
+  }, [columns, columnOrder]);
 
   const hasActiveFilters = useMemo(() => {
     return Object.entries(filterValues).some(([key, val]) => {
@@ -289,8 +730,30 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
 
   function clearFilters() {
     setFilterValues(emptyFilters);
+    setActiveFilterKeys(new Set());
+    setJustAddedKey(null);
     setCurrentPage(0);
   }
+
+  const filterConfigByKey = useMemo(() => {
+    const map = new Map<string, FilterConfig>();
+    filterConfigs.forEach((fc) => map.set(fc.key, fc));
+    return map;
+  }, [filterConfigs]);
+
+  // Active filter = chip is in activeFilterKeys OR value is non-default
+  const activeFilters = useMemo(() => {
+    return filterConfigs.filter((fc) => {
+      if (activeFilterKeys.has(fc.key)) return true;
+      const v = filterValues[fc.key];
+      return fc.type === "select" ? v && v !== "all" : !!v;
+    });
+  }, [filterConfigs, activeFilterKeys, filterValues]);
+
+  const inactiveFilters = useMemo(
+    () => filterConfigs.filter((fc) => !activeFilters.includes(fc)),
+    [filterConfigs, activeFilters],
+  );
 
   if (error) {
     return (
@@ -303,6 +766,43 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   }
 
   const selectionCount = selectedIds.size;
+
+  async function handleExport(scope: "page" | "all") {
+    const rowsToExport =
+      scope === "all"
+        ? filtered
+        : selectionCount > 0
+          ? filtered.filter((row) => selectedIds.has(getRowId(row)))
+          : paginatedRows;
+
+    const exportColumns = visibleColumns.map((col) => ({
+      header: col.header,
+      value: (row: TRow) => {
+        if (col.exportValue) return col.exportValue(row);
+        const raw = (row as unknown as Record<string, unknown>)[col.key];
+        if (raw === null || raw === undefined) return null;
+        if (typeof raw === "string" || typeof raw === "number") return raw;
+        if (raw instanceof Date) return raw;
+        return String(raw);
+      },
+    }));
+
+    const slug = title
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const today = new Date().toISOString().split("T")[0];
+    const filename = `${slug}-${today}.xlsx`;
+
+    await exportToXlsx({
+      filename,
+      sheetName: title.slice(0, 31),
+      columns: exportColumns,
+      rows: rowsToExport,
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -324,39 +824,204 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
       {/* Toolbar */}
       {data && data.length > 0 && (
         <div className="flex items-center gap-3">
-          <Button
-            variant={showFilters || hasActiveFilters ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => {
-              setShowFilters(!showFilters);
-              if (showFilters && hasActiveFilters) clearFilters();
-            }}
-            className="cursor-pointer"
-          >
-            <ListFilter className="mr-2 h-4 w-4" />
-            Filtres
-            {hasActiveFilters && (
-              <Badge
-                variant="secondary"
-                className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs font-medium bg-primary text-primary-foreground"
-              >
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
+          {/* Active filter chips */}
+          {activeFilters.map((fc) => (
+            <FilterChip
+              key={fc.key}
+              config={fc}
+              value={filterValues[fc.key] ?? ""}
+              defaultOpen={fc.key === justAddedKey}
+              onChange={(v) => updateFilter(fc.key, v)}
+              onRemove={() => removeActiveFilter(fc.key)}
+              onOpened={() => setJustAddedKey(null)}
+            />
+          ))}
+
+          {inactiveFilters.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="cursor-pointer">
+                  <ListFilter className="mr-2 h-4 w-4" />
+                  {activeFilters.length === 0 ? "Filtres" : "Ajouter"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Rechercher un filtre…" />
+                  <CommandList>
+                    <CommandEmpty>Aucun filtre disponible.</CommandEmpty>
+                    <CommandGroup>
+                      {inactiveFilters.map((fc) => (
+                        <CommandItem
+                          key={fc.key}
+                          value={fc.label}
+                          onSelect={() => addActiveFilter(fc.key)}
+                          className="cursor-pointer"
+                        >
+                          {fc.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {activeFilters.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-8 cursor-pointer px-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="mr-1 h-3.5 w-3.5" />
+              Tout effacer
+            </Button>
+          )}
+
+          {storageKey && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="cursor-pointer">
+                  <Columns3 className="mr-2 h-4 w-4" />
+                  Colonnes
+                  {hiddenColumns.size > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs font-medium bg-primary text-primary-foreground"
+                    >
+                      {visibleColumns.length}/{columns.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start">
+                <div className="flex items-center justify-between px-3 py-2 border-b">
+                  <span className="text-sm font-medium">Colonnes affichées</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 cursor-pointer text-xs text-muted-foreground hover:text-foreground"
+                    onClick={resetColumns}
+                  >
+                    <RotateCcw className="mr-1 h-3 w-3" />
+                    Réinitialiser
+                  </Button>
+                </div>
+                <DndContext
+                  sensors={pickerSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleColumnDragEnd}
+                >
+                  <SortableContext
+                    items={columnOrder}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="max-h-80 overflow-y-auto py-1">
+                      {orderedColumns.map((col) => (
+                        <SortableColumnRow
+                          key={col.key}
+                          id={col.key}
+                          header={col.header}
+                          checked={!hiddenColumns.has(col.key)}
+                          onToggle={() => toggleColumn(col.key)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </PopoverContent>
+            </Popover>
+          )}
+
           {hasActiveFilters && (
-            <>
-              <span className="text-sm text-muted-foreground">
-                {filtered.length} sur {data.length}
-              </span>
+            <span className="text-sm text-muted-foreground">
+              {filtered.length} sur {data.length}
+            </span>
+          )}
+
+          {/* Export buttons */}
+          <div className="h-4 w-px bg-border" />
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="h-8 cursor-pointer px-2 text-muted-foreground hover:text-foreground"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 cursor-pointer"
+                onClick={() => handleExport("page")}
               >
-                <X className="mr-1 h-3.5 w-3.5" />
-                Reinitialiser
+                <Download className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {selectionCount > 0
+                ? `Exporter la sélection (${selectionCount})`
+                : "Exporter la page courante"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 cursor-pointer"
+                onClick={() => handleExport("all")}
+              >
+                <DownloadCloud className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Exporter tout ({filtered.length})
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Pagination inline */}
+          {totalPages > 1 && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 cursor-pointer"
+                disabled={safePage === 0}
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                aria-label="Page précédente"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              {getPageNumbers(safePage, totalPages).map((p, i) =>
+                p === "..." ? (
+                  <span
+                    key={`ellipsis-${i}`}
+                    className="px-1 text-sm text-muted-foreground select-none"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === safePage ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8 cursor-pointer tabular-nums"
+                    onClick={() => setCurrentPage(p)}
+                    aria-current={p === safePage ? "page" : undefined}
+                  >
+                    {p + 1}
+                  </Button>
+                ),
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 cursor-pointer"
+                disabled={safePage >= totalPages - 1}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
+                }
+                aria-label="Page suivante"
+              >
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </>
           )}
@@ -391,46 +1056,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
         </div>
       )}
 
-      {/* Filters bar */}
-      {showFilters && data && data.length > 0 && (
-        <div className="flex flex-wrap items-end gap-3 rounded-[0.3rem] border border-border bg-card p-3">
-          {filterConfigs.map((fc) => (
-            <div key={fc.key} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                {fc.label}
-              </label>
-              {fc.type === "text" ? (
-                <Input
-                  placeholder={fc.placeholder ?? "Rechercher..."}
-                  value={filterValues[fc.key] ?? ""}
-                  onChange={(e) => updateFilter(fc.key, e.target.value)}
-                  className={fc.className ?? "h-8 w-40 text-sm"}
-                />
-              ) : (
-                <Select
-                  value={filterValues[fc.key] ?? "all"}
-                  onValueChange={(v) => updateFilter(fc.key, v)}
-                >
-                  <SelectTrigger className={fc.className ?? "h-8 w-36 cursor-pointer text-sm"}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fc.options?.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        className="cursor-pointer"
-                      >
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Table or Loading or Empty */}
       {isLoading ? (
@@ -480,38 +1105,59 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                       className="cursor-pointer"
                     />
                   </TableHead>
-                  {columns.map((col) => (
-                    <TableHead
-                      key={col.key}
-                      className={`relative ${
-                        col.sortable
-                          ? "cursor-pointer select-none hover:text-foreground transition-colors"
-                          : ""
-                      } ${col.className ?? ""}`}
-                      style={hasFixedWidths ? { width: columnWidths[col.key] } : undefined}
-                      onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
-                    >
-                      {col.sortable ? (
-                        <span className="flex items-center">
+                  {visibleColumns.map((col) => {
+                    const fc = filterConfigByKey.get(col.key);
+                    const fValue = fc ? filterValues[fc.key] ?? "" : "";
+                    const fActive = fc
+                      ? fc.type === "select"
+                        ? fValue && fValue !== "all"
+                        : !!fValue
+                      : false;
+                    return (
+                      <TableHead
+                        key={col.key}
+                        className={`relative ${
+                          col.sortable
+                            ? "cursor-pointer select-none hover:text-foreground transition-colors"
+                            : ""
+                        } ${col.className ?? ""}`}
+                        style={hasFixedWidths ? { width: columnWidths[col.key] } : undefined}
+                        onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
+                      >
+                        <span className="flex items-center gap-1">
                           {col.header}
-                          <SortIcon
-                            column={col.key}
-                            sortColumn={sortColumn}
-                            sortDirection={sortDirection}
-                          />
+                          {col.sortable && (
+                            <SortIcon
+                              column={col.key}
+                              sortColumn={sortColumn}
+                              sortDirection={sortDirection}
+                            />
+                          )}
+                          {fc && (
+                            <ColumnFilter
+                              config={fc}
+                              value={fValue}
+                              active={!!fActive}
+                              onChange={(v) => updateFilter(fc.key, v)}
+                              onClear={() =>
+                                updateFilter(
+                                  fc.key,
+                                  fc.type === "select" ? "all" : "",
+                                )
+                              }
+                            />
+                          )}
                         </span>
-                      ) : (
-                        col.header
-                      )}
-                      <div
-                        onMouseDown={(e) => handleResizeStart(col.key, e)}
-                        onTouchStart={(e) => handleResizeStart(col.key, e)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute top-0 right-0 w-px h-full cursor-col-resize bg-border/40 hover:bg-primary hover:w-[3px] transition-all"
-                        style={{ userSelect: "none", touchAction: "none" }}
-                      />
-                    </TableHead>
-                  ))}
+                        <div
+                          onMouseDown={(e) => handleResizeStart(col.key, e)}
+                          onTouchStart={(e) => handleResizeStart(col.key, e)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute top-0 right-0 w-px h-full cursor-col-resize bg-border/40 hover:bg-primary hover:w-[3px] transition-all"
+                          style={{ userSelect: "none", touchAction: "none" }}
+                        />
+                      </TableHead>
+                    );
+                  })}
                   <TableHead
                     className="w-[50px]"
                     style={hasFixedWidths ? { width: actionsColWidth } : undefined}
@@ -522,7 +1168,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                 {paginatedRows.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={columns.length + 2}
+                      colSpan={visibleColumns.length + 2}
                       className="h-32 text-center"
                     >
                       <div className="flex flex-col items-center gap-1">
@@ -554,7 +1200,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                             className="cursor-pointer"
                           />
                         </TableCell>
-                        {columns.map((col, colIdx) => (
+                        {visibleColumns.map((col, colIdx) => (
                           <TableCell
                             key={col.key}
                             className={`${colIdx === 0 ? "font-medium" : ""} ${col.className ?? ""} ${hasFixedWidths ? "overflow-hidden text-ellipsis" : ""}`}
@@ -572,7 +1218,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="h-8 w-8 cursor-pointer text-muted-foreground hover:text-foreground"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <MoreHorizontal className="h-4 w-4" />
@@ -610,56 +1256,29 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
             </Table>
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""}</span>
-              <span className="text-muted-foreground/40">|</span>
-              <span>Par page :</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v));
-                  setCurrentPage(0);
-                }}
-              >
-                <SelectTrigger className="h-7 w-[70px] cursor-pointer text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <SelectItem key={size} value={String(size)} className="cursor-pointer">
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 cursor-pointer"
-                  disabled={safePage === 0}
-                  onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm text-muted-foreground px-2">
-                  {safePage + 1} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 cursor-pointer"
-                  disabled={safePage >= totalPages - 1}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+          {/* Footer: total + page size */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""}</span>
+            <span className="text-muted-foreground/40">|</span>
+            <span>Par page :</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setCurrentPage(0);
+              }}
+            >
+              <SelectTrigger className="h-7 w-[70px] cursor-pointer text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)} className="cursor-pointer">
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </>
       )}

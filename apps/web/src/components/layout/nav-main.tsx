@@ -3,11 +3,13 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -59,6 +61,17 @@ export function NavMain({
                 <span>{item.title}</span>
               </Link>
             </SidebarMenuButton>
+            <SidebarMenuAction
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(item.url, "_blank", "noopener,noreferrer");
+              }}
+              title="Ouvrir dans un nouvel onglet"
+              className="cursor-pointer"
+            >
+              <ExternalLink className="size-4" />
+              <span className="sr-only">Ouvrir dans un nouvel onglet</span>
+            </SidebarMenuAction>
           </SidebarMenuItem>
         ))}
       </SidebarMenu>

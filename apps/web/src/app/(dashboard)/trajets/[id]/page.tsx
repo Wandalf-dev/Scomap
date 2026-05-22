@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { TrajetDetailClient } from "@/components/trajets/trajet-detail-client";
+
+export const metadata: Metadata = { title: "Fiche trajet" };
 
 interface TrajetDetailPageProps {
   params: Promise<{ id: string }>;

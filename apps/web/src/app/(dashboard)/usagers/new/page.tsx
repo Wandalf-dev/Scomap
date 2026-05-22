@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { UsagerCreateClient } from "@/components/usagers/usager-create-client";
+
+export const metadata: Metadata = { title: "Nouvel usager" };
 
 export default async function UsagerNewPage() {
   const queryClient = getQueryClient();

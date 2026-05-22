@@ -5,44 +5,51 @@ import {
   text,
   timestamp,
   date,
+  integer,
+  unique,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 import { etablissements } from "./etablissements";
 
-export const usagers = pgTable("usagers", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  etablissementId: uuid("etablissement_id").references(
-    () => etablissements.id,
-    { onDelete: "set null" }
-  ),
-  secondaryEtablissementId: uuid("secondary_etablissement_id").references(
-    () => etablissements.id,
-    { onDelete: "set null" }
-  ),
-  code: varchar("code", { length: 50 }),
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }).notNull(),
-  birthDate: date("birth_date"),
-  gender: varchar("gender", { length: 1 }),
-  status: varchar("status", { length: 20 }).notNull().default("brouillon"),
-  regime: varchar("regime", { length: 30 }),
-  classe: varchar("classe", { length: 30 }),
-  transportStartDate: date("transport_start_date"),
-  transportEndDate: date("transport_end_date"),
-  transportParticularity: text("transport_particularity"),
-  specificity: text("specificity"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  deletedAt: timestamp("deleted_at", { withTimezone: true }),
-});
+export const usagers = pgTable(
+  "usagers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    displayId: integer("display_id").notNull(),
+    etablissementId: uuid("etablissement_id").references(
+      () => etablissements.id,
+      { onDelete: "set null" }
+    ),
+    secondaryEtablissementId: uuid("secondary_etablissement_id").references(
+      () => etablissements.id,
+      { onDelete: "set null" }
+    ),
+    code: varchar("code", { length: 50 }),
+    firstName: varchar("first_name", { length: 100 }).notNull(),
+    lastName: varchar("last_name", { length: 100 }).notNull(),
+    birthDate: date("birth_date"),
+    gender: varchar("gender", { length: 1 }),
+    status: varchar("status", { length: 20 }).notNull().default("brouillon"),
+    regime: varchar("regime", { length: 30 }),
+    classe: varchar("classe", { length: 30 }),
+    transportStartDate: date("transport_start_date"),
+    transportEndDate: date("transport_end_date"),
+    transportParticularity: text("transport_particularity"),
+    specificity: text("specificity"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [unique("usagers_tenant_display_id_unique").on(t.tenantId, t.displayId)],
+);
 
 export type Usager = typeof usagers.$inferSelect;
 export type NewUsager = typeof usagers.$inferInsert;

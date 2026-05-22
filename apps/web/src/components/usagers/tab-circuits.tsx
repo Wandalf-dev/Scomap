@@ -52,7 +52,21 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Bell, ShieldCheck, Link, SquarePlus, ArrowLeft, AlertTriangle, ExternalLink } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Plus, Pencil, Trash2, Bell, ShieldCheck, Link, SquarePlus, ArrowLeft, AlertTriangle, ExternalLink, ChevronsUpDown, Check } from "lucide-react";
 import NextLink from "next/link";
 import { ShareIcon } from "@/components/ui/share-icon";
 import { DayMiniGrid } from "@/components/shared/day-mini-grid";
@@ -389,6 +403,92 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
 }
 
 // --- Dissociate Dialog ---
+
+interface CircuitOption {
+  id: string;
+  name: string;
+  etablissementName: string | null;
+}
+
+function CircuitCombobox({
+  circuits,
+  selected,
+  onSelect,
+}: {
+  circuits: CircuitOption[];
+  selected: CircuitOption | null;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full min-w-0 justify-between cursor-pointer font-normal"
+        >
+          <span className="flex-1 min-w-0 truncate text-left">
+            {selected ? (
+              <>
+                {selected.name}
+                {selected.etablissementName && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — {selected.etablissementName}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground">Sélectionnez un circuit</span>
+            )}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="p-0"
+        align="start"
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+      >
+        <Command>
+          <CommandInput placeholder="Rechercher un circuit…" />
+          <CommandList>
+            <CommandEmpty>Aucun circuit trouvé.</CommandEmpty>
+            <CommandGroup>
+              {circuits.map((c) => {
+                const label = c.etablissementName
+                  ? `${c.name} — ${c.etablissementName}`
+                  : c.name;
+                return (
+                  <CommandItem
+                    key={c.id}
+                    value={label}
+                    onSelect={() => {
+                      onSelect(c.id);
+                      setOpen(false);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selected?.id === c.id ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <span className="truncate">{label}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function DissociateDialog({
   deleteItem,
@@ -745,34 +845,22 @@ function CircuitLinkDialog({
                   <FormField
                     control={linkForm.control}
                     name="circuitId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Circuit</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value ?? ""}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full cursor-pointer">
-                              <SelectValue placeholder="Sélectionnez un circuit" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {availableCircuits.map((c) => (
-                              <SelectItem
-                                key={c.id}
-                                value={c.id}
-                                className="cursor-pointer"
-                              >
-                                {c.name}
-                                {c.etablissementName && ` — ${c.etablissementName}`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const selected = availableCircuits.find(
+                        (c) => c.id === field.value,
+                      );
+                      return (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Circuit</FormLabel>
+                          <CircuitCombobox
+                            circuits={availableCircuits}
+                            selected={selected ?? null}
+                            onSelect={(id) => field.onChange(id)}
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </>
               )}

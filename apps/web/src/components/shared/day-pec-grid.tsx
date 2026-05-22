@@ -93,7 +93,7 @@ function Cell({
 }: {
   on: boolean;
   locked: boolean;
-  color: "orange" | "blue";
+  color: "aller" | "retour";
   onClick: () => void;
 }) {
   return (
@@ -101,19 +101,19 @@ function Cell({
       type="button"
       onClick={onClick}
       className={cn(
-        "size-8 rounded-[3px] transition-colors relative",
-        locked
-          ? "bg-muted/40 cursor-not-allowed"
-          : "cursor-pointer",
-        on && !locked
-          ? color === "orange"
-            ? "bg-amber-500 dark:bg-orange-500"
-            : "bg-blue-500 dark:bg-blue-400"
-          : !locked && "bg-muted hover:bg-muted-foreground/15",
+        "size-8 rounded-md transition-all relative border",
+        locked && "bg-muted/30 border-transparent cursor-not-allowed",
+        !locked && "cursor-pointer",
+        on && !locked && color === "aller" &&
+          "bg-primary border-primary shadow-sm shadow-primary/20",
+        on && !locked && color === "retour" &&
+          "bg-foreground/85 border-foreground/85 shadow-sm shadow-foreground/10",
+        !on && !locked &&
+          "bg-muted/40 border-border/50 hover:bg-muted hover:border-border",
       )}
     >
       {locked && (
-        <Lock className="size-3 text-muted-foreground/50 absolute inset-0 m-auto" />
+        <Lock className="size-3 text-muted-foreground/40 absolute inset-0 m-auto" />
       )}
     </button>
   );
@@ -149,7 +149,7 @@ function DirectionBlock({
   onChange,
 }: {
   label: string;
-  color: "orange" | "blue";
+  color: "aller" | "retour";
   days: DayEntry[];
   occupied: OccupiedDay[];
   onChange: (days: DayEntry[]) => void;
@@ -191,11 +191,14 @@ function DirectionBlock({
 
   return (
     <div className="flex-1 min-w-0 space-y-1">
-      <div className="flex items-center gap-3 mb-1">
-        <span className={cn(
-          "text-[11px] font-bold uppercase tracking-widest",
-          color === "orange" ? "text-amber-600 dark:text-orange-400" : "text-blue-500 dark:text-blue-400",
-        )}>
+      <div className="flex items-center gap-2 mb-1">
+        <span
+          className={cn(
+            "size-1.5 rounded-full",
+            color === "aller" ? "bg-primary" : "bg-foreground/85",
+          )}
+        />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
           {label}
         </span>
       </div>
@@ -327,10 +330,10 @@ export function DayPecGrid({
         </button>
       </div>
 
-      <div className="flex gap-4 rounded-lg border bg-accent p-4">
-        <DirectionBlock label="Aller" color="orange" days={localAller} occupied={occupiedAller} onChange={handleAller} />
+      <div className="flex gap-4 rounded-lg border bg-muted/30 p-4">
+        <DirectionBlock label="Aller" color="aller" days={localAller} occupied={occupiedAller} onChange={handleAller} />
         <div className="w-px bg-border shrink-0" />
-        <DirectionBlock label="Retour" color="blue" days={localRetour} occupied={occupiedRetour} onChange={handleRetour} />
+        <DirectionBlock label="Retour" color="retour" days={localRetour} occupied={occupiedRetour} onChange={handleRetour} />
       </div>
     </div>
   );

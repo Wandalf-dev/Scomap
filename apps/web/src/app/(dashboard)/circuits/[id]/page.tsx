@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { CircuitDetailClient } from "@/components/circuits/circuit-detail-client";
+
+export const metadata: Metadata = { title: "Fiche circuit" };
 
 interface CircuitDetailPageProps {
   params: Promise<{ id: string }>;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "nextjs-toploader/app";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -11,31 +11,80 @@ import { UsersIcon } from "@/components/ui/users-icon";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { UsagerFormDialog } from "./usager-form-dialog";
-import type { UsagerFormValues } from "@/lib/validators/usager";
+import {
+  USAGER_STATUSES,
+  USAGER_STATUS_LABELS,
+  USAGER_REGIMES,
+  USAGER_REGIME_LABELS,
+  CLASSES_BY_TYPE,
+  type UsagerFormValues,
+} from "@/lib/validators/usager";
+
+const CLASSE_LABEL_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const list of Object.values(CLASSES_BY_TYPE)) {
+    for (const c of list) map[c.value] = c.label;
+  }
+  return map;
+})();
 
 interface UsagerRow {
   id: string;
+  displayId: number;
+  code: string | null;
   firstName: string;
   lastName: string;
   birthDate: string | null;
   gender: string | null;
+  status: string;
+  regime: string | null;
   etablissementId: string | null;
   etablissementName: string | null;
   etablissementCity: string | null;
+  secondaryEtablissementId: string | null;
+  secondaryEtablissementName: string | null;
+  classe: string | null;
+  transportStartDate: string | null;
+  transportEndDate: string | null;
+  transportParticularity: string | null;
+  specificity: string | null;
+  notes: string | null;
 }
 
 type UsagerFilters = {
+  displayId: string;
+  code: string;
   lastName: string;
   firstName: string;
+  birthDate: string;
+  gender: string;
+  status: string;
+  regime: string;
+  classe: string;
   etablissement: string;
   city: string;
+  secondaryEtablissement: string;
+  transportParticularity: string;
+  specificity: string;
+  notes: string;
 };
 
 const EMPTY_FILTERS: UsagerFilters = {
+  displayId: "",
+  code: "",
   lastName: "",
   firstName: "",
+  birthDate: "",
+  gender: "all",
+  status: "all",
+  regime: "all",
+  classe: "all",
   etablissement: "all",
   city: "",
+  secondaryEtablissement: "all",
+  transportParticularity: "",
+  specificity: "",
+  notes: "",
 };
 
 type SortColumn = "lastName" | "firstName" | "birthDate" | "etablissementName" | "etablissementCity";
@@ -74,6 +123,23 @@ export function UsagersClient() {
     return Array.from(names).sort().map((name) => ({ value: name, label: name }));
   }, [usagersList]);
 
+  const secondaryEtablissementOptions = useMemo(() => {
+    if (!usagersList) return [];
+    const names = new Set<string>();
+    usagersList.forEach((u) => {
+      if (u.secondaryEtablissementName) names.add(u.secondaryEtablissementName);
+    });
+    return Array.from(names).sort().map((name) => ({ value: name, label: name }));
+  }, [usagersList]);
+
+  const classeOptions = useMemo(() => {
+    const keys = new Set<string>();
+    for (const list of Object.values(CLASSES_BY_TYPE)) {
+      for (const c of list) keys.add(c.value);
+    }
+    return Array.from(keys).map((k) => ({ value: k, label: CLASSE_LABEL_MAP[k] ?? k }));
+  }, []);
+
   const createMutation = useMutation(
     trpc.usagers.create.mutationOptions({
       onSuccess: () => {
@@ -90,7 +156,7 @@ export function UsagersClient() {
   );
 
   const updateMutation = useMutation(
-    trpc.usagers.updateDetail.mutationOptions({
+    trpc.usagers.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.list.queryKey(),
@@ -175,7 +241,36 @@ export function UsagersClient() {
       emptyDescription="Commencez par ajouter votre premier usager."
       addButtonLabel="Ajouter un usager"
       addHref="/usagers/new"
+      storageKey="usagers"
+      defaultVisibleColumns={[
+        "displayId",
+        "lastName",
+        "firstName",
+        "birthDate",
+        "etablissementName",
+        "etablissementCity",
+      ]}
       columns={[
+        {
+          key: "displayId",
+          header: "ID",
+          sortable: true,
+          className: "w-16",
+          render: (row) => (
+            <span className="text-muted-foreground tabular-nums">#{row.displayId}</span>
+          ),
+        },
+        {
+          key: "code",
+          header: "Code",
+          sortable: true,
+          render: (row) =>
+            row.code ? (
+              <span className="text-muted-foreground tabular-nums">{row.code}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
         {
           key: "lastName",
           header: "Nom",
@@ -186,7 +281,7 @@ export function UsagersClient() {
         },
         {
           key: "firstName",
-          header: "Prenom",
+          header: "Prénom",
           sortable: true,
           render: (row) => (
             <span className="text-foreground">{row.firstName}</span>
@@ -204,8 +299,55 @@ export function UsagersClient() {
             ),
         },
         {
+          key: "gender",
+          header: "Genre",
+          sortable: true,
+          render: (row) =>
+            row.gender ? (
+              <span className="text-muted-foreground">{row.gender === "M" ? "M" : "F"}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "status",
+          header: "Statut",
+          sortable: true,
+          render: (row) => (
+            <span className="text-muted-foreground">
+              {USAGER_STATUS_LABELS[row.status as keyof typeof USAGER_STATUS_LABELS] ?? row.status}
+            </span>
+          ),
+        },
+        {
+          key: "regime",
+          header: "Régime",
+          sortable: true,
+          render: (row) =>
+            row.regime ? (
+              <span className="text-muted-foreground">
+                {USAGER_REGIME_LABELS[row.regime as keyof typeof USAGER_REGIME_LABELS] ?? row.regime}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "classe",
+          header: "Classe",
+          sortable: true,
+          render: (row) =>
+            row.classe ? (
+              <span className="text-muted-foreground">
+                {CLASSE_LABEL_MAP[row.classe] ?? row.classe}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
           key: "etablissementName",
-          header: "Etablissement",
+          header: "Établissement",
           sortable: true,
           render: (row) =>
             row.etablissementName ? (
@@ -225,6 +367,69 @@ export function UsagersClient() {
               <span className="text-muted-foreground/60">&mdash;</span>
             ),
         },
+        {
+          key: "secondaryEtablissementName",
+          header: "Établissement secondaire",
+          sortable: true,
+          render: (row) =>
+            row.secondaryEtablissementName ? (
+              <span className="text-muted-foreground">{row.secondaryEtablissementName}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "transportStartDate",
+          header: "Début transport",
+          sortable: true,
+          render: (row) =>
+            formatDate(row.transportStartDate) ? (
+              <span className="text-muted-foreground">{formatDate(row.transportStartDate)}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "transportEndDate",
+          header: "Fin transport",
+          sortable: true,
+          render: (row) =>
+            formatDate(row.transportEndDate) ? (
+              <span className="text-muted-foreground">{formatDate(row.transportEndDate)}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "transportParticularity",
+          header: "Particularité transport",
+          render: (row) =>
+            row.transportParticularity ? (
+              <span className="text-muted-foreground">{row.transportParticularity}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "specificity",
+          header: "Spécificité",
+          render: (row) =>
+            row.specificity ? (
+              <span className="text-muted-foreground">{row.specificity}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
+          key: "notes",
+          header: "Notes",
+          render: (row) =>
+            row.notes ? (
+              <span className="text-muted-foreground">{row.notes}</span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
       ]}
       getRowId={(row) => row.id}
       onRowClick={(row) => router.push(`/usagers/${row.id}`)}
@@ -232,32 +437,107 @@ export function UsagersClient() {
       sortDirection={sortDirection}
       onSort={handleSort}
       sortFn={(a, b, column, direction) => {
-        const aVal = (a[column as keyof UsagerRow] ?? "") as string;
-        const bVal = (b[column as keyof UsagerRow] ?? "") as string;
-        const cmp = aVal.localeCompare(bVal, "fr", { sensitivity: "base" });
+        const aRaw = a[column as keyof UsagerRow];
+        const bRaw = b[column as keyof UsagerRow];
+        let cmp: number;
+        if (typeof aRaw === "number" && typeof bRaw === "number") {
+          cmp = aRaw - bRaw;
+        } else {
+          const aVal = (aRaw ?? "") as string;
+          const bVal = (bRaw ?? "") as string;
+          cmp = aVal.localeCompare(bVal, "fr", { sensitivity: "base" });
+        }
         return direction === "asc" ? cmp : -cmp;
       }}
       filters={[
+        { key: "displayId", label: "ID", type: "text", placeholder: "#…" },
+        { key: "code", label: "Code", type: "text" },
         { key: "lastName", label: "Nom", type: "text" },
-        { key: "firstName", label: "Prenom", type: "text" },
+        { key: "firstName", label: "Prénom", type: "text" },
+        { key: "birthDate", label: "Date de naissance", type: "text", placeholder: "Année ou date…" },
+        {
+          key: "gender",
+          label: "Genre",
+          type: "select",
+          className: "h-8 w-32 cursor-pointer text-sm",
+          options: [
+            { value: "all", label: "Tous" },
+            { value: "M", label: "Masculin" },
+            { value: "F", label: "Féminin" },
+          ],
+        },
+        {
+          key: "status",
+          label: "Statut",
+          type: "select",
+          className: "h-8 w-40 cursor-pointer text-sm",
+          options: [
+            { value: "all", label: "Tous" },
+            ...USAGER_STATUSES.map((s) => ({ value: s, label: USAGER_STATUS_LABELS[s] })),
+          ],
+        },
+        {
+          key: "regime",
+          label: "Régime",
+          type: "select",
+          className: "h-8 w-40 cursor-pointer text-sm",
+          options: [
+            { value: "all", label: "Tous" },
+            ...USAGER_REGIMES.map((r) => ({ value: r, label: USAGER_REGIME_LABELS[r] })),
+          ],
+        },
+        {
+          key: "classe",
+          label: "Classe",
+          type: "select",
+          className: "h-8 w-32 cursor-pointer text-sm",
+          options: [
+            { value: "all", label: "Toutes" },
+            ...classeOptions,
+          ],
+        },
         {
           key: "etablissement",
-          label: "Etablissement",
+          label: "Établissement",
           type: "select",
-          className: "h-8 w-48 cursor-pointer text-sm",
+          className: "h-8 w-56 cursor-pointer text-sm",
           options: [
             { value: "all", label: "Tous" },
             ...etablissementOptions,
           ],
         },
         { key: "city", label: "Ville", type: "text" },
+        {
+          key: "secondaryEtablissement",
+          label: "Établissement secondaire",
+          type: "select",
+          className: "h-8 w-56 cursor-pointer text-sm",
+          options: [
+            { value: "all", label: "Tous" },
+            ...secondaryEtablissementOptions,
+          ],
+        },
+        { key: "transportParticularity", label: "Particularité transport", type: "text" },
+        { key: "specificity", label: "Spécificité", type: "text" },
+        { key: "notes", label: "Notes", type: "text" },
       ]}
       emptyFilters={EMPTY_FILTERS}
       filterFn={(row, filters) => {
+        if (filters.displayId && !String(row.displayId).includes(filters.displayId.replace(/^#/, ""))) return false;
+        if (filters.code && !row.code?.toLowerCase().includes(filters.code.toLowerCase())) return false;
         if (filters.lastName && !row.lastName.toLowerCase().includes(filters.lastName.toLowerCase())) return false;
         if (filters.firstName && !row.firstName.toLowerCase().includes(filters.firstName.toLowerCase())) return false;
+        if (filters.birthDate && !(row.birthDate ?? "").includes(filters.birthDate)) return false;
+        if (filters.gender !== "all" && row.gender !== filters.gender) return false;
+        if (filters.status !== "all" && row.status !== filters.status) return false;
+        if (filters.regime !== "all" && row.regime !== filters.regime) return false;
+        if (filters.classe !== "all" && row.classe !== filters.classe) return false;
         if (filters.etablissement !== "all" && row.etablissementName !== filters.etablissement) return false;
         if (filters.city && !row.etablissementCity?.toLowerCase().includes(filters.city.toLowerCase())) return false;
+        if (filters.secondaryEtablissement !== "all" && row.secondaryEtablissementName !== filters.secondaryEtablissement) return false;
+        if (filters.transportParticularity && !row.transportParticularity?.toLowerCase().includes(filters.transportParticularity.toLowerCase())) return false;
+        if (filters.specificity && !row.specificity?.toLowerCase().includes(filters.specificity.toLowerCase())) return false;
+        if (filters.notes && !row.notes?.toLowerCase().includes(filters.notes.toLowerCase())) return false;
         return true;
       }}
       actions={[

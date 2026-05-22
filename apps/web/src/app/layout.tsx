@@ -12,7 +12,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Scomap - Gestion de Transport Scolaire",
+  title: {
+    template: "%s — Scomap",
+    default: "Scomap — Gestion de Transport Scolaire",
+  },
   description: "Application de gestion de transport scolaire moderne",
 };
 

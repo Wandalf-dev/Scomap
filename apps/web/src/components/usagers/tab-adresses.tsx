@@ -782,7 +782,6 @@ function AddressFormDialog({
                       <Input
                         value={field.value ?? ""}
                         readOnly
-                        className="bg-muted"
                       />
                     </FormControl>
                   </FormItem>
@@ -798,7 +797,6 @@ function AddressFormDialog({
                       <Input
                         value={field.value ?? ""}
                         readOnly
-                        className="bg-muted"
                       />
                     </FormControl>
                   </FormItem>

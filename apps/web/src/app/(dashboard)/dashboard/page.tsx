@@ -1,9 +1,24 @@
-import { School, Users, Route, Map } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { caller } from "@/lib/trpc/server";
+import { BuildingOffice2Icon } from "@/components/ui/building-office2-icon";
+import { UsersIcon } from "@/components/ui/users-icon";
+import { ShareIcon } from "@/components/ui/share-icon";
+import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
+
+export const metadata: Metadata = { title: "Tableau de bord" };
 
 export default async function DashboardPage() {
-  const etablissements = await caller.etablissements.list();
+  const today = new Date().toISOString().split("T")[0]!;
+  const [etablissements, usagers, circuits, trajetsAujourdhui] =
+    await Promise.all([
+      caller.etablissements.list(),
+      caller.usagers.list(),
+      caller.circuits.list(),
+      caller.trajets.listOccurrences({ fromDate: today, toDate: today }),
+    ]);
+
+  const circuitsActifs = circuits.filter((c) => c.isActive).length;
 
   return (
     <>
@@ -22,11 +37,27 @@ export default async function DashboardPage() {
           <StatCard
             title="Établissements"
             value={String(etablissements.length)}
-            icon={School}
+            icon={BuildingOffice2Icon}
+            href="/etablissements"
           />
-          <StatCard title="Usagers" value="0" icon={Users} />
-          <StatCard title="Circuits actifs" value="0" icon={Route} />
-          <StatCard title="Trajets aujourd'hui" value="0" icon={Map} />
+          <StatCard
+            title="Usagers"
+            value={String(usagers.length)}
+            icon={UsersIcon}
+            href="/usagers"
+          />
+          <StatCard
+            title="Circuits actifs"
+            value={String(circuitsActifs)}
+            icon={ShareIcon}
+            href="/circuits"
+          />
+          <StatCard
+            title="Trajets aujourd'hui"
+            value={String(trajetsAujourdhui.length)}
+            icon={ArrowPathRoundedSquareIcon}
+            href="/trajets"
+          />
         </div>
 
         {/* Welcome card */}
@@ -45,18 +76,23 @@ function StatCard({
   title,
   value,
   icon: Icon,
+  href,
 }: {
   title: string;
   value: string;
-  icon: LucideIcon;
+  icon: React.ElementType;
+  href: string;
 }) {
   return (
-    <div className="rounded-[0.3rem] border border-border bg-card p-6 transition-colors hover:bg-card/80">
+    <Link
+      href={href}
+      className="block rounded-[0.3rem] border border-border bg-card p-6 transition-colors hover:bg-card/80 hover:border-primary/40 cursor-pointer"
+    >
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <Icon size={18} className="text-muted-foreground" />
       </div>
       <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
-    </div>
+    </Link>
   );
 }

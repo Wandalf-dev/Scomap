@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
-import { useRouter } from "next/navigation";
+import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -86,7 +86,7 @@ export function UsagerCreateClient() {
       birthDate: "",
       gender: "",
       etablissementId: "",
-      transportStartDate: settings?.schoolYearStart ?? null,
+      transportStartDate: settings?.schoolYearStart ?? "",
       transportEndDate: settings?.schoolYearEnd ?? null,
       notes: "",
     },
@@ -97,7 +97,7 @@ export function UsagerCreateClient() {
       birthDate: "",
       gender: "",
       etablissementId: "",
-      transportStartDate: settings?.schoolYearStart ?? null,
+      transportStartDate: settings?.schoolYearStart ?? "",
       transportEndDate: settings?.schoolYearEnd ?? null,
       notes: "",
     },
@@ -288,7 +288,10 @@ export function UsagerCreateClient() {
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center gap-1">
-                      <FormLabel>Date début transport</FormLabel>
+                      <FormLabel>
+                        Date début transport
+                        <span className="text-destructive">*</span>
+                      </FormLabel>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -298,8 +301,9 @@ export function UsagerCreateClient() {
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs">
                             Date de début de transport de l&apos;usager, pré-remplie
-                            à partir des paramètres de l&apos;année scolaire. Elle sera
-                            reprise automatiquement lors de la création d&apos;un circuit.
+                            à partir des paramètres de l&apos;année scolaire. Champ
+                            obligatoire car utilisé pour générer les trajets et
+                            initialiser les circuits associés.
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -307,7 +311,6 @@ export function UsagerCreateClient() {
                     <DatePicker
                       value={field.value}
                       onChange={field.onChange}
-                      clearable
                     />
                     <FormMessage />
                   </FormItem>

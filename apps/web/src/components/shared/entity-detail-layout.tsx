@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "nextjs-toploader/app";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  UnsavedChangesProvider,
+  useUnsavedChanges,
+} from "@/components/shared/unsaved-changes-context";
+import {
+  HeaderActionsProvider,
+  useHeaderActions,
+} from "@/components/shared/header-actions-context";
 
 interface Tab {
   value: string;
@@ -42,7 +51,74 @@ interface EntityDetailLayoutProps {
   tabs: Tab[];
 }
 
-export function EntityDetailLayout({
+function HeaderActionsSlot() {
+  const ctx = useHeaderActions();
+  return <div ref={ctx?.setTarget} className="flex items-center gap-2" />;
+}
+
+function BackButton({ backHref }: { backHref: string }) {
+  const router = useRouter();
+  const unsaved = useUnsavedChanges();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  function handleClick() {
+    if (unsaved?.isDirty) {
+      setConfirmOpen(true);
+    } else {
+      router.push(backHref);
+    }
+  }
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        effect="expandIcon"
+        icon={ArrowLeft}
+        iconPlacement="left"
+        size="sm"
+        onClick={handleClick}
+        className="cursor-pointer"
+      >
+        Retour
+      </Button>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vous avez des modifications non enregistrées. Si vous quittez
+              maintenant, elles seront perdues. Voulez-vous vraiment continuer ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer">
+              Rester sur la page
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => router.push(backHref)}
+              className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Quitter sans enregistrer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+export function EntityDetailLayout(props: EntityDetailLayoutProps) {
+  return (
+    <UnsavedChangesProvider>
+      <HeaderActionsProvider>
+        <EntityDetailLayoutInner {...props} />
+      </HeaderActionsProvider>
+    </UnsavedChangesProvider>
+  );
+}
+
+function EntityDetailLayoutInner({
   isLoading,
   entity,
   backHref,
@@ -93,21 +169,12 @@ export function EntityDetailLayout({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            effect="expandIcon"
-            icon={ArrowLeft}
-            iconPlacement="left"
-            size="sm"
-            onClick={() => router.push(backHref)}
-            className="cursor-pointer"
-          >
-            Retour
-          </Button>
+          <BackButton backHref={backHref} />
           <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
           {badges}
+          <HeaderActionsSlot />
         </div>
 
         <AlertDialog>

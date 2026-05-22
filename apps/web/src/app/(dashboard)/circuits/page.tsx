@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { CircuitsClient } from "@/components/circuits/circuits-client";
+
+export const metadata: Metadata = { title: "Liste des circuits" };
 
 export default async function CircuitsPage() {
   const queryClient = getQueryClient();

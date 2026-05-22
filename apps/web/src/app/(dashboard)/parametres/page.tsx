@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { ParametresClient } from "@/components/parametres/parametres-client";
+
+export const metadata: Metadata = { title: "Paramètres" };
 
 export default async function ParametresPage() {
   const queryClient = getQueryClient();

@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { trpc, getQueryClient, dehydrate } from "@/lib/trpc/server";
 import { TrajetsClient } from "@/components/trajets/trajets-client";
+
+export const metadata: Metadata = { title: "Liste des trajets" };
 
 export default async function TrajetsPage() {
   const queryClient = getQueryClient();
