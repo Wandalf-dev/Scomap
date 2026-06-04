@@ -9,6 +9,7 @@ import { circuitsRouter } from "./routers/circuits";
 import { arretsRouter } from "./routers/arrets";
 import { trajetsRouter } from "./routers/trajets";
 import { usagerCircuitsRouter } from "./routers/usager-circuits";
+import { avenantsRouter } from "./routers/avenants";
 import { userPreferencesRouter } from "./routers/user-preferences";
 import { tenantSettingsRouter } from "./routers/tenant-settings";
 
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   arrets: arretsRouter,
   trajets: trajetsRouter,
   usagerCircuits: usagerCircuitsRouter,
+  avenants: avenantsRouter,
   userPreferences: userPreferencesRouter,
   tenantSettings: tenantSettingsRouter,
 });

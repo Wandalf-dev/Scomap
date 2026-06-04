@@ -2,10 +2,12 @@ import {
   pgTable,
   uuid,
   timestamp,
+  date,
   jsonb,
   boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { tenants } from "./tenants";
 import { usagers } from "./usagers";
 import { circuits } from "./circuits";
@@ -36,18 +38,23 @@ export const usagerCircuits = pgTable(
     >(),
     arrivalNotification: boolean("arrival_notification").notNull().default(false),
     authorizationAlone: boolean("authorization_alone").notNull().default(false),
+    // Plage de validité (résolution par date des avenants).
+    // valid_from null = depuis toujours ; valid_to null = version courante.
+    validFrom: date("valid_from"),
+    validTo: date("valid_to"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex("usager_circuits_usager_circuit_idx").on(
-      table.usagerId,
-      table.circuitId,
-    ),
+    // Une seule version OUVERTE (valid_to null) par couple usager/circuit.
+    uniqueIndex("usager_circuits_open_version_idx")
+      .on(table.usagerId, table.circuitId)
+      .where(sql`${table.validTo} is null and ${table.deletedAt} is null`),
   ],
 );
 

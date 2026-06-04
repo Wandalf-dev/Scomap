@@ -88,7 +88,7 @@ const RUES = [
 
 const CLASSES_ECOLE = ["ps", "ms", "gs", "cp", "ce1", "ce2", "cm1", "cm2"];
 const CLASSES_COLLEGE = ["6eme", "5eme", "4eme", "3eme"];
-const TRANSPORT_TYPES = ["taxi_collectif", "transport_collectif", "vehicule_adapte"];
+const TRANSPORT_TYPES = ["taxi_collectif_individuel", "transport_famille", "transport_commun"];
 const REGIMES = ["demi_pensionnaire", "interne", "externe"];
 
 function pick<T>(arr: T[]): T {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "nextjs-toploader/app";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -96,6 +97,7 @@ interface UsagerCircuitRow {
 interface UsagerInfo {
   id: string;
   etablissementId: string | null;
+  transportType: string | null;
   transportStartDate: string | null;
 }
 
@@ -197,6 +199,15 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
   const availableCircuits =
     allCircuits?.filter((c) => !linkedCircuitIds.has(c.id)) ?? [];
 
+  // Seul le transport "Taxi collectif / individuel" donne lieu à un circuit.
+  // Famille et transport en commun relèvent du remboursement (pas de circuit).
+  const circuitEligible = isCircuitCompatibleTransport(usager.transportType);
+  const transportTypeLabel = usager.transportType
+    ? USAGER_TRANSPORT_TYPE_LABELS[
+        usager.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS
+      ] ?? usager.transportType
+    : null;
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -209,8 +220,29 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
 
   return (
     <div className="space-y-4">
+      {!circuitEligible && (
+        <div className="flex gap-3 rounded-[0.3rem] border border-amber-500/50 bg-amber-500/10 p-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+          <p className="text-sm text-foreground">
+            Le type de transport de cet usager
+            {transportTypeLabel && (
+              <>
+                {" "}
+                (<strong>{transportTypeLabel}</strong>)
+              </>
+            )}{" "}
+            ne nécessite pas de circuit. L&apos;affectation à un circuit est
+            réservée au transport « Taxi collectif / individuel ».
+          </p>
+        </div>
+      )}
+
       <div className="flex justify-end">
-        <Button onClick={handleCreate} className="cursor-pointer">
+        <Button
+          onClick={handleCreate}
+          disabled={!circuitEligible}
+          className="cursor-pointer"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Associer un circuit
         </Button>
@@ -606,6 +638,7 @@ function CircuitLinkDialog({
   isPending,
 }: CircuitLinkDialogProps) {
   const trpc = useTRPC();
+  const router = useRouter();
   const isEdit = !!editingItem;
   const [mode, setMode] = useState<DialogMode>("choose");
 
@@ -681,14 +714,16 @@ function CircuitLinkDialog({
         ? "Associer un circuit existant"
         : "Créer et associer un nouveau circuit";
 
-  // Only addresses with circuit-compatible transport types
-  const circuitCompatibleAddresses = usagerAddresses?.filter((addr) =>
-    isCircuitCompatibleTransport(addr.transportType),
-  ) ?? [];
+  // Le type de transport (qui conditionne l'éligibilité au circuit) est porté
+  // par l'usager, plus par l'adresse : toutes ses adresses sont sélectionnables.
+  const selectableAddresses = usagerAddresses ?? [];
 
-  // Shared address + options fields
+  // Shared address + options fields.
+  // Inlined render function (NOT a nested component): rendering a component
+  // defined inside the parent makes React see a new type each render and
+  // remount the Select/Switch subtree, which causes the dialog to jump.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function AddressAndOptions({ control }: { control: any }) {
+  function renderAddressAndOptions(control: any, lockAddress = false) {
     return (
       <>
         <FormField
@@ -700,14 +735,17 @@ function CircuitLinkDialog({
               <Select
                 onValueChange={field.onChange}
                 value={field.value ?? ""}
+                disabled={lockAddress}
               >
                 <FormControl>
-                  <SelectTrigger className="w-full cursor-pointer">
+                  <SelectTrigger
+                    className={`w-full ${lockAddress ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                  >
                     <SelectValue placeholder="Sélectionnez une adresse" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {circuitCompatibleAddresses.map((addr) => (
+                  {selectableAddresses.map((addr) => (
                     <SelectItem
                       key={addr.id}
                       value={addr.id}
@@ -720,14 +758,9 @@ function CircuitLinkDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {usagerAddresses && usagerAddresses.length > 0 && circuitCompatibleAddresses.length === 0 && (
-                <p className="text-sm text-destructive">
-                  Aucune adresse compatible avec un circuit. Les types {usagerAddresses.map((a) => USAGER_TRANSPORT_TYPE_LABELS[a.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS]).filter(Boolean).join(", ")} ne nécessitent pas de circuit.
-                </p>
-              )}
-              {usagerAddresses && circuitCompatibleAddresses.length < usagerAddresses.length && circuitCompatibleAddresses.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {usagerAddresses.length - circuitCompatibleAddresses.length} adresse(s) masquée(s) (type de transport incompatible)
+              {usagerAddresses && usagerAddresses.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Aucune adresse enregistrée pour cet usager.
                 </p>
               )}
               <FormMessage />
@@ -830,7 +863,7 @@ function CircuitLinkDialog({
                 if (isEdit) onSubmitUpdate(values);
                 else onSubmitCreate(values);
               })}
-              className="grid gap-4 pt-2"
+              className="grid min-w-0 gap-4 pt-2"
             >
               {!isEdit && (
                 <>
@@ -850,7 +883,7 @@ function CircuitLinkDialog({
                         (c) => c.id === field.value,
                       );
                       return (
-                        <FormItem className="flex flex-col">
+                        <FormItem className="flex min-w-0 flex-col">
                           <FormLabel>Circuit</FormLabel>
                           <CircuitCombobox
                             circuits={availableCircuits}
@@ -866,12 +899,32 @@ function CircuitLinkDialog({
               )}
 
               {isEdit && (
-                <p className="text-sm text-muted-foreground">
-                  Circuit : <strong>{editingItem.circuitName}</strong>
-                </p>
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Circuit : <strong>{editingItem.circuitName}</strong>
+                  </p>
+                  <div className="rounded-[0.3rem] border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                    <p className="font-medium">Champs verrouillés</p>
+                    <p className="mt-0.5">
+                      Le circuit, les jours et l&apos;adresse de prise en charge
+                      se modifient via un avenant (traçabilité).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenChange(false);
+                        router.push(`/avenants/new?usagerId=${usagerId}`);
+                      }}
+                      className="mt-1.5 inline-flex cursor-pointer items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                    >
+                      <SquarePlus className="h-3.5 w-3.5" />
+                      Créer un avenant
+                    </button>
+                  </div>
+                </>
               )}
 
-              <AddressAndOptions control={linkForm.control} />
+              {renderAddressAndOptions(linkForm.control, isEdit)}
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button
@@ -900,7 +953,7 @@ function CircuitLinkDialog({
           <Form {...createForm}>
             <form
               onSubmit={createForm.handleSubmit(onSubmitCreateNew)}
-              className="grid gap-4 pt-2"
+              className="grid min-w-0 gap-4 pt-2"
             >
               <button
                 type="button"
@@ -958,7 +1011,7 @@ function CircuitLinkDialog({
                 )}
               />
 
-              <AddressAndOptions control={createForm.control} />
+              {renderAddressAndOptions(createForm.control)}
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button

@@ -9,5 +9,6 @@ export * from "./vehicules";
 export * from "./chauffeurs";
 export * from "./trajets";
 export * from "./usager-circuits";
+export * from "./avenants";
 export * from "./tenant-settings";
 export * from "./tenant-counters";

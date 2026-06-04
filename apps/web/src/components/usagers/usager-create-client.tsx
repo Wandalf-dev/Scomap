@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +10,8 @@ import { toast } from "@/components/ui/sonner";
 import { ArrowLeft } from "lucide-react";
 import {
   usagerDetailSchema,
+  USAGER_TRANSPORT_TYPES,
+  USAGER_TRANSPORT_TYPE_LABELS,
   type UsagerDetailFormValues,
 } from "@/lib/validators/usager";
 import {
@@ -86,22 +89,26 @@ export function UsagerCreateClient() {
       birthDate: "",
       gender: "",
       etablissementId: "",
-      transportStartDate: settings?.schoolYearStart ?? "",
-      transportEndDate: settings?.schoolYearEnd ?? null,
-      notes: "",
-    },
-    values: {
-      code: "",
-      firstName: "",
-      lastName: "",
-      birthDate: "",
-      gender: "",
-      etablissementId: "",
+      transportType: "",
       transportStartDate: settings?.schoolYearStart ?? "",
       transportEndDate: settings?.schoolYearEnd ?? null,
       notes: "",
     },
   });
+
+  // Pré-remplit les dates de transport quand les paramètres (année scolaire)
+  // arrivent, sans écraser une saisie en cours (on ne touche qu'aux dates vides).
+  useEffect(() => {
+    if (!settings) return;
+    form.reset({
+      ...form.getValues(),
+      transportStartDate:
+        form.getValues("transportStartDate") || (settings.schoolYearStart ?? ""),
+      transportEndDate:
+        form.getValues("transportEndDate") || (settings.schoolYearEnd ?? null),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
 
   const mutation = useMutation(
     trpc.usagers.createFull.mutationOptions({
@@ -281,10 +288,37 @@ export function UsagerCreateClient() {
             <CardHeader>
               <CardTitle>Transport</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="transportStartDate"
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="transportType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Type de transport</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                        <FormControl>
+                          <SelectTrigger className="w-full cursor-pointer">
+                            <SelectValue placeholder="Sélectionner" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {USAGER_TRANSPORT_TYPES.map((t) => (
+                            <SelectItem key={t} value={t} className="cursor-pointer">
+                              {USAGER_TRANSPORT_TYPE_LABELS[t]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="transportStartDate"
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center gap-1">
@@ -346,7 +380,8 @@ export function UsagerCreateClient() {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+                />
+              </div>
             </CardContent>
           </Card>
 

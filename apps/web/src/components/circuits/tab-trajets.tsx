@@ -22,6 +22,47 @@ interface TabTrajetsProps {
   circuitId: string;
 }
 
+function formatDate(d: string | null): string {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}
+
+function ValidityBadge({
+  validity,
+}: {
+  validity: { status: "actif" | "avenir" | "termine" | "vide"; date: string | null };
+}) {
+  if (validity.status === "actif") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400"
+      >
+        Actif
+      </Badge>
+    );
+  }
+  if (validity.status === "avenir") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400"
+      >
+        Dès le {formatDate(validity.date)}
+      </Badge>
+    );
+  }
+  if (validity.status === "termine") {
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Terminé le {formatDate(validity.date)}
+      </Badge>
+    );
+  }
+  return <span className="text-muted-foreground/60">&mdash;</span>;
+}
+
 export function TabTrajets({ circuitId }: TabTrajetsProps) {
   const trpc = useTRPC();
 
@@ -60,6 +101,7 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
           <TableRow>
             <TableHead>Nom</TableHead>
             <TableHead>Direction</TableHead>
+            <TableHead>Validité</TableHead>
             <TableHead>Etat</TableHead>
             <TableHead>Chauffeur</TableHead>
             <TableHead>Vehicule</TableHead>
@@ -74,7 +116,12 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
               daysOfWeek: DayEntry[];
             } | null;
             return (
-              <TableRow key={trajet.id}>
+              <TableRow
+                key={trajet.id}
+                className={
+                  trajet.validity.status === "termine" ? "opacity-55" : ""
+                }
+              >
                 <TableCell className="font-medium">
                   <span className="inline-flex items-center gap-1.5 group/link">
                     <Link
@@ -100,6 +147,9 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
                   >
                     {trajet.direction === "aller" ? "Aller" : "Retour"}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <ValidityBadge validity={trajet.validity} />
                 </TableCell>
                 <TableCell>
                   {!trajet.etat || trajet.etat === "brouillon" ? (

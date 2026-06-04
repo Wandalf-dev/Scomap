@@ -77,9 +77,9 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
           .addTo(map);
       });
 
-      // Draw route: use real geometry from IGN if available, fallback to straight lines
-      const routeCoords = routeGeometry?.coordinates
-        ?? (geoArrets.length >= 2 ? geoArrets.map((a) => [a.longitude!, a.latitude!]) : null);
+      // Draw the route only when a real itinerary has been calculated.
+      // No straight-line fallback: a straight line looks like a route but isn't.
+      const routeCoords = routeGeometry?.coordinates ?? null;
 
       if (routeCoords && routeCoords.length >= 2) {
         map.addSource("route", {

@@ -124,6 +124,10 @@ export const arrets = pgTable("arrets", {
   distanceKm: doublePrecision("distance_km"),
   durationSeconds: integer("duration_seconds"),
   timeLocked: boolean("time_locked").notNull().default(false),
+  // Fenêtre de présence de l'usager sur ce trajet (résolution par date des
+  // avenants). null/null = toujours actif (arrêt non borné dans le temps).
+  validFrom: date("valid_from"),
+  validTo: date("valid_to"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

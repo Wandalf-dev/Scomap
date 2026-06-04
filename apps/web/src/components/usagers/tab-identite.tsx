@@ -16,6 +16,8 @@ import {
   USAGER_STATUS_LABELS,
   USAGER_REGIMES,
   USAGER_REGIME_LABELS,
+  USAGER_TRANSPORT_TYPES,
+  USAGER_TRANSPORT_TYPE_LABELS,
   ETABLISSEMENT_TYPE_LABELS,
   CLASSES_BY_TYPE,
   type UsagerDetailFormValues,
@@ -39,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User, GraduationCap, Bus, MessageSquareText } from "lucide-react";
+import { User, GraduationCap, Bus, MessageSquareText, Route } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -83,6 +85,8 @@ interface UsagerData {
   secondaryEtablissementId: string | null;
   secondaryEtablissementName: string | null;
   classe: string | null;
+  transportType: string | null;
+  distanceKm: number | null;
   transportStartDate: string | null;
   transportEndDate: string | null;
   transportParticularity: string | null;
@@ -116,6 +120,14 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
     trpc.etablissements.list.queryOptions(),
   );
 
+  // Dès qu'une affectation circuit existe, les champs critiques (établissement,
+  // type de transport, dates de transport) sont verrouillés : ils ne se
+  // modifient plus que via un avenant — traçabilité.
+  const { data: affectations } = useQuery(
+    trpc.usagerCircuits.listByUsager.queryOptions({ usagerId: usager.id }),
+  );
+  const affectationLocked = (affectations?.length ?? 0) > 0;
+
   const form = useForm<UsagerDetailFormValues>({
     resolver: zodResolver(usagerDetailSchema),
     defaultValues: {
@@ -129,6 +141,8 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
       etablissementId: usager.etablissementId ?? "",
       secondaryEtablissementId: usager.secondaryEtablissementId ?? "",
       classe: usager.classe ?? "",
+      transportType: (usager.transportType as typeof USAGER_TRANSPORT_TYPES[number] | "") ?? "",
+      distanceKm: usager.distanceKm ?? null,
       transportStartDate: usager.transportStartDate ?? "",
       transportEndDate: usager.transportEndDate ?? null,
       transportParticularity: usager.transportParticularity ?? "",
@@ -161,16 +175,34 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
     }),
   );
 
+  const computeDistanceMutation = useMutation(
+    trpc.usagers.computeDistance.mutationOptions({
+      onSuccess: ({ km }) => {
+        form.setValue("distanceKm", km, { shouldDirty: true });
+        toast.success(`Distance calculée : ${km} km`);
+      },
+      onError: (err) => {
+        toast.error(err.message || "Erreur lors du calcul de la distance");
+      },
+    }),
+  );
+
   function onSubmit(values: UsagerDetailFormValues) {
     mutation.mutate({ id: usager.id, data: values });
   }
 
-  // Sync form dirty state with the layout's unsaved-changes context
+  // Sync form dirty state with the layout's unsaved-changes context.
+  // On dépend de `setDirty` (stable via useCallback dans le provider) et NON de
+  // l'objet `unsaved` complet : ce dernier change de référence à chaque
+  // changement de `dirtyKeys`, ce qui ferait re-déclencher cet effet en boucle
+  // (cleanup → false, body → true → dirtyKeys change → unsaved change → …) et
+  // provoquerait "Maximum update depth exceeded".
   const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
   useEffect(() => {
-    unsaved?.setDirty("usager-identite", isDirty);
-    return () => unsaved?.setDirty("usager-identite", false);
-  }, [isDirty, unsaved]);
+    setDirty?.("usager-identite", isDirty);
+    return () => setDirty?.("usager-identite", false);
+  }, [isDirty, setDirty]);
 
   return (
     <Form {...form}>
@@ -327,7 +359,8 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                         </span>
                       )}
                     </FormLabel>
-                    <Select onValueChange={(val) => {
+                    <Select
+                      onValueChange={(val) => {
                       field.onChange(val);
                       // Reset classe quand on change d'établissement
                       const newEtab = etablissements?.find((e) => e.id === val);
@@ -339,9 +372,14 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                           form.setValue("classe", "");
                         }
                       }
-                    }} value={field.value ?? ""}>
+                    }}
+                      value={field.value ?? ""}
+                      disabled={affectationLocked}
+                    >
                       <FormControl>
-                        <SelectTrigger className="w-full cursor-pointer">
+                        <SelectTrigger
+                          className={`w-full ${affectationLocked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                        >
                           <SelectValue placeholder="Sélectionner" />
                         </SelectTrigger>
                       </FormControl>
@@ -353,6 +391,21 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                         ))}
                       </SelectContent>
                     </Select>
+                    {affectationLocked && (
+                      <p className="text-xs text-muted-foreground">
+                        Verrouillé (usager affecté à un circuit) — modifiable via{" "}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(`/avenants/new?usagerId=${usager.id}`)
+                          }
+                          className="cursor-pointer font-medium underline underline-offset-2 hover:no-underline"
+                        >
+                          un avenant
+                        </button>
+                        .
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 );
@@ -448,7 +501,52 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
         {/* Transport */}
         <section className="space-y-4 rounded-[0.5rem] border border-border bg-card p-5">
           <SectionTitle icon={Bus}>Transport</SectionTitle>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 items-start gap-4">
+            <FormField
+              control={form.control}
+              name="transportType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type de transport</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value ?? ""}
+                    disabled={affectationLocked}
+                  >
+                    <FormControl>
+                      <SelectTrigger
+                        className={`w-full ${affectationLocked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                      >
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {USAGER_TRANSPORT_TYPES.map((t) => (
+                        <SelectItem key={t} value={t} className="cursor-pointer">
+                          {USAGER_TRANSPORT_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {affectationLocked && (
+                    <p className="text-xs text-muted-foreground">
+                      Verrouillé (usager affecté à un circuit) — modifiable via{" "}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(`/avenants/new?usagerId=${usager.id}`)
+                        }
+                        className="cursor-pointer font-medium underline underline-offset-2 hover:no-underline"
+                      >
+                        un avenant
+                      </button>
+                      .
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="status"
@@ -473,6 +571,50 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="distanceKm"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Distance domicile → école</FormLabel>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        inputMode="decimal"
+                        placeholder="km"
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value == null ? "" : String(field.value)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? null : Number(v));
+                        }}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={computeDistanceMutation.isPending}
+                      onClick={() =>
+                        computeDistanceMutation.mutate({ id: usager.id })
+                      }
+                      title="Calculer la distance routière (adresse principale → établissement principal)"
+                      className="shrink-0 cursor-pointer"
+                    >
+                      <Route className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="transportStartDate"
@@ -502,7 +644,14 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                   <DatePicker
                     value={field.value}
                     onChange={field.onChange}
+                    disabled={affectationLocked}
                   />
+                  {affectationLocked && (
+                    <p className="text-xs text-muted-foreground">
+                      Verrouillé (usager affecté à un circuit) — modifiable via
+                      avenant.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -533,7 +682,14 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
                     value={field.value}
                     onChange={field.onChange}
                     clearable
+                    disabled={affectationLocked}
                   />
+                  {affectationLocked && (
+                    <p className="text-xs text-muted-foreground">
+                      Verrouillé (usager affecté à un circuit) — modifiable via
+                      avenant.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

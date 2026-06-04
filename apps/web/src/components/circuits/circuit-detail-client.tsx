@@ -9,6 +9,7 @@ import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
 import { TabInformations } from "./tab-informations";
 import { TabTrajets } from "./tab-trajets";
 import { TabUsagers } from "./tab-usagers";
+import { TabAvenantsCircuit } from "./tab-avenants";
 
 interface CircuitDetailClientProps {
   id: string;
@@ -78,6 +79,11 @@ export function CircuitDetailClient({ id }: CircuitDetailClientProps) {
           value: "usagers",
           label: "Usagers",
           content: circuit ? <TabUsagers circuitId={circuit.id} /> : null,
+        },
+        {
+          value: "avenants",
+          label: "Avenants",
+          content: circuit ? <TabAvenantsCircuit circuitId={circuit.id} /> : null,
         },
       ]}
     />

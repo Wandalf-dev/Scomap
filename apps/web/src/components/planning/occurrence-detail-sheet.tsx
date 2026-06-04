@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
 import { useRouter } from "nextjs-toploader/app";
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, XCircle } from "lucide-react";
+import { ExternalLink, XCircle, User, School, MapPin } from "lucide-react";
 
 const STATUS_CONFIG: Record<
   string,
@@ -74,6 +74,17 @@ export function OccurrenceDetailSheet({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  // Arrêts RÉSOLUS à la date de l'occurrence (présence active ce jour-là).
+  const { data: stops } = useQuery(
+    trpc.arrets.forDate.queryOptions(
+      {
+        trajetId: occurrence?.trajetId ?? "",
+        date: occurrence?.date ?? "",
+      },
+      { enabled: !!occurrence },
+    ),
+  );
 
   const cancelMutation = useMutation(
     trpc.trajets.cancelOccurrence.mutationOptions({
@@ -164,6 +175,37 @@ export function OccurrenceDetailSheet({
                 </div>
               )}
             </dl>
+
+            {/* Arrêts du jour (résolus par date — reflète les avenants) */}
+            {stops && stops.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Arrêts ({stops.length})
+                </p>
+                <ul className="space-y-1">
+                  {stops.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex items-center gap-2 rounded-[0.3rem] border border-border/60 px-2.5 py-1.5 text-sm"
+                    >
+                      {s.type === "usager" ? (
+                        <User className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                      ) : s.type === "etablissement" ? (
+                        <School className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+                      ) : (
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="flex-1 truncate">{s.name}</span>
+                      {s.arrivalTime && (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {s.arrivalTime}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex gap-2 pt-4">
               <Button

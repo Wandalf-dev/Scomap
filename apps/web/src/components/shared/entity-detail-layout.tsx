@@ -170,53 +170,61 @@ function EntityDetailLayoutInner({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        {/* Identité */}
+        <div className="flex min-w-0 items-center gap-3">
           <BackButton backHref={backHref} />
-          <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+          <div className="h-6 w-px shrink-0 bg-border" aria-hidden />
+          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight text-foreground">
+            {title}
+          </h1>
           {badges}
-          <HeaderActionsSlot />
         </div>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="destructive"
-              effect="expandIcon"
-              icon={Trash2}
-              iconPlacement="right"
-              size="sm"
-              className="cursor-pointer"
-            >
-              Supprimer
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Supprimer {deleteEntityName}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Etes-vous sur de vouloir supprimer{" "}
-                <strong>{deleteLabel}</strong> ? Cette action est irreversible.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel
-                disabled={isDeleting}
-                className="cursor-pointer"
+        {/* Actions */}
+        <div className="flex shrink-0 items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                effect="expandIcon"
+                icon={Trash2}
+                iconPlacement="right"
+                size="sm"
+                className="cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
-                Annuler
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={onDelete}
-                disabled={isDeleting}
-                className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {isDeleting ? "Suppression..." : "Supprimer"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                Supprimer
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Supprimer {deleteEntityName}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Etes-vous sur de vouloir supprimer{" "}
+                  <strong>{deleteLabel}</strong> ? Cette action est irreversible.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={isDeleting}
+                  className="cursor-pointer"
+                >
+                  Annuler
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onDelete}
+                  disabled={isDeleting}
+                  className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? "Suppression..." : "Supprimer"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <HeaderActionsSlot />
+        </div>
       </div>
 
       {/* Tabs */}

@@ -148,6 +148,34 @@
       "when": 1771100000000,
       "tag": "0020_add_display_id_usagers",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1771110000000,
+      "tag": "0021_avenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1771120000000,
+      "tag": "0022_avenant_date_resolution",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1771130000000,
+      "tag": "0023_avenant_circuit_sequence",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1771140000000,
+      "tag": "0024_transport_type_to_usager",
+      "breakpoints": true
     }
   ]
 }

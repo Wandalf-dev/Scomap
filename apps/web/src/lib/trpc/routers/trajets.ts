@@ -22,6 +22,10 @@ export const trajetsRouter = createTRPCRouter({
   listByCircuit: tenantProcedure
     .input(z.object({ circuitId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const today = new Date().toISOString().slice(0, 10);
+      // Agrégats temporels par trajet (présence des usagers, résolue par date)
+      // pour distinguer trajets actifs / à venir / terminés après un avenant.
+      const usagerArretCond = sql`a.type = 'usager' and a.deleted_at is null`;
       const rows = await ctx.db
         .select({
           id: trajets.id,
@@ -36,6 +40,11 @@ export const trajetsRouter = createTRPCRouter({
           chauffeurLastName: chauffeurs.lastName,
           vehiculeName: vehicules.name,
           createdAt: trajets.createdAt,
+          activeCount: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond} and (a.valid_from is null or a.valid_from <= ${today}) and (a.valid_to is null or a.valid_to >= ${today}))::int`,
+          futureCount: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond} and a.valid_from > ${today})::int`,
+          totalUsager: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond})::int`,
+          firstStart: sql<string | null>`(select min(a.valid_from) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond})`,
+          lastEnd: sql<string | null>`(select max(a.valid_to) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond})`,
         })
         .from(trajets)
         .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))
@@ -49,15 +58,37 @@ export const trajetsRouter = createTRPCRouter({
         )
         .orderBy(asc(trajets.direction), asc(trajets.name));
 
-      return rows.map((row) => {
+      type Validity = {
+        status: "actif" | "avenir" | "termine" | "vide";
+        date: string | null;
+      };
+      const PRIORITY = { actif: 0, avenir: 1, vide: 2, termine: 3 };
+
+      const mapped = rows.map((row) => {
         const rec = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
+        let validity: Validity;
+        if (row.activeCount > 0) validity = { status: "actif", date: null };
+        else if (row.futureCount > 0)
+          validity = { status: "avenir", date: row.firstStart };
+        else if (row.totalUsager > 0)
+          validity = { status: "termine", date: row.lastEnd };
+        else validity = { status: "vide", date: null };
         return {
           ...row,
           recurrence: rec
             ? { frequency: rec.frequency, daysOfWeek: normalizeDays(rec.daysOfWeek) }
             : null,
+          validity,
         };
       });
+
+      // Actifs d'abord, terminés en dernier (puis direction/nom).
+      return mapped.sort(
+        (a, b) =>
+          PRIORITY[a.validity.status] - PRIORITY[b.validity.status] ||
+          a.direction.localeCompare(b.direction) ||
+          a.name.localeCompare(b.name),
+      );
     }),
 
   list: tenantProcedure.query(async ({ ctx }) => {

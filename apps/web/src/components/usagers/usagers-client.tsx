@@ -16,6 +16,8 @@ import {
   USAGER_STATUS_LABELS,
   USAGER_REGIMES,
   USAGER_REGIME_LABELS,
+  USAGER_TRANSPORT_TYPES,
+  USAGER_TRANSPORT_TYPE_LABELS,
   CLASSES_BY_TYPE,
   type UsagerFormValues,
 } from "@/lib/validators/usager";
@@ -44,6 +46,7 @@ interface UsagerRow {
   secondaryEtablissementId: string | null;
   secondaryEtablissementName: string | null;
   classe: string | null;
+  transportType: string | null;
   transportStartDate: string | null;
   transportEndDate: string | null;
   transportParticularity: string | null;
@@ -61,6 +64,7 @@ type UsagerFilters = {
   status: string;
   regime: string;
   classe: string;
+  transportType: string;
   etablissement: string;
   city: string;
   secondaryEtablissement: string;
@@ -79,6 +83,7 @@ const EMPTY_FILTERS: UsagerFilters = {
   status: "all",
   regime: "all",
   classe: "all",
+  transportType: "all",
   etablissement: "all",
   city: "",
   secondaryEtablissement: "all",
@@ -346,6 +351,19 @@ export function UsagersClient() {
             ),
         },
         {
+          key: "transportType",
+          header: "Type de transport",
+          sortable: true,
+          render: (row) =>
+            row.transportType ? (
+              <span className="text-muted-foreground">
+                {USAGER_TRANSPORT_TYPE_LABELS[row.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS] ?? row.transportType}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/60">&mdash;</span>
+            ),
+        },
+        {
           key: "etablissementName",
           header: "Établissement",
           sortable: true,
@@ -497,6 +515,16 @@ export function UsagersClient() {
           ],
         },
         {
+          key: "transportType",
+          label: "Type de transport",
+          type: "select",
+          className: "h-8 w-56 cursor-pointer text-sm",
+          options: [
+            { value: "all", label: "Tous" },
+            ...USAGER_TRANSPORT_TYPES.map((t) => ({ value: t, label: USAGER_TRANSPORT_TYPE_LABELS[t] })),
+          ],
+        },
+        {
           key: "etablissement",
           label: "Établissement",
           type: "select",
@@ -532,6 +560,7 @@ export function UsagersClient() {
         if (filters.status !== "all" && row.status !== filters.status) return false;
         if (filters.regime !== "all" && row.regime !== filters.regime) return false;
         if (filters.classe !== "all" && row.classe !== filters.classe) return false;
+        if (filters.transportType !== "all" && row.transportType !== filters.transportType) return false;
         if (filters.etablissement !== "all" && row.etablissementName !== filters.etablissement) return false;
         if (filters.city && !row.etablissementCity?.toLowerCase().includes(filters.city.toLowerCase())) return false;
         if (filters.secondaryEtablissement !== "all" && row.secondaryEtablissementName !== filters.secondaryEtablissement) return false;

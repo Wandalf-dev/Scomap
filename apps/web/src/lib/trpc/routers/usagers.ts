@@ -1,11 +1,17 @@
 import { z } from "zod";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { usagers, etablissements, tenantSettings } from "@scomap/db/schema";
+import {
+  usagers,
+  usagerAddresses,
+  etablissements,
+  tenantSettings,
+} from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import { usagerSchema, usagerDetailSchema } from "@/lib/validators/usager";
 import { alias } from "drizzle-orm/pg-core";
 import { nextDisplayId } from "@/lib/db/display-id";
+import { computeRoadDistanceKm } from "../services/distance";
 
 const secondaryEtab = alias(etablissements, "secondary_etab");
 
@@ -28,6 +34,7 @@ export const usagersRouter = createTRPCRouter({
         secondaryEtablissementId: usagers.secondaryEtablissementId,
         secondaryEtablissementName: secondaryEtab.name,
         classe: usagers.classe,
+        transportType: usagers.transportType,
         transportStartDate: usagers.transportStartDate,
         transportEndDate: usagers.transportEndDate,
         transportParticularity: usagers.transportParticularity,
@@ -66,6 +73,8 @@ export const usagersRouter = createTRPCRouter({
           secondaryEtablissementId: usagers.secondaryEtablissementId,
           secondaryEtablissementName: secondaryEtab.name,
           classe: usagers.classe,
+          transportType: usagers.transportType,
+          distanceKm: usagers.distanceKm,
           transportStartDate: usagers.transportStartDate,
           transportEndDate: usagers.transportEndDate,
           transportParticularity: usagers.transportParticularity,
@@ -141,6 +150,8 @@ export const usagersRouter = createTRPCRouter({
           etablissementId: input.etablissementId || null,
           secondaryEtablissementId: input.secondaryEtablissementId || null,
           classe: input.classe || null,
+          transportType: input.transportType || null,
+          distanceKm: input.distanceKm ?? null,
           transportStartDate: input.transportStartDate,
           transportEndDate: input.transportEndDate || null,
           transportParticularity: input.transportParticularity || null,
@@ -207,6 +218,8 @@ export const usagersRouter = createTRPCRouter({
           etablissementId: input.data.etablissementId || null,
           secondaryEtablissementId: input.data.secondaryEtablissementId || null,
           classe: input.data.classe || null,
+          transportType: input.data.transportType || null,
+          distanceKm: input.data.distanceKm ?? null,
           transportStartDate: input.data.transportStartDate,
           transportEndDate: input.data.transportEndDate || null,
           transportParticularity: input.data.transportParticularity || null,
@@ -224,6 +237,77 @@ export const usagersRouter = createTRPCRouter({
         .returning();
 
       return result[0] ?? null;
+    }),
+
+  // Calcule la distance routière entre l'adresse principale (position 1) de
+  // l'usager et son établissement principal. Renvoie les km sans persister :
+  // le formulaire de la fiche se charge de l'enregistrement.
+  computeDistance: tenantProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .select({
+          etabLat: etablissements.latitude,
+          etabLng: etablissements.longitude,
+        })
+        .from(usagers)
+        .leftJoin(etablissements, eq(usagers.etablissementId, etablissements.id))
+        .where(
+          and(
+            eq(usagers.id, input.id),
+            eq(usagers.tenantId, ctx.tenantId),
+            isNull(usagers.deletedAt),
+          ),
+        )
+        .limit(1);
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Usager non trouvé" });
+      }
+      if (row.etabLat == null || row.etabLng == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "L'établissement principal n'a pas de coordonnées géographiques.",
+        });
+      }
+
+      const [addr] = await ctx.db
+        .select({
+          lat: usagerAddresses.latitude,
+          lng: usagerAddresses.longitude,
+        })
+        .from(usagerAddresses)
+        .where(
+          and(
+            eq(usagerAddresses.usagerId, input.id),
+            eq(usagerAddresses.tenantId, ctx.tenantId),
+            eq(usagerAddresses.position, 1),
+          ),
+        )
+        .limit(1);
+
+      if (!addr || addr.lat == null || addr.lng == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "L'adresse principale n'a pas de coordonnées (renseignez-la d'abord).",
+        });
+      }
+
+      const km = await computeRoadDistanceKm(
+        { lat: addr.lat, lng: addr.lng },
+        { lat: row.etabLat, lng: row.etabLng },
+      );
+
+      if (km == null) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Calcul de distance indisponible (service de routing).",
+        });
+      }
+
+      return { km };
     }),
 
   delete: tenantProcedure

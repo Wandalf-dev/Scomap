@@ -33,9 +33,9 @@ const RUES = [
 ];
 
 const TRANSPORT_TYPES = [
-  "taxi_collectif",
-  "transport_collectif",
-  "vehicule_adapte",
+  "taxi_collectif_individuel",
+  "transport_famille",
+  "transport_commun",
 ];
 
 function pick<T>(arr: T[]): T {
@@ -124,7 +124,12 @@ async function main() {
     const postalCode = u.etablissementPostalCode ?? "13200";
 
     const isSplitCustody = maybe(0.18); // 18% des usagers ont une garde alternée
+    // Le type de transport est désormais porté par l'usager (plus par l'adresse).
     const transportType = pick(TRANSPORT_TYPES);
+    await db
+      .update(usagers)
+      .set({ transportType })
+      .where(eq(usagers.id, u.id));
 
     // Adresse #1 — domicile principal (parents ou mère)
     const lastName1 = u.lastName;
@@ -149,7 +154,6 @@ async function main() {
       longitude: baseLng + (Math.random() - 0.5) * 0.04,
       phone: `04${String(randInt(10000000, 99999999))}`,
       mobile: `06${String(randInt(10000000, 99999999))}`,
-      transportType,
       daysAller: days1Aller,
       daysRetour: days1Retour,
     });
@@ -185,7 +189,6 @@ async function main() {
         longitude: baseLng + (Math.random() - 0.5) * 0.06,
         phone: `04${String(randInt(10000000, 99999999))}`,
         mobile: `06${String(randInt(10000000, 99999999))}`,
-        transportType,
         daysAller: days2Aller,
         daysRetour: days2Aller,
       });
@@ -206,7 +209,6 @@ async function main() {
         latitude: baseLat + (Math.random() - 0.5) * 0.08,
         longitude: baseLng + (Math.random() - 0.5) * 0.08,
         phone: `04${String(randInt(10000000, 99999999))}`,
-        transportType,
         daysAller: [
           { day: 3, parity: "all" as const },
           { day: 5, parity: "even" as const },

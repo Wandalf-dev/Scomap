@@ -6,8 +6,6 @@ import {
   Plus,
   MoreHorizontal,
   X,
-  ListFilter,
-  Filter,
   Columns3,
   RotateCcw,
   GripVertical,
@@ -30,14 +28,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import {
   DndContext,
   closestCenter,
@@ -173,197 +163,59 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
   return pages;
 }
 
-function FilterChip({
+function InlineColumnFilter({
   config,
   value,
-  defaultOpen,
   onChange,
-  onRemove,
-  onOpened,
 }: {
   config: FilterConfig;
   value: string;
-  defaultOpen?: boolean;
   onChange: (value: string) => void;
-  onRemove: () => void;
-  onOpened?: () => void;
 }) {
-  const [open, setOpen] = useState(!!defaultOpen);
-  const hasValue = config.type === "select" ? value && value !== "all" : !!value;
-  const display = (() => {
-    if (!hasValue) return null;
-    if (config.type === "select") {
-      return config.options?.find((o) => o.value === value)?.label ?? value;
-    }
-    return value;
-  })();
+  const active = config.type === "select" ? value !== "" && value !== "all" : !!value;
 
-  useEffect(() => {
-    if (defaultOpen) {
-      setOpen(true);
-      onOpened?.();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultOpen]);
+  if (config.type === "select") {
+    return (
+      <Select value={value || "all"} onValueChange={onChange}>
+        <SelectTrigger
+          onClick={(e) => e.stopPropagation()}
+          className={`h-7 w-full cursor-pointer text-xs font-normal ${
+            active ? "border-primary/50 text-foreground" : "text-muted-foreground"
+          }`}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {config.options?.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
 
   return (
-    <div className="inline-flex h-8 items-center rounded-md border border-border bg-secondary text-sm">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 cursor-pointer hover:bg-secondary/80 rounded-l-md transition-colors"
-          >
-            <span className="font-medium text-foreground">{config.label}</span>
-            {hasValue ? (
-              <>
-                <span className="text-muted-foreground">:</span>
-                <span className="text-foreground">{display}</span>
-              </>
-            ) : (
-              <span className="text-muted-foreground italic">définir</span>
-            )}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-2" align="start">
-          {config.type === "text" ? (
-            <Input
-              autoFocus
-              placeholder={config.placeholder ?? "Rechercher…"}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") setOpen(false);
-              }}
-              className="h-8 w-full text-sm"
-            />
-          ) : (
-            <Select
-              value={value || "all"}
-              onValueChange={(v) => {
-                onChange(v);
-                setOpen(false);
-              }}
-            >
-              <SelectTrigger className="h-8 w-full cursor-pointer text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {config.options?.map((opt) => (
-                  <SelectItem
-                    key={opt.value}
-                    value={opt.value}
-                    className="cursor-pointer"
-                  >
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </PopoverContent>
-      </Popover>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="flex h-full w-7 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 rounded-r-md transition-colors cursor-pointer border-l border-border"
-        aria-label="Retirer le filtre"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-}
-
-function ColumnFilter({
-  config,
-  value,
-  active,
-  onChange,
-  onClear,
-}: {
-  config: FilterConfig;
-  value: string;
-  active: boolean;
-  onChange: (value: string) => void;
-  onClear: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <Input
+        placeholder={config.placeholder ?? "Filtrer…"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+        className={`h-7 w-full text-xs font-normal ${active ? "border-primary/50 pr-6" : ""}`}
+      />
+      {active && (
         <button
           type="button"
-          onClick={(e) => e.stopPropagation()}
-          className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded transition-colors cursor-pointer ${
-            active
-              ? "bg-primary/15 text-primary hover:bg-primary/25"
-              : "text-muted-foreground/50 hover:text-foreground hover:bg-muted"
-          }`}
-          aria-label={`Filtrer ${config.label}`}
+          onClick={() => onChange("")}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+          aria-label={`Effacer le filtre ${config.label}`}
         >
-          <Filter className="h-3 w-3" />
+          <X className="h-3 w-3" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-64 p-2"
-        align="start"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            Filtrer {config.label}
-          </span>
-          {active && (
-            <button
-              type="button"
-              onClick={() => {
-                onClear();
-                setOpen(false);
-              }}
-              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              Effacer
-            </button>
-          )}
-        </div>
-        {config.type === "text" ? (
-          <Input
-            autoFocus
-            placeholder={config.placeholder ?? "Rechercher…"}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") setOpen(false);
-            }}
-            className="h-8 w-full text-sm"
-          />
-        ) : (
-          <Select
-            value={value || "all"}
-            onValueChange={(v) => {
-              onChange(v);
-              setOpen(false);
-            }}
-          >
-            <SelectTrigger className="h-8 w-full cursor-pointer text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {config.options?.map((opt) => (
-                <SelectItem
-                  key={opt.value}
-                  value={opt.value}
-                  className="cursor-pointer"
-                >
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
 
@@ -458,38 +310,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   const router = useRouter();
   const [filterValues, setFilterValues] = useState<TFilters>(emptyFilters);
 
-  // Active filter chips — keys explicitly added by the user
-  const [activeFilterKeys, setActiveFilterKeys] = useState<Set<string>>(() => {
-    const set = new Set<string>();
-    filterConfigs.forEach((fc) => {
-      const v = (emptyFilters as Record<string, string>)[fc.key];
-      // Initially none are active
-      void v;
-    });
-    return set;
-  });
-  const [justAddedKey, setJustAddedKey] = useState<string | null>(null);
-
-  function addActiveFilter(key: string) {
-    setActiveFilterKeys((prev) => new Set(prev).add(key));
-    setJustAddedKey(key);
-  }
-
-  function removeActiveFilter(key: string) {
-    const fc = filterConfigs.find((f) => f.key === key);
-    setActiveFilterKeys((prev) => {
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
-    if (fc) {
-      setFilterValues((prev) => ({
-        ...prev,
-        [key]: fc.type === "select" ? "all" : "",
-      }));
-    }
-  }
-
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -503,49 +323,59 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   const visibilityStorageKey = storageKey ? `datalist:${storageKey}:visibility` : null;
   const orderStorageKey = storageKey ? `datalist:${storageKey}:order` : null;
 
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
-    if (typeof window === "undefined" || !visibilityStorageKey) return new Set();
-    try {
-      const raw = localStorage.getItem(visibilityStorageKey);
-      if (raw) return new Set(JSON.parse(raw) as string[]);
-    } catch {}
-    // Initial: hide columns not in defaultVisibleColumns
+  // SSR-safe defaults (no localStorage): server and first client render must
+  // match, otherwise the column count differs and Radix useId order shifts,
+  // producing a hydration mismatch on every Select/DropdownMenu in the table.
+  const initialHiddenColumns = useMemo(() => {
     if (defaultVisibleColumns) {
       return new Set(allColumnKeys.filter((k) => !defaultVisibleColumns.includes(k)));
     }
-    return new Set();
-  });
+    return new Set<string>();
+  }, [allColumnKeys, defaultVisibleColumns]);
 
-  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
-    if (typeof window === "undefined" || !orderStorageKey) return allColumnKeys;
-    try {
-      const raw = localStorage.getItem(orderStorageKey);
-      if (raw) {
-        const saved = JSON.parse(raw) as string[];
-        // Merge: keep saved order for known keys, append any new keys at end
-        const known = new Set(allColumnKeys);
-        const ordered = saved.filter((k) => known.has(k));
-        const missing = allColumnKeys.filter((k) => !ordered.includes(k));
-        return [...ordered, ...missing];
-      }
-    } catch {}
-    return allColumnKeys;
-  });
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(initialHiddenColumns);
+  const [columnOrder, setColumnOrder] = useState<string[]>(allColumnKeys);
+  const [colsHydrated, setColsHydrated] = useState(false);
 
-  // Persist
+  // Load persisted prefs only after mount (post-hydration).
   useEffect(() => {
-    if (!visibilityStorageKey) return;
+    if (visibilityStorageKey) {
+      try {
+        const raw = localStorage.getItem(visibilityStorageKey);
+        if (raw) setHiddenColumns(new Set(JSON.parse(raw) as string[]));
+      } catch {}
+    }
+    if (orderStorageKey) {
+      try {
+        const raw = localStorage.getItem(orderStorageKey);
+        if (raw) {
+          const saved = JSON.parse(raw) as string[];
+          // Merge: keep saved order for known keys, append any new keys at end
+          const known = new Set(allColumnKeys);
+          const ordered = saved.filter((k) => known.has(k));
+          const missing = allColumnKeys.filter((k) => !ordered.includes(k));
+          setColumnOrder([...ordered, ...missing]);
+        }
+      } catch {}
+    }
+    setColsHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist (only after hydration, so defaults don't clobber saved prefs)
+  useEffect(() => {
+    if (!colsHydrated || !visibilityStorageKey) return;
     try {
       localStorage.setItem(visibilityStorageKey, JSON.stringify([...hiddenColumns]));
     } catch {}
-  }, [hiddenColumns, visibilityStorageKey]);
+  }, [hiddenColumns, visibilityStorageKey, colsHydrated]);
 
   useEffect(() => {
-    if (!orderStorageKey) return;
+    if (!colsHydrated || !orderStorageKey) return;
     try {
       localStorage.setItem(orderStorageKey, JSON.stringify(columnOrder));
     } catch {}
-  }, [columnOrder, orderStorageKey]);
+  }, [columnOrder, orderStorageKey, colsHydrated]);
 
   function toggleColumn(key: string) {
     setHiddenColumns((prev) => {
@@ -730,8 +560,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
 
   function clearFilters() {
     setFilterValues(emptyFilters);
-    setActiveFilterKeys(new Set());
-    setJustAddedKey(null);
     setCurrentPage(0);
   }
 
@@ -740,20 +568,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
     filterConfigs.forEach((fc) => map.set(fc.key, fc));
     return map;
   }, [filterConfigs]);
-
-  // Active filter = chip is in activeFilterKeys OR value is non-default
-  const activeFilters = useMemo(() => {
-    return filterConfigs.filter((fc) => {
-      if (activeFilterKeys.has(fc.key)) return true;
-      const v = filterValues[fc.key];
-      return fc.type === "select" ? v && v !== "all" : !!v;
-    });
-  }, [filterConfigs, activeFilterKeys, filterValues]);
-
-  const inactiveFilters = useMemo(
-    () => filterConfigs.filter((fc) => !activeFilters.includes(fc)),
-    [filterConfigs, activeFilters],
-  );
 
   if (error) {
     return (
@@ -824,62 +638,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
       {/* Toolbar */}
       {data && data.length > 0 && (
         <div className="flex items-center gap-3">
-          {/* Active filter chips */}
-          {activeFilters.map((fc) => (
-            <FilterChip
-              key={fc.key}
-              config={fc}
-              value={filterValues[fc.key] ?? ""}
-              defaultOpen={fc.key === justAddedKey}
-              onChange={(v) => updateFilter(fc.key, v)}
-              onRemove={() => removeActiveFilter(fc.key)}
-              onOpened={() => setJustAddedKey(null)}
-            />
-          ))}
-
-          {inactiveFilters.length > 0 && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="cursor-pointer">
-                  <ListFilter className="mr-2 h-4 w-4" />
-                  {activeFilters.length === 0 ? "Filtres" : "Ajouter"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Rechercher un filtre…" />
-                  <CommandList>
-                    <CommandEmpty>Aucun filtre disponible.</CommandEmpty>
-                    <CommandGroup>
-                      {inactiveFilters.map((fc) => (
-                        <CommandItem
-                          key={fc.key}
-                          value={fc.label}
-                          onSelect={() => addActiveFilter(fc.key)}
-                          className="cursor-pointer"
-                        >
-                          {fc.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {activeFilters.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              className="h-8 cursor-pointer px-2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="mr-1 h-3.5 w-3.5" />
-              Tout effacer
-            </Button>
-          )}
-
           {storageKey && (
             <Popover>
               <PopoverTrigger asChild>
@@ -910,6 +668,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                   </Button>
                 </div>
                 <DndContext
+                  id={`datalist-${storageKey}-columns-dnd`}
                   sensors={pickerSensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleColumnDragEnd}
@@ -936,9 +695,20 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           )}
 
           {hasActiveFilters && (
-            <span className="text-sm text-muted-foreground">
-              {filtered.length} sur {data.length}
-            </span>
+            <>
+              <span className="text-sm text-muted-foreground">
+                {filtered.length} sur {data.length}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-8 cursor-pointer px-2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="mr-1 h-3.5 w-3.5" />
+                Tout effacer
+              </Button>
+            </>
           )}
 
           {/* Export buttons */}
@@ -1096,23 +866,19 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
               <TableHeader>
                 <TableRow className="bg-accent hover:bg-accent">
                   <TableHead
-                    className="w-[44px]"
+                    className="w-[44px] px-0"
                     style={hasFixedWidths ? { width: checkboxColWidth } : undefined}
                   >
-                    <Checkbox
-                      checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
-                      onCheckedChange={toggleSelectAll}
-                      className="cursor-pointer"
-                    />
+                    <div className="flex items-center justify-center">
+                      <Checkbox
+                        checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleSelectAll}
+                        className="cursor-pointer"
+                      />
+                    </div>
                   </TableHead>
                   {visibleColumns.map((col) => {
                     const fc = filterConfigByKey.get(col.key);
-                    const fValue = fc ? filterValues[fc.key] ?? "" : "";
-                    const fActive = fc
-                      ? fc.type === "select"
-                        ? fValue && fValue !== "all"
-                        : !!fValue
-                      : false;
                     return (
                       <TableHead
                         key={col.key}
@@ -1124,30 +890,27 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         style={hasFixedWidths ? { width: columnWidths[col.key] } : undefined}
                         onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
                       >
-                        <span className="flex items-center gap-1">
-                          {col.header}
-                          {col.sortable && (
-                            <SortIcon
-                              column={col.key}
-                              sortColumn={sortColumn}
-                              sortDirection={sortDirection}
-                            />
-                          )}
+                        <div className="flex items-center gap-2 pr-1.5">
+                          <span className="flex shrink-0 items-center gap-1">
+                            {col.header}
+                            {col.sortable && (
+                              <SortIcon
+                                column={col.key}
+                                sortColumn={sortColumn}
+                                sortDirection={sortDirection}
+                              />
+                            )}
+                          </span>
                           {fc && (
-                            <ColumnFilter
-                              config={fc}
-                              value={fValue}
-                              active={!!fActive}
-                              onChange={(v) => updateFilter(fc.key, v)}
-                              onClear={() =>
-                                updateFilter(
-                                  fc.key,
-                                  fc.type === "select" ? "all" : "",
-                                )
-                              }
-                            />
+                            <div className="ml-auto min-w-[5rem] flex-1">
+                              <InlineColumnFilter
+                                config={fc}
+                                value={filterValues[fc.key] ?? ""}
+                                onChange={(v) => updateFilter(fc.key, v)}
+                              />
+                            </div>
                           )}
-                        </span>
+                        </div>
                         <div
                           onMouseDown={(e) => handleResizeStart(col.key, e)}
                           onTouchStart={(e) => handleResizeStart(col.key, e)}
@@ -1190,15 +953,17 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         onClick={() => onRowClick(row)}
                       >
                         <TableCell
-                          className="w-[44px]"
+                          className="w-[44px] px-0"
                           style={hasFixedWidths ? { width: checkboxColWidth } : undefined}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleSelect(rowId)}
-                            className="cursor-pointer"
-                          />
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelect(rowId)}
+                              className="cursor-pointer"
+                            />
+                          </div>
                         </TableCell>
                         {visibleColumns.map((col, colIdx) => (
                           <TableCell

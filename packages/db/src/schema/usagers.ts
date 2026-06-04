@@ -6,6 +6,7 @@ import {
   timestamp,
   date,
   integer,
+  doublePrecision,
   unique,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
@@ -35,9 +36,15 @@ export const usagers = pgTable(
     status: varchar("status", { length: 20 }).notNull().default("brouillon"),
     regime: varchar("regime", { length: 30 }),
     classe: varchar("classe", { length: 30 }),
+    // Mode de transport de l'usager (3 catégories). Pilote le rattachement
+    // circuit (taxi) vs remboursement (famille / transport en commun).
+    transportType: varchar("transport_type", { length: 30 }),
     transportStartDate: date("transport_start_date"),
     transportEndDate: date("transport_end_date"),
     transportParticularity: text("transport_particularity"),
+    // Distance domicile (adresse principale) ↔ établissement, en km.
+    // Socle du futur remboursement kilométrique.
+    distanceKm: doublePrecision("distance_km"),
     specificity: text("specificity"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })

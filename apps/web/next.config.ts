@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@scomap/db", "maplibre-gl"],
+  transpilePackages: ["@scomap/db"],
 };
 
 export default nextConfig;

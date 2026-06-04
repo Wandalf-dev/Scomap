@@ -14,6 +14,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -118,8 +119,13 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
 
               {/* Lignes */}
               {DAYS.map((day) => (
-                <div key={day.key} className="grid grid-cols-[140px_1fr_1fr] items-center gap-4">
-                  <div className="text-sm font-medium">{day.label}</div>
+                <div key={day.key} className="grid grid-cols-[140px_1fr_1fr] items-start gap-4">
+                  <div className="pt-2 text-sm font-medium">
+                    {day.label}
+                    {day.key === "lundi" && (
+                      <span className="text-destructive"> *</span>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name={`${day.key}.morning`}
@@ -133,6 +139,7 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
                             className="cursor-pointer"
                           />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />

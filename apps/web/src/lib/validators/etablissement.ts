@@ -43,8 +43,14 @@ const dayScheduleSchema = z.object({
   evening: z.string().optional(),
 });
 
+// Le lundi matin est le seul horaire obligatoire.
+const lundiScheduleSchema = z.object({
+  morning: z.string().min(1, "Horaire du lundi matin requis"),
+  evening: z.string().optional(),
+});
+
 export const schedulesSchema = z.object({
-  lundi: dayScheduleSchema,
+  lundi: lundiScheduleSchema,
   mardi: dayScheduleSchema,
   mercredi: dayScheduleSchema,
   jeudi: dayScheduleSchema,

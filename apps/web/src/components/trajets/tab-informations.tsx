@@ -80,8 +80,8 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
             daysOfWeek: trajet.recurrence.daysOfWeek,
           }
         : { frequency: "weekly" as const, daysOfWeek: [] },
-      startDate: trajet.startDate ?? null,
-      endDate: trajet.endDate ?? null,
+      startDate: trajet.startDate ?? circuitStartDate ?? null,
+      endDate: trajet.endDate ?? circuitEndDate ?? null,
       notes: trajet.notes ?? "",
       peages: trajet.peages,
       kmACharge: trajet.kmACharge ?? null,
@@ -109,7 +109,20 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
     const recurrence = values.recurrence?.daysOfWeek?.length
       ? values.recurrence
       : null;
-    mutation.mutate({ id: trajet.id, data: { ...values, recurrence } });
+    // Keep inheritance: if the field still shows the circuit's date and the
+    // trajet had no own date, persist null so it keeps following the circuit.
+    const startDate =
+      !trajet.startDate && values.startDate === circuitStartDate
+        ? null
+        : values.startDate;
+    const endDate =
+      !trajet.endDate && values.endDate === circuitEndDate
+        ? null
+        : values.endDate;
+    mutation.mutate({
+      id: trajet.id,
+      data: { ...values, recurrence, startDate, endDate },
+    });
   }
 
   return (
@@ -185,6 +198,10 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                     <FormControl>
                       <Input type="time" {...field} />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Heure de reference a l&apos;ecole (arrivee si aller, depart
+                      si retour) : sert d&apos;ancre au calcul des horaires.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -228,11 +245,13 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                       onChange={field.onChange}
                       clearable
                     />
-                    {circuitStartDate && !field.value && (
-                      <p className="text-xs text-muted-foreground">
-                        Herite du circuit : {circuitStartDate}
-                      </p>
-                    )}
+                    {circuitStartDate &&
+                      !trajet.startDate &&
+                      field.value === circuitStartDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Herite du circuit
+                        </p>
+                      )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -249,11 +268,13 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                       onChange={field.onChange}
                       clearable
                     />
-                    {circuitEndDate && !field.value && (
-                      <p className="text-xs text-muted-foreground">
-                        Herite du circuit : {circuitEndDate}
-                      </p>
-                    )}
+                    {circuitEndDate &&
+                      !trajet.endDate &&
+                      field.value === circuitEndDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Herite du circuit
+                        </p>
+                      )}
                     <FormMessage />
                   </FormItem>
                 )}

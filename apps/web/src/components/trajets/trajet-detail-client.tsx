@@ -143,103 +143,125 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
   const totalKm = trajet.totalDistanceKm;
   const totalSeconds = trajet.totalDurationSeconds;
 
+  const directionClass =
+    trajet.direction === "aller"
+      ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+      : "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-400";
+
+  const etatLabel =
+    trajet.effectiveEtat === "ok"
+      ? "Ok"
+      : trajet.effectiveEtat === "anomalie"
+        ? "Anomalie"
+        : trajet.effectiveEtat === "brouillon"
+          ? "Brouillon"
+          : "Suspendu";
+
+  const etatClass =
+    trajet.effectiveEtat === "ok"
+      ? "border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-400"
+      : trajet.effectiveEtat === "anomalie"
+        ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
+        : trajet.effectiveEtat === "brouillon"
+          ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+          : "border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400";
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="space-y-3">
+        {/* Utility row: back + delete */}
+        <div className="flex items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/trajets")}
-            className="cursor-pointer"
+            className="-ml-2 cursor-pointer text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {trajet.name}
-          </h1>
-          <Badge
-            variant="outline"
-            className={
-              trajet.direction === "aller"
-                ? "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400"
-                : "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-400"
-            }
-          >
-            {trajet.direction === "aller" ? "Aller" : "Retour"}
-          </Badge>
-          <Badge
-            variant="outline"
-            className={
-              trajet.effectiveEtat === "ok"
-                ? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400"
-                : trajet.effectiveEtat === "anomalie"
-                  ? "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400"
-                  : trajet.effectiveEtat === "brouillon"
-                    ? "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400"
-                    : "border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400"
-            }
-          >
-            {trajet.effectiveEtat === "ok"
-              ? "Ok"
-              : trajet.effectiveEtat === "anomalie"
-                ? "Anomalie"
-                : trajet.effectiveEtat === "brouillon"
-                  ? "Brouillon"
-                  : "Suspendu"}
-          </Badge>
-          {trajet.circuitName && (
-            <span className="text-sm text-muted-foreground">
-              {trajet.circuitName}
-              {trajet.etablissementName && ` — ${trajet.etablissementName}`}
-            </span>
-          )}
-          {(trajet.effectiveStartDate || trajet.effectiveEndDate) && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <CalendarDays className="h-3 w-3" />
-              {trajet.effectiveStartDate ?? "..."} → {trajet.effectiveEndDate ?? "..."}
-            </span>
-          )}
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Supprimer
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Supprimer le trajet</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Etes-vous sur de vouloir supprimer{" "}
+                  <strong>{trajet.name}</strong> ? Cette action est irreversible.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={deleteMutation.isPending}
+                  className="cursor-pointer"
+                >
+                  Annuler
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteMutation.mutate({ id: trajet.id })}
+                  disabled={deleteMutation.isPending}
+                  className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleteMutation.isPending ? "Suppression..." : "Supprimer"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="cursor-pointer text-destructive hover:text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Supprimer
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Supprimer le trajet</AlertDialogTitle>
-              <AlertDialogDescription>
-                Etes-vous sur de vouloir supprimer{" "}
-                <strong>{trajet.name}</strong> ? Cette action est irreversible.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel
-                disabled={deleteMutation.isPending}
-                className="cursor-pointer"
-              >
-                Annuler
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deleteMutation.mutate({ id: trajet.id })}
-                disabled={deleteMutation.isPending}
-                className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleteMutation.isPending ? "Suppression..." : "Supprimer"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Title + badges */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              {trajet.name}
+            </h1>
+            <Badge variant="outline" className={directionClass}>
+              {trajet.direction === "aller" ? "Aller" : "Retour"}
+            </Badge>
+            <Badge variant="outline" className={`gap-1.5 ${etatClass}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {etatLabel}
+            </Badge>
+          </div>
+
+          {/* Meta line: circuit + dates */}
+          {(trajet.circuitName ||
+            trajet.effectiveStartDate ||
+            trajet.effectiveEndDate) && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground">
+              {trajet.circuitName && (
+                <span className="flex items-center gap-1.5">
+                  <Route className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                  <span className="text-foreground/80">
+                    {trajet.circuitName}
+                    {trajet.etablissementName &&
+                      ` — ${trajet.etablissementName}`}
+                  </span>
+                </span>
+              )}
+              {(trajet.effectiveStartDate || trajet.effectiveEndDate) && (
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                  <span className="tabular-nums">
+                    {trajet.effectiveStartDate ?? "…"} →{" "}
+                    {trajet.effectiveEndDate ?? "…"}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Form - Informations compactes */}
