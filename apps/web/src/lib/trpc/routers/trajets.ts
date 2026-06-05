@@ -17,6 +17,10 @@ import {
   occurrenceOverrideSchema,
 } from "@/lib/validators/trajet";
 import { normalizeDays, isAnyDayActiveForDate, type DayEntry } from "@/lib/types/day-entry";
+import {
+  resolveRoutingConfig,
+  computeSegmentForTenant,
+} from "../services/routing/resolve";
 
 export const trajetsRouter = createTRPCRouter({
   listByCircuit: tenantProcedure
@@ -420,47 +424,38 @@ export const trajetsRouter = createTRPCRouter({
       const segmentResults: { id: string; distanceKm: number; durationSeconds: number }[] = [];
 
       const avoidTolls = trajet[0]!.peages === false;
-      const constraintsObj = { constraintType: "banned", key: "wayType", operator: "=", value: "autoroute" };
-      const constraints = avoidTolls
-        ? `&constraints=${encodeURIComponent(JSON.stringify(constraintsObj))}`
-        : "";
 
-      // Fetch all segments from IGN API (sequential due to rate limits)
+      // Moteur de routing du tenant, résolu une seule fois (clé déchiffrée ici).
+      const routingConfig = await resolveRoutingConfig(ctx.db, ctx.tenantId);
+
+      // Calcul de chaque segment (séquentiel : limites de débit des APIs).
       for (let i = 1; i < arretsList.length; i++) {
         const prev = arretsList[i - 1]!;
         const curr = arretsList[i]!;
 
-        const start = `${prev.longitude},${prev.latitude}`;
-        const end = `${curr.longitude},${curr.latitude}`;
-
-        const url = `https://data.geopf.fr/navigation/itineraire?resource=bdtopo-osrm&start=${start}&end=${end}&profile=car&optimization=fastest&getSteps=false${constraints}`;
-
-        const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-        if (!response.ok) {
+        const outcome = await computeSegmentForTenant(
+          { lat: prev.latitude!, lng: prev.longitude! },
+          { lat: curr.latitude!, lng: curr.longitude! },
+          routingConfig,
+          avoidTolls,
+        );
+        if (!outcome.result) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: `Erreur API IGN pour le segment ${i} (HTTP ${response.status})`,
+            message: `Calcul d'itinéraire indisponible pour le segment ${i} (${routingConfig.adapter.id}).`,
           });
         }
 
-        const data = (await response.json()) as {
-          distance: number;
-          duration: number;
-          geometry?: { type: string; coordinates: number[][] };
-        };
-
-        const distanceKm = Math.round((data.distance / 1000) * 1000) / 1000;
-        const durationSec = Math.round(data.duration);
+        const { distanceKm, durationSec, geometry } = outcome.result;
 
         totalDistanceKm += distanceKm;
         totalDurationSeconds += durationSec;
         segmentResults.push({ id: curr.id, distanceKm, durationSeconds: durationSec });
 
-        if (data.geometry?.coordinates) {
-          const coords = data.geometry.coordinates;
+        if (geometry.length > 0) {
           const startIdx = allCoordinates.length > 0 ? 1 : 0;
-          for (let j = startIdx; j < coords.length; j++) {
-            allCoordinates.push(coords[j]!);
+          for (let j = startIdx; j < geometry.length; j++) {
+            allCoordinates.push(geometry[j]!);
           }
         }
       }

@@ -8,4 +8,4 @@ const client = postgres(connectionString);
 export const db = drizzle(client, { schema });
 
 export * from "./schema";
-export type { db as Database };
+export type Database = typeof db;

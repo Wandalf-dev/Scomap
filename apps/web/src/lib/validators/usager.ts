@@ -1,21 +1,22 @@
 import { z } from "zod";
 
+// Statuts métier (repris de Transcolaire, codes 0→5).
 export const USAGER_STATUSES = [
-  "brouillon",
+  "non_controle",
+  "controle",
+  "modifie",
   "en_attente",
-  "actif",
-  "suspendu",
-  "refuse",
-  "archive",
+  "refuse_annule",
+  "a_reconduire",
 ] as const;
 
 export const USAGER_STATUS_LABELS: Record<typeof USAGER_STATUSES[number], string> = {
-  brouillon: "Brouillon",
+  non_controle: "Non contrôlé",
+  controle: "Contrôlé",
+  modifie: "Modifié",
   en_attente: "En attente",
-  actif: "Actif",
-  suspendu: "Suspendu",
-  refuse: "Refusé",
-  archive: "Archivé",
+  refuse_annule: "Refusé / Annulé",
+  a_reconduire: "À reconduire",
 };
 
 export const USAGER_REGIMES = [

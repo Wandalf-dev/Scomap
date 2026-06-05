@@ -33,7 +33,7 @@ export const usagers = pgTable(
     lastName: varchar("last_name", { length: 100 }).notNull(),
     birthDate: date("birth_date"),
     gender: varchar("gender", { length: 1 }),
-    status: varchar("status", { length: 20 }).notNull().default("brouillon"),
+    status: varchar("status", { length: 20 }).notNull().default("non_controle"),
     regime: varchar("regime", { length: 30 }),
     classe: varchar("classe", { length: 30 }),
     // Mode de transport de l'usager (3 catégories). Pilote le rattachement

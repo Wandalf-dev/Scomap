@@ -61,6 +61,9 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
     trpc.arrets.list.queryOptions({ trajetId: id }),
   );
 
+  // Fond de carte configuré par le tenant (réglages > Paramètres).
+  const { data: basemap } = useQuery(trpc.basemap.getStyle.queryOptions());
+
   const deleteMutation = useMutation(
     trpc.trajets.delete.mutationOptions({
       onSuccess: () => {
@@ -345,6 +348,7 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
               })) ?? []
             }
             routeGeometry={trajet.routeGeometry ?? undefined}
+            basemap={basemap}
             className="h-[500px]"
           />
         </div>

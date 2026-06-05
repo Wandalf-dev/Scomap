@@ -10,62 +10,12 @@ import { toast } from "@/components/ui/sonner";
 import { ArrowLeft } from "lucide-react";
 import {
   usagerDetailSchema,
-  USAGER_TRANSPORT_TYPES,
-  USAGER_TRANSPORT_TYPE_LABELS,
   type UsagerDetailFormValues,
 } from "@/lib/validators/usager";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { QuestionMarkCircleIcon } from "@/components/ui/question-mark-circle-icon";
+import { UsagerFormFields } from "./usager-form-fields";
 
-const GENDERS = [
-  { value: "M", label: "Masculin" },
-  { value: "F", label: "Féminin" },
-];
-
-function toUpperCase(value: string) {
-  return value.toUpperCase();
-}
-
-function capitalize(value: string) {
-  return value
-    .split(/(-|\s)/)
-    .map((part) =>
-      part.length > 0 && part !== "-" && part !== " "
-        ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-        : part
-    )
-    .join("");
-}
+const FORM_ID = "usager-create-form";
 
 export function UsagerCreateClient() {
   const trpc = useTRPC();
@@ -131,292 +81,41 @@ export function UsagerCreateClient() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          effect="expandIcon"
-          icon={ArrowLeft}
-          iconPlacement="left"
-          size="sm"
-          onClick={() => router.push("/usagers")}
-          className="cursor-pointer"
-        >
-          Retour
-        </Button>
-        <h1 className="text-2xl font-semibold text-foreground">
-          Nouvel usager
-        </h1>
+      {/* Header — même bandeau que la fiche usager */}
+      <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:-mx-6 lg:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/usagers")}
+            className="-ml-2 cursor-pointer gap-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Retour
+          </Button>
+          <div className="h-6 w-px shrink-0 bg-border/70" aria-hidden />
+          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight text-foreground">
+            Nouvel usager
+          </h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="submit"
+            form={FORM_ID}
+            disabled={mutation.isPending}
+            className="cursor-pointer"
+          >
+            {mutation.isPending ? "Création..." : "Créer l'usager"}
+          </Button>
+        </div>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Identité */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Identité</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Nom"
-                          {...field}
-                          onChange={(e) => field.onChange(toUpperCase(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prénom</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Prénom"
-                          {...field}
-                          onChange={(e) => field.onChange(capitalize(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="birthDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date de naissance</FormLabel>
-                      <DatePicker
-                        value={field.value}
-                        onChange={field.onChange}
-                        toYear={new Date().getFullYear()}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Genre</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger className="w-full cursor-pointer">
-                            <SelectValue placeholder="Sélectionner" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {GENDERS.map((g) => (
-                            <SelectItem key={g.value} value={g.value} className="cursor-pointer">
-                              {g.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Code usager</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Code" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Établissement */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Établissement</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="etablissementId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Établissement</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                      <FormControl>
-                        <SelectTrigger className="w-full cursor-pointer">
-                          <SelectValue placeholder="Sélectionner un établissement" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {etablissements?.map((e) => (
-                          <SelectItem key={e.id} value={e.id} className="cursor-pointer">
-                            {e.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Transport */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Transport</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="transportType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type de transport</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger className="w-full cursor-pointer">
-                            <SelectValue placeholder="Sélectionner" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {USAGER_TRANSPORT_TYPES.map((t) => (
-                            <SelectItem key={t} value={t} className="cursor-pointer">
-                              {USAGER_TRANSPORT_TYPE_LABELS[t]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="transportStartDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center gap-1">
-                      <FormLabel>
-                        Date début transport
-                        <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-pointer text-muted-foreground">
-                              <QuestionMarkCircleIcon size={16} />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            Date de début de transport de l&apos;usager, pré-remplie
-                            à partir des paramètres de l&apos;année scolaire. Champ
-                            obligatoire car utilisé pour générer les trajets et
-                            initialiser les circuits associés.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <DatePicker
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="transportEndDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center gap-1">
-                      <FormLabel>Date fin transport</FormLabel>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-pointer text-muted-foreground">
-                              <QuestionMarkCircleIcon size={16} />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            Date de fin de transport de l&apos;usager, pré-remplie
-                            à partir des paramètres de l&apos;année scolaire. Elle sera
-                            reprise automatiquement lors de la création d&apos;un circuit.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <DatePicker
-                      value={field.value}
-                      onChange={field.onChange}
-                      clearable
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Observations */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Observations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Notes libres..."
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-              {mutation.isPending ? "Création..." : "Créer l'usager"}
-            </Button>
-          </div>
-        </form>
-      </Form>
+      <UsagerFormFields
+        form={form}
+        formId={FORM_ID}
+        onSubmit={onSubmit}
+        etablissements={etablissements}
+      />
     </div>
   );
 }

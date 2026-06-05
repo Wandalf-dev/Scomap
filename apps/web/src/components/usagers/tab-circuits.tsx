@@ -221,8 +221,8 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
   return (
     <div className="space-y-4">
       {!circuitEligible && (
-        <div className="flex gap-3 rounded-[0.3rem] border border-amber-500/50 bg-amber-500/10 p-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+        <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <p className="text-sm text-foreground">
             Le type de transport de cet usager
             {transportTypeLabel && (
@@ -237,10 +237,14 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
         </div>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Circuits ({linkedCircuits?.length ?? 0})
+        </h3>
         <Button
           onClick={handleCreate}
           disabled={!circuitEligible}
+          size="sm"
           className="cursor-pointer"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -249,9 +253,11 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
       </div>
 
       {!linkedCircuits || linkedCircuits.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
-          <ShareIcon size={48} className="text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-medium text-foreground">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+          <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <ShareIcon size={24} />
+          </span>
+          <h3 className="mt-4 text-sm font-semibold text-foreground">
             Aucun circuit
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -260,9 +266,9 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
           </p>
         </div>
       ) : (
-        <div className="rounded-[0.3rem] border border-border bg-card">
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-xs">
           <Table>
-            <TableHeader>
+            <TableHeader className="[&_tr]:border-b [&_tr]:bg-muted/40">
               <TableRow>
                 <TableHead>Circuit</TableHead>
                 <TableHead>Établissement</TableHead>
@@ -559,7 +565,7 @@ function DissociateDialog({
         </AlertDialogHeader>
 
         {willBeEmpty && (
-          <div className="flex gap-3 rounded-[0.3rem] border border-amber-500/50 bg-amber-500/10 p-3">
+          <div className="flex gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
             <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
             <p className="text-sm text-foreground">
               Cet usager est le dernier sur le circuit <strong>{deleteItem?.circuitName}</strong>. Le dissocier rendra le circuit inactif. Vous pourrez le retrouver dans la liste des circuits.
@@ -768,7 +774,7 @@ function CircuitLinkDialog({
           )}
         />
 
-        <div className="space-y-4 rounded-[0.3rem] border p-4">
+        <div className="space-y-4 rounded-lg border p-4">
           <FormField
             control={control}
             name="arrivalNotification"
@@ -829,7 +835,7 @@ function CircuitLinkDialog({
             <button
               type="button"
               onClick={() => setMode("existing")}
-              className="cursor-pointer flex items-start gap-4 rounded-[0.3rem] border p-4 text-left transition-colors hover:bg-accent/50"
+              className="cursor-pointer flex items-start gap-4 rounded-lg border p-4 text-left transition-colors hover:bg-accent/50"
             >
               <Link className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
@@ -842,7 +848,7 @@ function CircuitLinkDialog({
             <button
               type="button"
               onClick={() => setMode("new")}
-              className="cursor-pointer flex items-start gap-4 rounded-[0.3rem] border p-4 text-left transition-colors hover:bg-accent/50"
+              className="cursor-pointer flex items-start gap-4 rounded-lg border p-4 text-left transition-colors hover:bg-accent/50"
             >
               <SquarePlus className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
@@ -903,7 +909,7 @@ function CircuitLinkDialog({
                   <p className="text-sm text-muted-foreground">
                     Circuit : <strong>{editingItem.circuitName}</strong>
                   </p>
-                  <div className="rounded-[0.3rem] border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                  <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
                     <p className="font-medium">Champs verrouillés</p>
                     <p className="mt-0.5">
                       Le circuit, les jours et l&apos;adresse de prise en charge

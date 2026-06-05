@@ -204,7 +204,7 @@ async function main() {
       lastName,
       birthDate: randomBirthDate(minAge, maxAge),
       gender: isMale ? "M" : "F",
-      status: pick(["actif", "actif", "actif", "en_attente", "brouillon"]),
+      status: pick(["controle", "controle", "non_controle", "en_attente", "modifie", "a_reconduire", "refuse_annule"]),
       regime: pick(REGIMES),
       etablissementId: etab.id,
       classe: pick(classes),

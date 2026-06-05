@@ -2,11 +2,44 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { tenantSettings } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
+import {
+  upsertProviderKey,
+  getProviderKeyStatus,
+} from "../services/provider-keys";
+import {
+  resolveRoutingConfig,
+  computeSegmentForTenant,
+} from "../services/routing/resolve";
+
+const routingProviders = ["osrm", "ign", "openrouteservice", "google"] as const;
+const basemapProviders = [
+  "openfreemap",
+  "osm_raster",
+  "maptiler",
+  "ign",
+] as const;
 
 const tenantSettingsSchema = z.object({
   schoolYearStart: z.string().nullable(),
   schoolYearEnd: z.string().nullable(),
+  routingProvider: z.enum(routingProviders),
+  basemapProvider: z.enum(basemapProviders),
+  basemapStyle: z.string().max(64).nullable(),
 });
+
+const setProviderKeySchema = z.object({
+  category: z.enum(["routing", "basemap"]),
+  provider: z.string().max(32),
+  apiKey: z.string().min(1),
+});
+
+const DEFAULTS = {
+  schoolYearStart: null as string | null,
+  schoolYearEnd: null as string | null,
+  routingProvider: "ign" as (typeof routingProviders)[number],
+  basemapProvider: "openfreemap" as (typeof basemapProviders)[number],
+  basemapStyle: null as string | null,
+};
 
 export const tenantSettingsRouter = createTRPCRouter({
   get: tenantProcedure.query(async ({ ctx }) => {
@@ -15,12 +48,18 @@ export const tenantSettingsRouter = createTRPCRouter({
         id: tenantSettings.id,
         schoolYearStart: tenantSettings.schoolYearStart,
         schoolYearEnd: tenantSettings.schoolYearEnd,
+        routingProvider: tenantSettings.routingProvider,
+        basemapProvider: tenantSettings.basemapProvider,
+        basemapStyle: tenantSettings.basemapStyle,
       })
       .from(tenantSettings)
       .where(eq(tenantSettings.tenantId, ctx.tenantId))
       .limit(1);
 
-    return result[0] ?? null;
+    // Présence/masque des clés (jamais la clé en clair).
+    const keyStatus = await getProviderKeyStatus(ctx.db, ctx.tenantId);
+
+    return { ...DEFAULTS, ...(result[0] ?? {}), keyStatus };
   }),
 
   update: tenantProcedure
@@ -38,10 +77,13 @@ export const tenantSettingsRouter = createTRPCRouter({
           .set({
             schoolYearStart: input.schoolYearStart,
             schoolYearEnd: input.schoolYearEnd,
+            routingProvider: input.routingProvider,
+            basemapProvider: input.basemapProvider,
+            basemapStyle: input.basemapStyle,
             updatedAt: new Date(),
           })
           .where(eq(tenantSettings.tenantId, ctx.tenantId))
-          .returning();
+          .returning({ id: tenantSettings.id });
 
         return result[0] ?? null;
       }
@@ -52,9 +94,41 @@ export const tenantSettingsRouter = createTRPCRouter({
           tenantId: ctx.tenantId,
           schoolYearStart: input.schoolYearStart,
           schoolYearEnd: input.schoolYearEnd,
+          routingProvider: input.routingProvider,
+          basemapProvider: input.basemapProvider,
+          basemapStyle: input.basemapStyle,
         })
-        .returning();
+        .returning({ id: tenantSettings.id });
 
       return result[0] ?? null;
     }),
+
+  /** Enregistre (chiffrée) la clé d'API d'un provider. Écriture seule : jamais relue. */
+  setProviderKey: tenantProcedure
+    .input(setProviderKeySchema)
+    .mutation(async ({ ctx, input }) => {
+      await upsertProviderKey(
+        ctx.db,
+        ctx.tenantId,
+        input.category,
+        input.provider,
+        input.apiKey,
+      );
+      return { ok: true };
+    }),
+
+  /** Teste le moteur de routing configuré sur un court trajet parisien. */
+  testRouting: tenantProcedure.mutation(async ({ ctx }) => {
+    const cfg = await resolveRoutingConfig(ctx.db, ctx.tenantId);
+    const outcome = await computeSegmentForTenant(
+      { lat: 48.8566, lng: 2.3522 },
+      { lat: 48.8606, lng: 2.3376 },
+      cfg,
+    );
+    return {
+      ok: outcome.result != null,
+      providerUsed: outcome.providerUsed,
+      distanceKm: outcome.result?.distanceKm ?? null,
+    };
+  }),
 });

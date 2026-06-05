@@ -11,6 +11,7 @@ import { UsersIcon } from "@/components/ui/users-icon";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { UsagerFormDialog } from "./usager-form-dialog";
+import { UsagerStatusBadge } from "./usager-status-badge";
 import {
   USAGER_STATUSES,
   USAGER_STATUS_LABELS,
@@ -29,6 +30,13 @@ const CLASSE_LABEL_MAP: Record<string, string> = (() => {
   }
   return map;
 })();
+
+// Barre d'accent à gauche de ligne selon le type de transport (repris de Transcolaire).
+const TRANSPORT_ACCENT: Record<string, string> = {
+  taxi_collectif_individuel: "bg-blue-500",
+  transport_famille: "bg-orange-500",
+  transport_commun: "bg-yellow-400",
+};
 
 interface UsagerRow {
   id: string;
@@ -65,9 +73,11 @@ type UsagerFilters = {
   regime: string;
   classe: string;
   transportType: string;
-  etablissement: string;
-  city: string;
-  secondaryEtablissement: string;
+  etablissementName: string;
+  etablissementCity: string;
+  secondaryEtablissementName: string;
+  transportStartDate: string;
+  transportEndDate: string;
   transportParticularity: string;
   specificity: string;
   notes: string;
@@ -84,9 +94,11 @@ const EMPTY_FILTERS: UsagerFilters = {
   regime: "all",
   classe: "all",
   transportType: "all",
-  etablissement: "all",
-  city: "",
-  secondaryEtablissement: "all",
+  etablissementName: "all",
+  etablissementCity: "",
+  secondaryEtablissementName: "all",
+  transportStartDate: "",
+  transportEndDate: "",
   transportParticularity: "",
   specificity: "",
   notes: "",
@@ -239,6 +251,7 @@ export function UsagersClient() {
       error={error}
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
+      rowAccent={(row) => TRANSPORT_ACCENT[row.transportType ?? ""] ?? null}
       title="Usagers"
       description="Gerez les eleves transportes"
       emptyIcon={UsersIcon}
@@ -318,11 +331,7 @@ export function UsagersClient() {
           key: "status",
           header: "Statut",
           sortable: true,
-          render: (row) => (
-            <span className="text-muted-foreground">
-              {USAGER_STATUS_LABELS[row.status as keyof typeof USAGER_STATUS_LABELS] ?? row.status}
-            </span>
-          ),
+          render: (row) => <UsagerStatusBadge status={row.status} />,
         },
         {
           key: "regime",
@@ -525,7 +534,7 @@ export function UsagersClient() {
           ],
         },
         {
-          key: "etablissement",
+          key: "etablissementName",
           label: "Établissement",
           type: "select",
           className: "h-8 w-56 cursor-pointer text-sm",
@@ -534,9 +543,9 @@ export function UsagersClient() {
             ...etablissementOptions,
           ],
         },
-        { key: "city", label: "Ville", type: "text" },
+        { key: "etablissementCity", label: "Ville", type: "text" },
         {
-          key: "secondaryEtablissement",
+          key: "secondaryEtablissementName",
           label: "Établissement secondaire",
           type: "select",
           className: "h-8 w-56 cursor-pointer text-sm",
@@ -545,6 +554,8 @@ export function UsagersClient() {
             ...secondaryEtablissementOptions,
           ],
         },
+        { key: "transportStartDate", label: "Début transport", type: "text", placeholder: "Année ou date…" },
+        { key: "transportEndDate", label: "Fin transport", type: "text", placeholder: "Année ou date…" },
         { key: "transportParticularity", label: "Particularité transport", type: "text" },
         { key: "specificity", label: "Spécificité", type: "text" },
         { key: "notes", label: "Notes", type: "text" },
@@ -561,9 +572,11 @@ export function UsagersClient() {
         if (filters.regime !== "all" && row.regime !== filters.regime) return false;
         if (filters.classe !== "all" && row.classe !== filters.classe) return false;
         if (filters.transportType !== "all" && row.transportType !== filters.transportType) return false;
-        if (filters.etablissement !== "all" && row.etablissementName !== filters.etablissement) return false;
-        if (filters.city && !row.etablissementCity?.toLowerCase().includes(filters.city.toLowerCase())) return false;
-        if (filters.secondaryEtablissement !== "all" && row.secondaryEtablissementName !== filters.secondaryEtablissement) return false;
+        if (filters.etablissementName !== "all" && row.etablissementName !== filters.etablissementName) return false;
+        if (filters.etablissementCity && !row.etablissementCity?.toLowerCase().includes(filters.etablissementCity.toLowerCase())) return false;
+        if (filters.secondaryEtablissementName !== "all" && row.secondaryEtablissementName !== filters.secondaryEtablissementName) return false;
+        if (filters.transportStartDate && !(row.transportStartDate ?? "").includes(filters.transportStartDate)) return false;
+        if (filters.transportEndDate && !(row.transportEndDate ?? "").includes(filters.transportEndDate)) return false;
         if (filters.transportParticularity && !row.transportParticularity?.toLowerCase().includes(filters.transportParticularity.toLowerCase())) return false;
         if (filters.specificity && !row.specificity?.toLowerCase().includes(filters.specificity.toLowerCase())) return false;
         if (filters.notes && !row.notes?.toLowerCase().includes(filters.notes.toLowerCase())) return false;

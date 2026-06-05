@@ -129,16 +129,18 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
 
   if (grouped.length === 0) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Avenants (0)
           </h3>
           {newButton}
         </div>
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
-          <FileText className="h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-medium text-foreground">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+          <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <FileText className="size-6" />
+          </span>
+          <h3 className="mt-4 text-sm font-semibold text-foreground">
             Aucun avenant
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -150,9 +152,9 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Avenants ({grouped.length})
         </h3>
         {newButton}
@@ -160,7 +162,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
       {grouped.map(({ header, changes }) => (
         <div
           key={header.avenantId}
-          className="rounded-[0.3rem] border border-border bg-card p-4"
+          className="rounded-lg border border-border bg-card p-5 shadow-xs"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
@@ -172,7 +174,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
                   variant={
                     STATUS_VARIANTS[header.status as AvenantStatus] ?? "outline"
                   }
-                  className="rounded-[0.3rem]"
+                  className="rounded-md"
                 >
                   {AVENANT_STATUS_LABELS[header.status as AvenantStatus] ??
                     header.status}
@@ -235,7 +237,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
           <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
             {changes.map((c) => (
               <div key={c.changeId} className="flex flex-col gap-1.5">
-                <Badge variant="outline" className="w-fit rounded-[0.3rem] text-xs">
+                <Badge variant="outline" className="w-fit rounded-md text-xs">
                   {AVENANT_TYPE_LABELS[c.type as AvenantChangeType] ?? c.type}
                 </Badge>
                 <AvenantChangeDiff

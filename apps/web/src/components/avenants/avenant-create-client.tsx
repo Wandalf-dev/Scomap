@@ -222,6 +222,9 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
                 <span className="font-medium text-foreground">
                   {usager.firstName} {usager.lastName}
                 </span>
+                <span className="ml-2 tabular-nums text-muted-foreground/80">
+                  #{usager.displayId}
+                </span>
               </p>
             )
           )}

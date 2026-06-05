@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Check, Lock } from "lucide-react";
+import NextLink from "next/link";
+import { ArrowLeft, ArrowRight, Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
 import {
@@ -24,7 +24,12 @@ interface DayPecGridProps {
   daysRetour: DayEntry[];
   occupiedAller?: OccupiedDay[];
   occupiedRetour?: OccupiedDay[];
-  onSave: (aller: DayEntry[], retour: DayEntry[]) => void;
+  /** Composant contrôlé : émis à chaque modification (le parent gère le brouillon et l'enregistrement). */
+  onChange: (aller: DayEntry[], retour: DayEntry[]) => void;
+  /** Lecture seule : jours visibles mais non modifiables (ex. usager affecté à un circuit). */
+  readOnly?: boolean;
+  /** Lien de résolution affiché quand readOnly (création d'avenant). */
+  lockHref?: string;
 }
 
 function isChecked(days: DayEntry[], day: number, rowParity: RowParity): boolean {
@@ -84,58 +89,106 @@ function findBlockedDays(
 
 const PARITIES: RowParity[] = ["even", "odd"];
 const PARITY_LABEL: Record<RowParity, string> = { even: "Paire", odd: "Impaire" };
+const PARITY_SUBLABEL: Record<RowParity, string> = {
+  even: "sem. paires",
+  odd: "sem. impaires",
+};
 
 function Cell({
   on,
   locked,
+  readOnly = false,
   color,
   onClick,
 }: {
   on: boolean;
   locked: boolean;
+  readOnly?: boolean;
   color: "aller" | "retour";
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={readOnly}
       onClick={onClick}
       className={cn(
-        "size-8 rounded-md transition-all relative border",
-        locked && "bg-muted/30 border-transparent cursor-not-allowed",
-        !locked && "cursor-pointer",
+        "relative flex size-8 items-center justify-center rounded-[9px] transition-all",
+        // Jour pris par une autre adresse
+        locked && "cursor-not-allowed border border-border bg-muted/40",
+        readOnly && !locked && "cursor-not-allowed",
+        !locked && !readOnly && "cursor-pointer",
+        // Aller activé : case pleine accent
         on && !locked && color === "aller" &&
-          "bg-primary border-primary shadow-sm shadow-primary/20",
+          "border border-primary bg-primary shadow-sm shadow-primary/20",
+        // Retour activé : anneau accent sur fond carte
         on && !locked && color === "retour" &&
-          "bg-foreground/85 border-foreground/85 shadow-sm shadow-foreground/10",
-        !on && !locked &&
-          "bg-muted/40 border-border/50 hover:bg-muted hover:border-border",
+          "border-2 border-primary bg-card",
+        // Éteint : vraie case sur fond carte
+        !on && !locked && "border border-border bg-card",
+        !on && !locked && !readOnly && "hover:border-border hover:bg-muted/40",
       )}
     >
-      {locked && (
-        <Lock className="size-3 text-muted-foreground/40 absolute inset-0 m-auto" />
+      {locked ? (
+        <Lock className="size-3 text-muted-foreground/40" />
+      ) : on ? (
+        <Check
+          className={cn(
+            color === "aller"
+              ? "size-4 text-primary-foreground"
+              // Anneau Retour : coche violette en light, blanche en dark (lisibilité — primary sombre en dark)
+              : "size-[15px] text-primary dark:text-primary-foreground",
+          )}
+        />
+      ) : (
+        <span className="size-1 rounded-full bg-muted-foreground/30" />
       )}
     </button>
   );
 }
 
-function RowCheck({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+function RowCheck({
+  on,
+  onClick,
+  label,
+  subLabel,
+  readOnly = false,
+}: {
+  on: boolean;
+  onClick: () => void;
+  label: string;
+  subLabel: string;
+  readOnly?: boolean;
+}) {
   return (
     <button
       type="button"
+      disabled={readOnly}
       onClick={onClick}
-      className="flex items-center gap-1.5 cursor-pointer group"
+      className={cn(
+        "group flex items-center gap-1.5 text-left",
+        readOnly ? "cursor-not-allowed" : "cursor-pointer",
+      )}
     >
       <span className={cn(
-        "size-4 rounded-[3px] border flex items-center justify-center transition-colors",
+        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
         on
-          ? "bg-primary border-primary text-primary-foreground"
-          : "border-muted-foreground/40 group-hover:border-primary/60",
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-muted-foreground/40",
+        !on && !readOnly && "group-hover:border-primary/60",
       )}>
         {on && <Check className="size-3" />}
       </span>
-      <span className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors">
-        {label}
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className={cn(
+          "text-xs font-semibold text-foreground/80 transition-colors",
+          !readOnly && "group-hover:text-foreground",
+        )}>
+          {label}
+        </span>
+        <span className="text-[10px] font-medium text-muted-foreground">
+          {subLabel}
+        </span>
       </span>
     </button>
   );
@@ -147,14 +200,17 @@ function DirectionBlock({
   days,
   occupied,
   onChange,
+  readOnly = false,
 }: {
   label: string;
   color: "aller" | "retour";
   days: DayEntry[];
   occupied: OccupiedDay[];
   onChange: (days: DayEntry[]) => void;
+  readOnly?: boolean;
 }) {
   function handleCellClick(day: number, parity: RowParity) {
+    if (readOnly) return;
     const alreadyOn = isChecked(days, day, parity);
     if (alreadyOn) {
       onChange(toggleCell(days, day, parity, false));
@@ -172,6 +228,7 @@ function DirectionBlock({
   }
 
   function handleRowToggle(parity: RowParity) {
+    if (readOnly) return;
     const rowAll = isRowAllChecked(days, parity);
     if (rowAll) {
       onChange(toggleRow(days, parity, false));
@@ -189,16 +246,15 @@ function DirectionBlock({
     onChange(toggleRow(days, parity, true));
   }
 
+  const DirectionIcon = color === "aller" ? ArrowRight : ArrowLeft;
+
   return (
-    <div className="flex-1 min-w-0 space-y-1">
-      <div className="flex items-center gap-2 mb-1">
-        <span
-          className={cn(
-            "size-1.5 rounded-full",
-            color === "aller" ? "bg-primary" : "bg-foreground/85",
-          )}
-        />
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
+    <div className="min-w-0 flex-1 space-y-1">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="flex size-[22px] items-center justify-center rounded-md bg-primary/10 text-primary">
+          <DirectionIcon className="size-3.5" />
+        </span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
           {label}
         </span>
       </div>
@@ -207,7 +263,7 @@ function DirectionBlock({
         <div className="w-20 shrink-0" />
         <div className="flex gap-1">
           {ALL_DAYS.map((day) => (
-            <span key={day} className="size-8 text-center text-[10px] font-semibold text-muted-foreground leading-8">
+            <span key={day} className="size-8 text-center text-[11px] font-bold leading-8 text-muted-foreground">
               {DAY_LABELS[day]}
             </span>
           ))}
@@ -223,6 +279,8 @@ function DirectionBlock({
                 on={rowAll}
                 onClick={() => handleRowToggle(parity)}
                 label={PARITY_LABEL[parity]}
+                subLabel={PARITY_SUBLABEL[parity]}
+                readOnly={readOnly}
               />
             </div>
             <div className="flex gap-1">
@@ -232,6 +290,7 @@ function DirectionBlock({
                   color={color}
                   on={isChecked(days, day, parity)}
                   locked={!isChecked(days, day, parity) && !!isOccupied(occupied, day, parity)}
+                  readOnly={readOnly}
                   onClick={() => handleCellClick(day, parity)}
                 />
               ))}
@@ -248,59 +307,24 @@ export function DayPecGrid({
   daysRetour,
   occupiedAller = [],
   occupiedRetour = [],
-  onSave,
+  onChange,
+  readOnly = false,
+  lockHref,
 }: DayPecGridProps) {
-  const [localAller, setLocalAller] = useState(daysAller);
-  const [localRetour, setLocalRetour] = useState(daysRetour);
-  const dirty = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const latestAller = useRef(localAller);
-  const latestRetour = useRef(localRetour);
-  const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
-
-  useEffect(() => { if (!dirty.current) setLocalAller(daysAller); }, [daysAller]);
-  useEffect(() => { if (!dirty.current) setLocalRetour(daysRetour); }, [daysRetour]);
-
-  const flush = useCallback(() => {
-    onSaveRef.current(latestAller.current, latestRetour.current);
-    setTimeout(() => { dirty.current = false; }, 3000);
-  }, []);
-
-  function schedule() {
-    clearTimeout(timer.current);
-    timer.current = setTimeout(flush, 800);
-  }
+  const everythingOn = isAllOn(daysAller) && isAllOn(daysRetour);
 
   function handleAller(days: DayEntry[]) {
-    dirty.current = true;
-    latestAller.current = days;
-    setLocalAller(days);
-    schedule();
+    onChange(days, daysRetour);
   }
 
   function handleRetour(days: DayEntry[]) {
-    dirty.current = true;
-    latestRetour.current = days;
-    setLocalRetour(days);
-    schedule();
+    onChange(daysAller, days);
   }
 
-  useEffect(() => () => {
-    clearTimeout(timer.current);
-    if (dirty.current) flush();
-  }, [flush]);
-
-  const everythingOn = isAllOn(localAller) && isAllOn(localRetour);
-
   function handleToggleAll() {
+    if (readOnly) return;
     if (everythingOn) {
-      dirty.current = true;
-      latestAller.current = [];
-      latestRetour.current = [];
-      setLocalAller([]);
-      setLocalRetour([]);
-      schedule();
+      onChange([], []);
       return;
     }
     const allOccupied = [...occupiedAller, ...occupiedRetour];
@@ -309,31 +333,60 @@ export function DayPecGrid({
       return;
     }
     const days = allOn();
-    dirty.current = true;
-    latestAller.current = days;
-    latestRetour.current = days;
-    setLocalAller(days);
-    setLocalRetour(days);
-    schedule();
+    onChange(days, days);
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium">Jours de prise en charge</span>
-        <button
-          type="button"
-          className="cursor-pointer text-[11px] text-primary hover:underline font-medium"
-          onClick={handleToggleAll}
-        >
-          {everythingOn ? "Tout décocher" : "Tout cocher"}
-        </button>
+        <div className="flex items-center gap-3">
+          {!readOnly && (
+            <>
+              <div className="flex items-center gap-3 text-[11px] font-semibold text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-3.5 rounded-[5px] bg-primary" />
+                  Aller
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="size-3.5 rounded-[5px] border-2 border-primary bg-card" />
+                  Retour
+                </span>
+              </div>
+              <span className="h-3.5 w-px bg-border" />
+            </>
+          )}
+          {readOnly ? (
+            lockHref ? (
+              <NextLink
+                href={lockHref}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
+              >
+                <Lock className="size-3" />
+                Verrouillé — modifiable via un avenant
+              </NextLink>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                <Lock className="size-3" />
+                Verrouillé
+              </span>
+            )
+          ) : (
+            <button
+              type="button"
+              className="cursor-pointer text-[11px] font-medium text-primary hover:underline"
+              onClick={handleToggleAll}
+            >
+              {everythingOn ? "Tout décocher" : "Tout cocher"}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex gap-4 rounded-lg border bg-muted/30 p-4">
-        <DirectionBlock label="Aller" color="aller" days={localAller} occupied={occupiedAller} onChange={handleAller} />
-        <div className="w-px bg-border shrink-0" />
-        <DirectionBlock label="Retour" color="retour" days={localRetour} occupied={occupiedRetour} onChange={handleRetour} />
+      <div className={cn("flex gap-4 rounded-xl border border-border bg-muted/30 p-4", readOnly && "opacity-90")}>
+        <DirectionBlock label="Aller" color="aller" days={daysAller} occupied={occupiedAller} onChange={handleAller} readOnly={readOnly} />
+        <div className="w-px shrink-0 bg-border" />
+        <DirectionBlock label="Retour" color="retour" days={daysRetour} occupied={occupiedRetour} onChange={handleRetour} readOnly={readOnly} />
       </div>
     </div>
   );

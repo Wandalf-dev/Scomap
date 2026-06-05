@@ -72,14 +72,12 @@ function BackButton({ backHref }: { backHref: string }) {
   return (
     <>
       <Button
-        variant="outline"
-        effect="expandIcon"
-        icon={ArrowLeft}
-        iconPlacement="left"
+        variant="ghost"
         size="sm"
         onClick={handleClick}
-        className="cursor-pointer"
+        className="-ml-2 cursor-pointer gap-1.5 text-muted-foreground hover:text-foreground"
       >
+        <ArrowLeft className="size-4" />
         Retour
       </Button>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -150,17 +148,16 @@ function EntityDetailLayoutInner({
     return (
       <div className="space-y-4">
         <Button
-          variant="outline"
-          effect="expandIcon"
-          icon={ArrowLeft}
-          iconPlacement="left"
+          variant="ghost"
+          size="sm"
           onClick={() => router.push(backHref)}
-          className="cursor-pointer"
+          className="-ml-2 cursor-pointer gap-1.5 text-muted-foreground hover:text-foreground"
         >
+          <ArrowLeft className="size-4" />
           Retour
         </Button>
-        <div className="rounded-[0.3rem] border border-dashed border-muted-foreground/25 p-12 text-center">
-          <p className="text-muted-foreground">{entityName} non trouve.</p>
+        <div className="rounded-lg border border-dashed border-border p-12 text-center">
+          <p className="text-sm text-muted-foreground">{entityName} introuvable.</p>
         </div>
       </div>
     );
@@ -168,12 +165,12 @@ function EntityDetailLayoutInner({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Header — bandeau collant qui respire, divider pleine largeur */}
+      <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:-mx-6 lg:px-6">
         {/* Identité */}
         <div className="flex min-w-0 items-center gap-3">
           <BackButton backHref={backHref} />
-          <div className="h-6 w-px shrink-0 bg-border" aria-hidden />
+          <div className="h-6 w-px shrink-0 bg-border/70" aria-hidden />
           <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight text-foreground">
             {title}
           </h1>
@@ -186,12 +183,10 @@ function EntityDetailLayoutInner({
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
-                effect="expandIcon"
-                icon={Trash2}
-                iconPlacement="right"
                 size="sm"
-                className="cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                className="cursor-pointer gap-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
+                <Trash2 className="size-4" />
                 Supprimer
               </Button>
             </AlertDialogTrigger>
@@ -227,14 +222,14 @@ function EntityDetailLayoutInner({
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — contrôle segmenté soigné */}
       <Tabs defaultValue={tabs[0]?.value}>
-        <TabsList>
+        <TabsList className="h-9 gap-1 rounded-lg border border-border bg-muted/60 p-1">
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="cursor-pointer"
+              className="cursor-pointer rounded-md px-3.5 text-[0.8125rem] font-medium text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-primary/30 dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
             >
               {tab.label}
             </TabsTrigger>

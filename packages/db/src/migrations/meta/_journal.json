@@ -176,6 +176,13 @@
       "when": 1771140000000,
       "tag": "0024_transport_type_to_usager",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1771150000000,
+      "tag": "0025_usager_statuts",
+      "breakpoints": true
     }
   ]
 }

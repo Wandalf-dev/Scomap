@@ -11,7 +11,10 @@ import { createTRPCRouter, tenantProcedure } from "../init";
 import { usagerSchema, usagerDetailSchema } from "@/lib/validators/usager";
 import { alias } from "drizzle-orm/pg-core";
 import { nextDisplayId } from "@/lib/db/display-id";
-import { computeRoadDistanceKm } from "../services/distance";
+import {
+  resolveRoutingConfig,
+  computeSegmentForTenant,
+} from "../services/routing/resolve";
 
 const secondaryEtab = alias(etablissements, "secondary_etab");
 
@@ -60,6 +63,7 @@ export const usagersRouter = createTRPCRouter({
       const result = await ctx.db
         .select({
           id: usagers.id,
+          displayId: usagers.displayId,
           code: usagers.code,
           firstName: usagers.firstName,
           lastName: usagers.lastName,
@@ -145,7 +149,7 @@ export const usagersRouter = createTRPCRouter({
           lastName: input.lastName,
           birthDate: input.birthDate || null,
           gender: input.gender || null,
-          status: input.status || "brouillon",
+          status: input.status || "non_controle",
           regime: input.regime || null,
           etablissementId: input.etablissementId || null,
           secondaryEtablissementId: input.secondaryEtablissementId || null,
@@ -213,7 +217,7 @@ export const usagersRouter = createTRPCRouter({
           lastName: input.data.lastName,
           birthDate: input.data.birthDate || null,
           gender: input.data.gender || null,
-          status: input.data.status || "brouillon",
+          status: input.data.status || "non_controle",
           regime: input.data.regime || null,
           etablissementId: input.data.etablissementId || null,
           secondaryEtablissementId: input.data.secondaryEtablissementId || null,
@@ -295,17 +299,22 @@ export const usagersRouter = createTRPCRouter({
         });
       }
 
-      const km = await computeRoadDistanceKm(
+      const routingConfig = await resolveRoutingConfig(ctx.db, ctx.tenantId);
+      const outcome = await computeSegmentForTenant(
         { lat: addr.lat, lng: addr.lng },
         { lat: row.etabLat, lng: row.etabLng },
+        routingConfig,
       );
 
-      if (km == null) {
+      if (outcome.result == null) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Calcul de distance indisponible (service de routing).",
         });
       }
+
+      // Distance domicile↔école affichée à 0,1 km près (comme l'historique).
+      const km = Math.round(outcome.result.distanceKm * 10) / 10;
 
       return { km };
     }),

@@ -137,6 +137,8 @@ interface DataListProps<TRow, TFilters extends Record<string, string>> {
   onBulkDelete?: (ids: string[]) => void;
   isBulkDeleting?: boolean;
   children?: React.ReactNode;
+  /** Optional left-edge accent bar per row. Return a Tailwind bg-* class (e.g. "bg-blue-500") or null. */
+  rowAccent?: (row: TRow) => string | null | undefined;
   /** localStorage key for persisting column visibility/order. If omitted, picker is hidden. */
   storageKey?: string;
   /** Default visible column keys. If omitted, all are visible. */
@@ -304,6 +306,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   onBulkDelete,
   isBulkDeleting,
   children,
+  rowAccent,
   storageKey,
   defaultVisibleColumns,
 }: DataListProps<TRow, TFilters>) {
@@ -497,7 +500,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
 
   const hasFixedWidths = Object.keys(columnWidths).length > 0;
   const actionsColWidth = 50;
-  const checkboxColWidth = 44;
+  const checkboxColWidth = 48;
   const totalWidth = hasFixedWidths
     ? columns.reduce((sum, col) => sum + (columnWidths[col.key] ?? 0), 0) + actionsColWidth + checkboxColWidth
     : 0;
@@ -635,8 +638,13 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
         </Button>
       </div>
 
-      {/* Toolbar */}
-      {data && data.length > 0 && (
+      {/* Toolbar — rendered only after mount so SSR and the first client render
+          are identical (a Radix-free skeleton). The toolbar + table hold every
+          useId-bearing component (Popover, per-row DropdownMenu, pagination
+          Select); their tree-id positions depend on persisted column prefs and
+          locale sort order, which only resolve client-side. Deferring them
+          removes the entire useId hydration-mismatch class. */}
+      {colsHydrated && data && data.length > 0 && (
         <div className="flex items-center gap-3">
           {storageKey && (
             <Popover>
@@ -823,12 +831,37 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
               </Button>
             </>
           )}
+
+          {/* Total + taille de page, poussés à droite */}
+          <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""}</span>
+            <span className="text-muted-foreground/40">|</span>
+            <span>Par page :</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setCurrentPage(0);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[84px] cursor-pointer text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)} className="cursor-pointer">
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
 
       {/* Table or Loading or Empty */}
-      {isLoading ? (
+      {!colsHydrated || isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
@@ -865,11 +898,14 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
             >
               <TableHeader>
                 <TableRow className="bg-accent hover:bg-accent">
+                  {/* En table-layout:auto, le `width` de la cellule est ignoré (la
+                      colonne se réduit au contenu). La largeur de la colonne coche
+                      vient donc du `w-12` du <div> intérieur, pas du `w-[48px]`. */}
                   <TableHead
-                    className="w-[44px] px-0"
+                    className="w-[48px] px-0"
                     style={hasFixedWidths ? { width: checkboxColWidth } : undefined}
                   >
-                    <div className="flex items-center justify-center">
+                    <div className="mx-auto flex w-12 items-center justify-center">
                       <Checkbox
                         checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
                         onCheckedChange={toggleSelectAll}
@@ -890,7 +926,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         style={hasFixedWidths ? { width: columnWidths[col.key] } : undefined}
                         onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
                       >
-                        <div className="flex items-center gap-2 pr-1.5">
+                        <div className="flex flex-col gap-1.5 py-1 pr-1.5">
                           <span className="flex shrink-0 items-center gap-1">
                             {col.header}
                             {col.sortable && (
@@ -902,7 +938,10 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                             )}
                           </span>
                           {fc && (
-                            <div className="ml-auto min-w-[5rem] flex-1">
+                            <div
+                              className="w-full"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <InlineColumnFilter
                                 config={fc}
                                 value={filterValues[fc.key] ?? ""}
@@ -946,6 +985,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                   paginatedRows.map((row) => {
                     const rowId = getRowId(row);
                     const isSelected = selectedIds.has(rowId);
+                    const accent = rowAccent?.(row);
                     return (
                       <TableRow
                         key={rowId}
@@ -953,11 +993,17 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         onClick={() => onRowClick(row)}
                       >
                         <TableCell
-                          className="w-[44px] px-0"
+                          className="relative w-[48px] px-0"
                           style={hasFixedWidths ? { width: checkboxColWidth } : undefined}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="flex items-center justify-center">
+                          {accent && (
+                            <span
+                              className={`absolute inset-y-0 left-0 w-1 ${accent}`}
+                              aria-hidden
+                            />
+                          )}
+                          <div className="mx-auto flex w-12 items-center justify-center">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => toggleSelect(rowId)}
@@ -1019,31 +1065,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                 )}
               </TableBody>
             </Table>
-          </div>
-
-          {/* Footer: total + page size */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""}</span>
-            <span className="text-muted-foreground/40">|</span>
-            <span>Par page :</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v));
-                setCurrentPage(0);
-              }}
-            >
-              <SelectTrigger className="h-7 w-[70px] cursor-pointer text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <SelectItem key={size} value={String(size)} className="cursor-pointer">
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </>
       )}

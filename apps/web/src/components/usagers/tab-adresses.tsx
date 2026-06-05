@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -70,11 +71,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, MapPin, Phone, Mail, UserCheck, GripVertical } from "lucide-react";
+import { Plus, PencilLine, Trash2, MapPin, Phone, Mail, UserCheck, GripVertical } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input";
 import { DayPecGrid, type OccupiedDay } from "@/components/shared/day-pec-grid";
-import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { normalizeDays, areDayEntriesEqual, type DayEntry } from "@/lib/types/day-entry";
 import type { UsagerAddress } from "@scomap/db/schema";
+
+type DraftDays = { aller: DayEntry[]; retour: DayEntry[] };
 
 const CIVILITIES = [
   { value: "M.", label: "M." },
@@ -94,9 +99,26 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
   const [editingAddress, setEditingAddress] = useState<UsagerAddress | null>(null);
   const [deleteAddress, setDeleteAddress] = useState<UsagerAddress | null>(null);
 
+  // Brouillon des jours de PEC par adresse : rien n'est écrit en base tant que
+  // l'utilisateur n'a pas cliqué « Enregistrer » (bouton du header). Pour annuler,
+  // il quitte la fiche (le bouton Retour avertit via le contexte unsaved-changes).
+  const [drafts, setDrafts] = useState<Record<string, DraftDays>>({});
+  const [savingDays, setSavingDays] = useState(false);
+  const headerActions = useHeaderActions();
+  const unsaved = useUnsavedChanges();
+
   const { data: addresses, isLoading } = useQuery(
     trpc.usagerAddresses.list.queryOptions({ usagerId }),
   );
+
+  // Dès qu'une affectation circuit active existe, les jours de PEC ne s'éditent
+  // plus directement (ils dérivent de l'affectation) : modification via avenant
+  // uniquement, pour la traçabilité. Cohérent avec le verrou de tab-identite
+  // (dates) et tab-circuits (adresse de PEC).
+  const { data: affectations } = useQuery(
+    trpc.usagerCircuits.listByUsager.queryOptions({ usagerId }),
+  );
+  const affectationLocked = (affectations?.length ?? 0) > 0;
 
   const invalidateAddresses = () => {
     queryClient.invalidateQueries({
@@ -144,20 +166,12 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     }),
   );
 
-  // Mutation pour mettre à jour les jours de PEC inline
+  // Mutation pour enregistrer les jours de PEC (déclenchée par le bouton du header).
+  // Feedback (toast) et invalidations gérés en lot dans handleSaveDays — pas
+  // d'invalidation par appel (qui multiplierait les refetches et concurrencerait
+  // l'écriture optimiste du cache).
   const updateDaysMutation = useMutation(
-    trpc.usagerAddresses.update.mutationOptions({
-      onSuccess: () => {
-        invalidateAddresses();
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
-        });
-        toast.success("Jours de PEC enregistrés");
-      },
-      onError: () => {
-        toast.error("Erreur lors de la mise à jour des jours");
-      },
-    }),
+    trpc.usagerAddresses.update.mutationOptions(),
   );
 
   const listQueryKey = trpc.usagerAddresses.list.queryKey({ usagerId });
@@ -257,12 +271,86 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     };
   }
 
-  function handleDaysSave(addr: UsagerAddress, aller: DayEntry[], retour: DayEntry[]) {
-    updateDaysMutation.mutate({
-      id: addr.id,
-      data: { ...buildDaysData(addr), daysAller: aller, daysRetour: retour },
-    });
+  // Valeur courante (brouillon si édité, sinon valeur serveur) des jours d'une adresse.
+  function currentDays(a: UsagerAddress): DraftDays {
+    return (
+      drafts[a.id] ?? {
+        aller: normalizeDays(a.daysAller),
+        retour: normalizeDays(a.daysRetour),
+      }
+    );
   }
+
+  function isAddrDaysDirty(a: UsagerAddress): boolean {
+    const d = drafts[a.id];
+    if (!d) return false;
+    return (
+      !areDayEntriesEqual(d.aller, normalizeDays(a.daysAller)) ||
+      !areDayEntriesEqual(d.retour, normalizeDays(a.daysRetour))
+    );
+  }
+
+  function handleDaysChange(addr: UsagerAddress, aller: DayEntry[], retour: DayEntry[]) {
+    setDrafts((prev) => ({ ...prev, [addr.id]: { aller, retour } }));
+  }
+
+  const dirtyAddresses = (addresses ?? []).filter(isAddrDaysDirty);
+  const daysDirty = dirtyAddresses.length > 0;
+
+  async function handleSaveDays() {
+    if (!daysDirty || savingDays) return;
+    setSavingDays(true);
+    const targets = dirtyAddresses;
+    const results = await Promise.allSettled(
+      targets.map((a) => {
+        const d = drafts[a.id]!;
+        return updateDaysMutation.mutateAsync({
+          id: a.id,
+          data: { ...buildDaysData(a), daysAller: d.aller, daysRetour: d.retour },
+        });
+      }),
+    );
+    // On purge uniquement les brouillons réellement enregistrés.
+    const savedIds = targets
+      .filter((_, i) => results[i]!.status === "fulfilled")
+      .map((a) => a.id);
+    if (savedIds.length > 0) {
+      // Écrit les jours sauvés dans le cache (optimiste) pour éviter un flash de
+      // l'ancienne valeur avant le refetch, puis purge le brouillon correspondant.
+      queryClient.setQueryData(listQueryKey, (old: typeof addresses) => {
+        if (!old) return old;
+        return old.map((a) =>
+          savedIds.includes(a.id)
+            ? { ...a, daysAller: drafts[a.id]!.aller, daysRetour: drafts[a.id]!.retour }
+            : a,
+        );
+      });
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const id of savedIds) delete next[id];
+        return next;
+      });
+      // Réconciliation serveur, une seule fois pour tout le lot.
+      invalidateAddresses();
+      queryClient.invalidateQueries({
+        queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
+      });
+    }
+    setSavingDays(false);
+    if (results.some((r) => r.status === "rejected")) {
+      toast.error("Erreur lors de l'enregistrement des jours");
+    } else {
+      toast.success("Jours de prise en charge enregistrés");
+    }
+  }
+
+  // Signale les jours non enregistrés au layout : le bouton « Retour » avertit
+  // alors avant de quitter la fiche (et c'est ainsi qu'on « annule »).
+  const setUnsavedDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setUnsavedDirty?.("usager-adresses-days", daysDirty);
+    return () => setUnsavedDirty?.("usager-adresses-days", false);
+  }, [daysDirty, setUnsavedDirty]);
 
   function getOccupiedDays(excludeId: string, direction: "aller" | "retour"): OccupiedDay[] {
     if (!addresses) return [];
@@ -295,10 +383,28 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      {headerActions?.target &&
+        !affectationLocked &&
+        createPortal(
+          <Button
+            type="button"
+            size="sm"
+            disabled={!daysDirty || savingDays}
+            onClick={handleSaveDays}
+            className="cursor-pointer"
+          >
+            {savingDays ? "Enregistrement..." : "Enregistrer"}
+          </Button>,
+          headerActions.target,
+        )}
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Adresses &amp; représentants ({addressCount}/4)
+        </h3>
         <Button
           onClick={handleCreate}
           disabled={addressCount >= 4}
+          size="sm"
           className="cursor-pointer"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -307,9 +413,11 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
       </div>
 
       {!addresses || addresses.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
-          <MapPin className="h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-medium text-foreground">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+          <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <MapPin className="size-6" />
+          </span>
+          <h3 className="mt-4 text-sm font-semibold text-foreground">
             Aucune adresse
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -328,20 +436,27 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-4">
-              {addresses.map((addr) => (
-                <SortableAddressCard
-                  key={addr.id}
-                  addr={addr}
-                  positionLabel={getPositionLabel(addr.position)}
-                  typeLabel={getTypeLabel(addr.type)}
-                  occupiedAller={getOccupiedDays(addr.id, "aller")}
-                  occupiedRetour={getOccupiedDays(addr.id, "retour")}
-                  onEdit={handleEdit}
-                  onDelete={setDeleteAddress}
-                  onDaysSave={handleDaysSave}
-                  canDrag={addressCount > 1}
-                />
-              ))}
+              {addresses.map((addr) => {
+                const cur = currentDays(addr);
+                return (
+                  <SortableAddressCard
+                    key={addr.id}
+                    addr={addr}
+                    positionLabel={getPositionLabel(addr.position)}
+                    typeLabel={getTypeLabel(addr.type)}
+                    occupiedAller={getOccupiedDays(addr.id, "aller")}
+                    occupiedRetour={getOccupiedDays(addr.id, "retour")}
+                    onEdit={handleEdit}
+                    onDelete={setDeleteAddress}
+                    currentAller={cur.aller}
+                    currentRetour={cur.retour}
+                    onDaysChange={handleDaysChange}
+                    canDrag={addressCount > 1}
+                    daysReadOnly={affectationLocked}
+                    lockHref={`/avenants/new?usagerId=${usagerId}`}
+                  />
+                );
+              })}
             </div>
           </SortableContext>
         </DndContext>
@@ -426,8 +541,12 @@ interface SortableAddressCardProps {
   occupiedRetour: OccupiedDay[];
   onEdit: (addr: UsagerAddress) => void;
   onDelete: (addr: UsagerAddress) => void;
-  onDaysSave: (addr: UsagerAddress, aller: DayEntry[], retour: DayEntry[]) => void;
+  currentAller: DayEntry[];
+  currentRetour: DayEntry[];
+  onDaysChange: (addr: UsagerAddress, aller: DayEntry[], retour: DayEntry[]) => void;
   canDrag: boolean;
+  daysReadOnly: boolean;
+  lockHref: string;
 }
 
 function SortableAddressCard({
@@ -438,8 +557,12 @@ function SortableAddressCard({
   occupiedRetour,
   onEdit,
   onDelete,
-  onDaysSave,
+  currentAller,
+  currentRetour,
+  onDaysChange,
   canDrag,
+  daysReadOnly,
+  lockHref,
 }: SortableAddressCardProps) {
   const {
     attributes,
@@ -458,103 +581,107 @@ function SortableAddressCard({
   };
 
   return (
-    <Card ref={setNodeRef} style={style}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div className="flex items-center gap-2">
-          {canDrag && (
-            <button
-              type="button"
-              className="cursor-grab touch-none text-muted-foreground hover:text-foreground transition-colors"
-              {...attributes}
-              {...listeners}
-            >
-              <GripVertical className="h-5 w-5" />
-            </button>
+    <Card ref={setNodeRef} style={style} className="gap-4 rounded-2xl border-border shadow-xs">
+      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+        {canDrag && (
+          <button
+            type="button"
+            className="-ml-1 cursor-grab touch-none text-muted-foreground/45 transition-colors hover:text-foreground"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="size-5" />
+          </button>
+        )}
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+          <MapPin className="size-[18px]" />
+        </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <CardTitle className="text-base font-bold tracking-tight">
+            {positionLabel}
+          </CardTitle>
+          {typeLabel && (
+            <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {typeLabel}
+            </span>
           )}
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-            <CardTitle className="text-base">
-              {positionLabel}
-            </CardTitle>
-            {typeLabel && (
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-[0.3rem]">
-                {typeLabel}
-              </span>
-            )}
-            {addr.responsibleLastName && (
-              <span className="text-sm text-muted-foreground">
-                — {addr.civility} {addr.responsibleFirstName} {addr.responsibleLastName}
-              </span>
-            )}
-          </div>
+          {addr.responsibleLastName && (
+            <span className="text-sm text-muted-foreground">
+              — {addr.civility} {addr.responsibleFirstName} {addr.responsibleLastName}
+            </span>
+          )}
         </div>
-        <div className="flex gap-1">
+        <div className="ml-auto flex shrink-0 gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 cursor-pointer"
+            className="size-8 cursor-pointer rounded-lg text-muted-foreground hover:text-foreground"
             onClick={() => onEdit(addr)}
           >
-            <Pencil className="h-4 w-4" />
+            <PencilLine className="size-4" />
             <span className="sr-only">Modifier</span>
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 cursor-pointer text-destructive hover:text-destructive"
+            className="size-8 cursor-pointer rounded-lg text-destructive hover:text-destructive"
             onClick={() => onDelete(addr)}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="size-4" />
             <span className="sr-only">Supprimer</span>
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-2 text-sm">
-        {addr.address && (
-          <div className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>
-              {addr.address}
-              {addr.postalCode || addr.city
-                ? ` — ${[addr.postalCode, addr.city].filter(Boolean).join(" ")}`
-                : ""}
-            </span>
-          </div>
-        )}
-        {(addr.phone || addr.mobile || addr.secondaryPhone || addr.secondaryMobile) && (
-          <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>
-              {[addr.phone, addr.mobile, addr.secondaryPhone, addr.secondaryMobile].filter(Boolean).join(" / ")}
-            </span>
-          </div>
-        )}
-        {addr.email && (
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{addr.email}</span>
-          </div>
-        )}
-        {addr.authorizedPerson && (
-          <div className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>Personne autorisée : {addr.authorizedPerson}</span>
-          </div>
-        )}
-        {addr.observations && (
-          <p className="mt-1 text-muted-foreground italic">
-            {addr.observations}
-          </p>
-        )}
+      <CardContent>
+        <div className="flex flex-col gap-2.5 text-sm">
+          {addr.address && (
+            <div className="flex items-start gap-2">
+              <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <span>
+                {addr.address}
+                {addr.postalCode || addr.city
+                  ? ` — ${[addr.postalCode, addr.city].filter(Boolean).join(" ")}`
+                  : ""}
+              </span>
+            </div>
+          )}
+          {(addr.phone || addr.mobile || addr.secondaryPhone || addr.secondaryMobile) && (
+            <div className="flex items-center gap-2">
+              <Phone className="size-4 shrink-0 text-muted-foreground" />
+              <span>
+                {[addr.phone, addr.mobile, addr.secondaryPhone, addr.secondaryMobile].filter(Boolean).join(" / ")}
+              </span>
+            </div>
+          )}
+          {addr.email && (
+            <div className="flex items-center gap-2">
+              <Mail className="size-4 shrink-0 text-muted-foreground" />
+              <span>{addr.email}</span>
+            </div>
+          )}
+          {addr.authorizedPerson && (
+            <div className="flex items-center gap-2">
+              <UserCheck className="size-4 shrink-0 text-muted-foreground" />
+              <span>Personne autorisée : {addr.authorizedPerson}</span>
+            </div>
+          )}
+          {addr.observations && (
+            <p className="text-muted-foreground italic">
+              {addr.observations}
+            </p>
+          )}
+        </div>
 
         {/* Jours de PEC inline sous l'adresse */}
-        <div className="mt-3 border-t pt-3">
+        <div className="mt-4 border-t border-border pt-4">
           <DayPecGrid
-            daysAller={normalizeDays(addr.daysAller)}
-            daysRetour={normalizeDays(addr.daysRetour)}
+            daysAller={currentAller}
+            daysRetour={currentRetour}
             occupiedAller={occupiedAller}
             occupiedRetour={occupiedRetour}
-            onSave={(aller, retour) => onDaysSave(addr, aller, retour)}
+            onChange={(aller, retour) => onDaysChange(addr, aller, retour)}
+            readOnly={daysReadOnly}
+            lockHref={lockHref}
           />
         </div>
       </CardContent>

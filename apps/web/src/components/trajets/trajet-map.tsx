@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { StyleSpecification } from "maplibre-gl";
+import type { BasemapStyle } from "@/lib/maps/basemap-types";
 
 interface Stop {
   id: string;
@@ -21,10 +23,18 @@ interface RouteGeometry {
 interface TrajetMapProps {
   arrets: Stop[];
   routeGeometry?: RouteGeometry;
+  basemap?: BasemapStyle;
   className?: string;
 }
 
-export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) {
+const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+
+export function TrajetMap({
+  arrets,
+  routeGeometry,
+  basemap,
+  className,
+}: TrajetMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 
@@ -37,6 +47,9 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
     [geoArrets],
   );
   const geometryKey = routeGeometry ? routeGeometry.coordinates.length : 0;
+  // Le fond de carte étant changé via remontage complet (cf. deps), on en fait
+  // une clé stable pour relancer l'effet quand le tenant change de provider.
+  const basemapKey = useMemo(() => JSON.stringify(basemap ?? null), [basemap]);
 
   useEffect(() => {
     if (!containerRef.current || geoArrets.length === 0) return;
@@ -45,9 +58,14 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
       mapRef.current.remove();
     }
 
+    const style: string | StyleSpecification =
+      basemap?.kind === "rasterStyle"
+        ? (basemap.style as StyleSpecification)
+        : (basemap?.url ?? FALLBACK_STYLE);
+
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: "https://tiles.openfreemap.org/styles/liberty",
+      style,
       center: [geoArrets[0]!.longitude!, geoArrets[0]!.latitude!],
       zoom: 12,
     });
@@ -121,7 +139,7 @@ export function TrajetMap({ arrets, routeGeometry, className }: TrajetMapProps) 
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoArretsKey, geometryKey]);
+  }, [geoArretsKey, geometryKey, basemapKey]);
 
   if (geoArrets.length === 0) {
     return (
