@@ -183,6 +183,13 @@
       "when": 1771150000000,
       "tag": "0025_usager_statuts",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1771160000000,
+      "tag": "0026_one_circuit_per_address",
+      "breakpoints": true
     }
   ]
 }

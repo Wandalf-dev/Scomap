@@ -23,21 +23,14 @@ import { FileText, CalendarClock, X, Plus } from "lucide-react";
 import { AvenantChangeDiff } from "@/components/shared/avenant-change-diff";
 import {
   AVENANT_TYPE_LABELS,
-  AVENANT_STATUS_LABELS,
   type AvenantChangeType,
-  type AvenantStatus,
 } from "@/lib/validators/avenant";
-
-const STATUS_VARIANTS: Record<
-  AvenantStatus,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  actif: "default",
-  annule: "outline",
-  brouillon: "outline",
-  planifie: "secondary",
-  applique: "default",
-};
+import {
+  AvenantStatusBadge,
+  avenantTodayStr,
+  formatAvenantDate,
+  getHeadAvenantId,
+} from "@/components/shared/avenant-status-badge";
 
 /** « Avenant n°2 » (numéro par circuit) ou « AV-014 » à défaut. */
 function avenantLabel(circuitSequence: number | null, displayId: number) {
@@ -106,6 +99,22 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
     return Array.from(map.values());
   }, [rows]);
 
+  // État courant = dernier avenant (non annulé) dont la date d'effet est passée.
+  const today = avenantTodayStr();
+  const headAvenantId = useMemo(
+    () =>
+      getHeadAvenantId(
+        grouped.map((g) => ({
+          id: g.header.avenantId,
+          status: g.header.status,
+          effectiveDate: g.header.effectiveDate,
+          circuitSequence: g.header.circuitSequence,
+        })),
+        today,
+      ),
+    [grouped, today],
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -170,19 +179,19 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
                 <span className="text-sm font-semibold text-foreground">
                   {avenantLabel(header.circuitSequence, header.displayId)}
                 </span>
-                <Badge
-                  variant={
-                    STATUS_VARIANTS[header.status as AvenantStatus] ?? "outline"
-                  }
-                  className="rounded-md"
-                >
-                  {AVENANT_STATUS_LABELS[header.status as AvenantStatus] ??
-                    header.status}
-                </Badge>
+                <AvenantStatusBadge
+                  id={header.avenantId}
+                  status={header.status}
+                  effectiveDate={header.effectiveDate}
+                  headId={headAvenantId}
+                  today={today}
+                />
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <CalendarClock className="h-3.5 w-3.5" />
-                  {header.effectiveDate}
-                  {header.endDate ? ` → ${header.endDate}` : ""}
+                  {formatAvenantDate(header.effectiveDate)}
+                  {header.endDate
+                    ? ` → ${formatAvenantDate(header.endDate)}`
+                    : ""}
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">{header.reason}</p>

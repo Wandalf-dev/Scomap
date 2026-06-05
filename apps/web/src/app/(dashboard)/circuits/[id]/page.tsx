@@ -7,12 +7,15 @@ export const metadata: Metadata = { title: "Fiche circuit" };
 
 interface CircuitDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
 export default async function CircuitDetailPage({
   params,
+  searchParams,
 }: CircuitDetailPageProps) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const queryClient = getQueryClient();
 
   await Promise.all([
@@ -27,7 +30,7 @@ export default async function CircuitDetailPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <CircuitDetailClient id={id} />
+      <CircuitDetailClient id={id} initialTab={tab} />
     </HydrationBoundary>
   );
 }

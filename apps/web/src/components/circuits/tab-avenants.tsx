@@ -9,21 +9,14 @@ import { FileText, CalendarClock, User } from "lucide-react";
 import { AvenantChangeDiff } from "@/components/shared/avenant-change-diff";
 import {
   AVENANT_TYPE_LABELS,
-  AVENANT_STATUS_LABELS,
   type AvenantChangeType,
-  type AvenantStatus,
 } from "@/lib/validators/avenant";
-
-const STATUS_VARIANTS: Record<
-  AvenantStatus,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  actif: "default",
-  annule: "outline",
-  brouillon: "outline",
-  planifie: "secondary",
-  applique: "default",
-};
+import {
+  AvenantStatusBadge,
+  avenantTodayStr,
+  formatAvenantDate,
+  getHeadAvenantId,
+} from "@/components/shared/avenant-status-badge";
 
 interface TabAvenantsCircuitProps {
   circuitId: string;
@@ -59,6 +52,17 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
     );
   }
 
+  const today = avenantTodayStr();
+  const headId = getHeadAvenantId(
+    avenants.map((a) => ({
+      id: a.id,
+      status: a.status,
+      effectiveDate: a.effectiveDate,
+      circuitSequence: a.circuitSequence,
+    })),
+    today,
+  );
+
   return (
     <div className="space-y-3">
       {avenants.map((a) => (
@@ -73,16 +77,17 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
                 ? `Avenant n°${a.circuitSequence}`
                 : `AV-${String(a.displayId).padStart(3, "0")}`}
             </span>
-            <Badge
-              variant={STATUS_VARIANTS[a.status as AvenantStatus] ?? "outline"}
-              className="rounded-[0.3rem]"
-            >
-              {AVENANT_STATUS_LABELS[a.status as AvenantStatus] ?? a.status}
-            </Badge>
+            <AvenantStatusBadge
+              id={a.id}
+              status={a.status}
+              effectiveDate={a.effectiveDate}
+              headId={headId}
+              today={today}
+            />
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <CalendarClock className="h-3.5 w-3.5" />
-              {a.effectiveDate}
-              {a.endDate ? ` → ${a.endDate}` : ""}
+              {formatAvenantDate(a.effectiveDate)}
+              {a.endDate ? ` → ${formatAvenantDate(a.endDate)}` : ""}
             </span>
             <span className="ml-auto text-xs text-muted-foreground">
               {a.changes.length} usager{a.changes.length > 1 ? "s" : ""}

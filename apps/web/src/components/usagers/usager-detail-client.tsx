@@ -13,9 +13,10 @@ import { UsagerStatusBadge } from "./usager-status-badge";
 
 interface UsagerDetailClientProps {
   id: string;
+  initialTab?: string;
 }
 
-export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
+export function UsagerDetailClient({ id, initialTab }: UsagerDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -51,6 +52,7 @@ export function UsagerDetailClient({ id }: UsagerDetailClientProps) {
       isDeleting={deleteMutation.isPending}
       deleteEntityName="l'usager"
       deleteLabel={usager ? `${usager.firstName} ${usager.lastName}` : ""}
+      defaultTab={initialTab}
       tabs={[
         {
           value: "identite",

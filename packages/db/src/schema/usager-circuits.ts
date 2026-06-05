@@ -55,6 +55,14 @@ export const usagerCircuits = pgTable(
     uniqueIndex("usager_circuits_open_version_idx")
       .on(table.usagerId, table.circuitId)
       .where(sql`${table.validTo} is null and ${table.deletedAt} is null`),
+    // Un seul circuit ACTIF par couple usager/adresse (version ouverte).
+    // Un changement passe par un avenant ; l'association d'une adresse libre
+    // reste directe. usager_address_id null (adresse supprimée) exclu.
+    uniqueIndex("usager_circuits_open_address_idx")
+      .on(table.usagerId, table.usagerAddressId)
+      .where(
+        sql`${table.validTo} is null and ${table.deletedAt} is null and ${table.usagerAddressId} is not null`,
+      ),
   ],
 );
 

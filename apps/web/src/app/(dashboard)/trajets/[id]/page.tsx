@@ -7,12 +7,15 @@ export const metadata: Metadata = { title: "Fiche trajet" };
 
 interface TrajetDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string }>;
 }
 
 export default async function TrajetDetailPage({
   params,
+  searchParams,
 }: TrajetDetailPageProps) {
   const { id } = await params;
+  const { back } = await searchParams;
   const queryClient = getQueryClient();
 
   await Promise.all([
@@ -22,7 +25,7 @@ export default async function TrajetDetailPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <TrajetDetailClient id={id} />
+      <TrajetDetailClient id={id} backHref={back} />
     </HydrationBoundary>
   );
 }

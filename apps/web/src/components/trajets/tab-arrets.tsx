@@ -416,7 +416,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
                   <TableHead className="w-[32px]" />
                   <TableHead className="w-[40px] text-center">#</TableHead>
                   <TableHead>Nom / Adresse</TableHead>
-                  <TableHead className="w-[96px]">Horaire</TableHead>
+                  <TableHead className="w-[140px]">Horaire</TableHead>
                   <TableHead
                     className="w-[44px] text-center"
                     title="Verrouiller l'horaire : il ne sera pas recalcule lors du calcul des horaires"
@@ -703,7 +703,7 @@ function ArretTimeInput({
         if (e.key === "Enter") e.currentTarget.blur();
       }}
       title={locked ? "Horaire verrouille" : undefined}
-      className={`h-7 w-[5.5rem] rounded-[0.3rem] border bg-background px-2 font-mono text-sm tabular-nums outline-none transition-colors focus:border-ring ${
+      className={`h-7 w-[7.5rem] rounded-[0.3rem] border bg-background px-2 text-sm tabular-nums outline-none transition-colors focus:border-ring ${
         locked ? "border-primary/50 text-primary" : "border-input"
       }`}
     />

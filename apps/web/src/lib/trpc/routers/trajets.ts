@@ -49,6 +49,11 @@ export const trajetsRouter = createTRPCRouter({
           totalUsager: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond})::int`,
           firstStart: sql<string | null>`(select min(a.valid_from) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond})`,
           lastEnd: sql<string | null>`(select max(a.valid_to) from ${arrets} a where a.trajet_id = ${trajets.id} and ${usagerArretCond})`,
+          totalDistanceKm: trajets.totalDistanceKm,
+          totalDurationSeconds: trajets.totalDurationSeconds,
+          // Pour l'état « horaires calculés » : arrêts actifs vs arrêts sans heure.
+          arretsActive: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and a.deleted_at is null and (a.valid_from is null or a.valid_from <= ${today}) and (a.valid_to is null or a.valid_to >= ${today}))::int`,
+          arretsUntimed: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and a.deleted_at is null and a.arrival_time is null and (a.valid_from is null or a.valid_from <= ${today}) and (a.valid_to is null or a.valid_to >= ${today}))::int`,
         })
         .from(trajets)
         .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))

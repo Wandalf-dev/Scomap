@@ -16,6 +16,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { TrajetEtatBadge } from "@/components/shared/trajet-etat-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -45,13 +46,23 @@ const TrajetMap = dynamic(
 
 interface TrajetDetailClientProps {
   id: string;
+  backHref?: string;
 }
 
-export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
+export function TrajetDetailClient({
+  id,
+  backHref,
+}: TrajetDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [occOpen, setOccOpen] = useState(false);
+
+  // Retour contextuel (param ?back=) restreint à un chemin interne (anti open-redirect).
+  const safeBack =
+    backHref && backHref.startsWith("/") && !backHref.startsWith("//")
+      ? backHref
+      : "/trajets";
 
   const { data: trajet, isLoading } = useQuery(
     trpc.trajets.getById.queryOptions({ id }),
@@ -130,7 +141,7 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
       <div className="space-y-4">
         <Button
           variant="ghost"
-          onClick={() => router.push("/trajets")}
+          onClick={() => router.push(safeBack)}
           className="cursor-pointer"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -151,23 +162,11 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
       ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
       : "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-400";
 
-  const etatLabel =
-    trajet.effectiveEtat === "ok"
-      ? "Ok"
-      : trajet.effectiveEtat === "anomalie"
-        ? "Anomalie"
-        : trajet.effectiveEtat === "brouillon"
-          ? "Brouillon"
-          : "Suspendu";
-
-  const etatClass =
-    trajet.effectiveEtat === "ok"
-      ? "border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-400"
-      : trajet.effectiveEtat === "anomalie"
-        ? "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
-        : trajet.effectiveEtat === "brouillon"
-          ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
-          : "border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400";
+  // État explicite (km + horaires). hasTimes : tous les arrêts actifs ont une heure.
+  const hasTimes =
+    !!arretsList &&
+    arretsList.length > 0 &&
+    arretsList.every((a) => !!a.arrivalTime);
 
   return (
     <div className="space-y-6">
@@ -178,7 +177,7 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/trajets")}
+            onClick={() => router.push(safeBack)}
             className="-ml-2 cursor-pointer text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -232,10 +231,11 @@ export function TrajetDetailClient({ id }: TrajetDetailClientProps) {
             <Badge variant="outline" className={directionClass}>
               {trajet.direction === "aller" ? "Aller" : "Retour"}
             </Badge>
-            <Badge variant="outline" className={`gap-1.5 ${etatClass}`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-current" />
-              {etatLabel}
-            </Badge>
+            <TrajetEtatBadge
+              etat={trajet.effectiveEtat}
+              hasKm={trajet.totalDistanceKm != null}
+              hasTimes={hasTimes}
+            />
           </div>
 
           {/* Meta line: circuit + dates */}

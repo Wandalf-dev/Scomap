@@ -7,12 +7,15 @@ export const metadata: Metadata = { title: "Fiche usager" };
 
 interface UsagerDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
 export default async function UsagerDetailPage({
   params,
+  searchParams,
 }: UsagerDetailPageProps) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const queryClient = getQueryClient();
 
   await Promise.all([
@@ -27,7 +30,7 @@ export default async function UsagerDetailPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <UsagerDetailClient id={id} />
+      <UsagerDetailClient id={id} initialTab={tab} />
     </HydrationBoundary>
   );
 }

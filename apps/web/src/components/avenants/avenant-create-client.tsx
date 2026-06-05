@@ -36,6 +36,7 @@ import {
   isCircuitCompatibleTransport,
 } from "@/lib/validators/usager";
 import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
+import { formatAvenantDate } from "@/components/shared/avenant-status-badge";
 
 const TYPES: { value: AvenantChangeType; icon: typeof Route }[] = [
   { value: "circuit", icon: Route },
@@ -87,6 +88,25 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   const selectedAffectation = useMemo(
     () => affectations?.find((a) => a.id === usagerCircuitId),
     [affectations, usagerCircuitId],
+  );
+
+  // Fusion auto : si un avenant existe déjà sur ce circuit à la même date d'effet,
+  // le changement y sera rattaché (le backend regroupe sous un seul avenant).
+  const circuitIdForAvenant = selectedAffectation?.circuitId ?? null;
+  const { data: circuitAvenants } = useQuery({
+    ...trpc.avenants.listByCircuit.queryOptions({
+      circuitId: circuitIdForAvenant ?? "",
+    }),
+    enabled: !!circuitIdForAvenant,
+  });
+  const mergeTarget = useMemo(
+    () =>
+      circuitIdForAvenant
+        ? ((circuitAvenants ?? []).find(
+            (a) => a.effectiveDate === effectiveDate && a.status !== "annule",
+          ) ?? null)
+        : null,
+    [circuitAvenants, circuitIdForAvenant, effectiveDate],
   );
 
   // Preselect first affectation once loaded
@@ -162,14 +182,17 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
       toast.error("Renseignez la nouvelle valeur");
       return;
     }
-    if (!reason.trim()) {
+    // En fusion, le motif de l'avenant existant est conservé (le motif saisi est
+    // ignoré côté serveur) ; sinon le motif est obligatoire.
+    const finalReason = mergeTarget ? mergeTarget.reason : reason.trim();
+    if (!mergeTarget && !finalReason) {
       toast.error("Le motif est obligatoire");
       return;
     }
     createMutation.mutate({
       circuitId: selectedAffectation?.circuitId ?? null,
       effectiveDate,
-      reason: reason.trim(),
+      reason: finalReason,
       changes: [change],
     });
   }
@@ -197,7 +220,8 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    // Pleine largeur, comme la fiche usager (EntityDetailLayout) → UI cohérente.
+    <div className="w-full space-y-6">
       {/* Header */}
       <div className="space-y-3">
         <Button
@@ -420,14 +444,33 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
               onChange={(e) => setEffectiveDate(e.target.value)}
             />
           </div>
+
+          {mergeTarget && (
+            <div className="rounded-lg border border-primary/30 bg-primary/[0.06] px-3 py-2.5 text-xs">
+              <p className="font-medium text-foreground">
+                Un avenant
+                {mergeTarget.circuitSequence != null
+                  ? ` n°${mergeTarget.circuitSequence}`
+                  : ""}{" "}
+                existe déjà sur ce circuit au{" "}
+                {formatAvenantDate(effectiveDate)}.
+              </p>
+              <p className="mt-0.5 text-muted-foreground">
+                Votre changement y sera rattaché (même avenant), au lieu d&apos;en
+                créer un nouveau. Le motif de l&apos;avenant existant est conservé.
+              </p>
+            </div>
+          )}
           <div className="grid gap-2">
             <Label>
-              Motif <span className="text-destructive">*</span>
+              Motif{" "}
+              {!mergeTarget && <span className="text-destructive">*</span>}
             </Label>
             <Textarea
               placeholder="Ex: déménagement, changement d'établissement, stage…"
-              value={reason}
+              value={mergeTarget ? mergeTarget.reason : reason}
               onChange={(e) => setReason(e.target.value)}
+              disabled={!!mergeTarget}
               rows={3}
             />
           </div>

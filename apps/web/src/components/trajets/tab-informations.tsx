@@ -36,7 +36,8 @@ import {
 import { CircuitSelector } from "./circuit-selector";
 import { ChauffeurSelector } from "./chauffeur-selector";
 import { VehiculeSelector } from "./vehicule-selector";
-import { DaySelector } from "@/components/shared/day-selector";
+import { DayBadges } from "@/components/shared/day-badges";
+import { Lock } from "lucide-react";
 import type { DayEntry } from "@/lib/types/day-entry";
 
 interface TrajetData {
@@ -137,10 +138,16 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Intitule du trajet</FormLabel>
+                    <FormLabel className="flex items-center gap-1.5">
+                      Intitule du trajet
+                      <Lock className="h-3 w-3 text-muted-foreground/60" />
+                    </FormLabel>
                     <FormControl>
-                      <Input placeholder="Nom du trajet" {...field} />
+                      <Input placeholder="Nom du trajet" {...field} disabled />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Genere automatiquement (sens + jours).
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -151,13 +158,20 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="circuitId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Circuit</FormLabel>
+                    <FormLabel className="flex items-center gap-1.5">
+                      Circuit
+                      <Lock className="h-3 w-3 text-muted-foreground/60" />
+                    </FormLabel>
                     <FormControl>
                       <CircuitSelector
                         value={field.value}
                         onChange={field.onChange}
+                        disabled
                       />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Circuit de rattachement du trajet.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -168,8 +182,15 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="direction"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Direction</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <FormLabel className="flex items-center gap-1.5">
+                      Direction
+                      <Lock className="h-3 w-3 text-muted-foreground/60" />
+                    </FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled
+                    >
                       <FormControl>
                         <SelectTrigger className="cursor-pointer">
                           <SelectValue />
@@ -184,6 +205,9 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Sens du trajet (structure des arrets).
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -216,18 +240,17 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                   name="recurrence"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Jours</FormLabel>
-                      <FormControl>
-                        <DaySelector
-                          value={field.value?.daysOfWeek ?? []}
-                          onChange={(days) =>
-                            field.onChange({
-                              frequency: "weekly" as const,
-                              daysOfWeek: days,
-                            })
-                          }
-                        />
-                      </FormControl>
+                      <FormLabel className="flex items-center gap-1.5">
+                        Jours
+                        <Lock className="h-3 w-3 text-muted-foreground/60" />
+                      </FormLabel>
+                      <div className="flex min-h-9 items-center">
+                        <DayBadges days={field.value?.daysOfWeek ?? null} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Suit les jours de PEC des usagers &mdash; modifiable via
+                        un avenant.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -239,19 +262,22 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date de debut</FormLabel>
+                    <FormLabel className="flex items-center gap-1.5">
+                      Date de debut
+                      <Lock className="h-3 w-3 text-muted-foreground/60" />
+                    </FormLabel>
                     <DatePicker
                       value={field.value}
                       onChange={field.onChange}
-                      clearable
+                      disabled
                     />
                     {circuitStartDate &&
-                      !trajet.startDate &&
-                      field.value === circuitStartDate && (
-                        <p className="text-xs text-muted-foreground">
-                          Herite du circuit
-                        </p>
-                      )}
+                    !trajet.startDate &&
+                    field.value === circuitStartDate ? (
+                      <p className="text-xs text-muted-foreground">
+                        Herite du circuit.
+                      </p>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -262,19 +288,22 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date de fin</FormLabel>
+                    <FormLabel className="flex items-center gap-1.5">
+                      Date de fin
+                      <Lock className="h-3 w-3 text-muted-foreground/60" />
+                    </FormLabel>
                     <DatePicker
                       value={field.value}
                       onChange={field.onChange}
-                      clearable
+                      disabled
                     />
                     {circuitEndDate &&
-                      !trajet.endDate &&
-                      field.value === circuitEndDate && (
-                        <p className="text-xs text-muted-foreground">
-                          Herite du circuit
-                        </p>
-                      )}
+                    !trajet.endDate &&
+                    field.value === circuitEndDate ? (
+                      <p className="text-xs text-muted-foreground">
+                        Herite du circuit.
+                      </p>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}

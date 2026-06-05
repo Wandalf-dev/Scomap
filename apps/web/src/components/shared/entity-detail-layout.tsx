@@ -49,6 +49,8 @@ interface EntityDetailLayoutProps {
   deleteEntityName: string;
   deleteLabel: string;
   tabs: Tab[];
+  /** Onglet initial (ex. depuis ?tab=...). Ignoré s'il ne correspond à aucun onglet. */
+  defaultTab?: string;
 }
 
 function HeaderActionsSlot() {
@@ -128,8 +130,13 @@ function EntityDetailLayoutInner({
   deleteEntityName,
   deleteLabel,
   tabs,
+  defaultTab,
 }: EntityDetailLayoutProps) {
   const router = useRouter();
+  const activeDefault =
+    defaultTab && tabs.some((t) => t.value === defaultTab)
+      ? defaultTab
+      : tabs[0]?.value;
 
   if (isLoading) {
     return (
@@ -223,7 +230,7 @@ function EntityDetailLayoutInner({
       </div>
 
       {/* Tabs — contrôle segmenté soigné */}
-      <Tabs defaultValue={tabs[0]?.value}>
+      <Tabs defaultValue={activeDefault}>
         <TabsList className="h-9 gap-1 rounded-lg border border-border bg-muted/60 p-1">
           {tabs.map((tab) => (
             <TabsTrigger

@@ -1,8 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "nextjs-toploader/app";
 import { useTRPC } from "@/lib/trpc/client";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -16,6 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ExternalLink } from "lucide-react";
 import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
 import { DayBadges } from "@/components/shared/day-badges";
+import { TrajetEtatBadge } from "@/components/shared/trajet-etat-badge";
+import { CircuitRecap } from "./circuit-recap";
 import type { DayEntry } from "@/lib/types/day-entry";
 
 interface TabTrajetsProps {
@@ -65,10 +69,15 @@ function ValidityBadge({
 
 export function TabTrajets({ circuitId }: TabTrajetsProps) {
   const trpc = useTRPC();
+  const router = useRouter();
 
   const { data: trajets, isLoading } = useQuery(
     trpc.trajets.listByCircuit.queryOptions({ circuitId }),
   );
+
+  // Retour contextuel : depuis un trajet ouvert ici, le bouton « Retour »
+  // ramène sur l'onglet Trajets de ce circuit (et non la liste globale).
+  const backParam = encodeURIComponent(`/circuits/${circuitId}?tab=trajets`);
 
   if (isLoading) {
     return (
@@ -95,8 +104,9 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
   }
 
   return (
-    <div className="rounded-[0.3rem] border border-border bg-card">
-      <Table>
+    <div className="space-y-6">
+      <div className="rounded-[0.3rem] border border-border bg-card">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Nom</TableHead>
@@ -118,14 +128,19 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
             return (
               <TableRow
                 key={trajet.id}
-                className={
-                  trajet.validity.status === "termine" ? "opacity-55" : ""
+                onClick={() =>
+                  router.push(`/trajets/${trajet.id}?back=${backParam}`)
                 }
+                className={cn(
+                  "group/row cursor-pointer transition-colors hover:bg-muted/50",
+                  trajet.validity.status === "termine" ? "opacity-55" : "",
+                )}
               >
                 <TableCell className="font-medium">
-                  <span className="inline-flex items-center gap-1.5 group/link">
+                  <span className="inline-flex items-center gap-1.5">
                     <Link
-                      href={`/trajets/${trajet.id}`}
+                      href={`/trajets/${trajet.id}?back=${backParam}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="text-foreground hover:text-primary transition-colors cursor-pointer"
                     >
                       {trajet.name}
@@ -133,7 +148,8 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
                     <Link
                       href={`/trajets/${trajet.id}`}
                       target="_blank"
-                      className="opacity-0 group-hover/link:opacity-70 hover:!opacity-100 transition-opacity cursor-pointer text-muted-foreground hover:text-primary"
+                      onClick={(e) => e.stopPropagation()}
+                      className="opacity-0 group-hover/row:opacity-70 hover:!opacity-100 transition-opacity cursor-pointer text-muted-foreground hover:text-primary"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
@@ -152,19 +168,13 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
                   <ValidityBadge validity={trajet.validity} />
                 </TableCell>
                 <TableCell>
-                  {!trajet.etat || trajet.etat === "brouillon" ? (
-                    <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
-                      Brouillon
-                    </Badge>
-                  ) : trajet.etat === "ok" ? (
-                    <Badge variant="outline" className="border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
-                      Ok
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-700 dark:text-red-400">
-                      Anomalie
-                    </Badge>
-                  )}
+                  <TrajetEtatBadge
+                    etat={trajet.etat}
+                    hasKm={trajet.totalDistanceKm != null}
+                    hasTimes={
+                      trajet.arretsActive > 0 && trajet.arretsUntimed === 0
+                    }
+                  />
                 </TableCell>
                 <TableCell>
                   {trajet.chauffeurFirstName ? (
@@ -191,6 +201,9 @@ export function TabTrajets({ circuitId }: TabTrajetsProps) {
           })}
         </TableBody>
       </Table>
+      </div>
+
+      <CircuitRecap circuitId={circuitId} />
     </div>
   );
 }

@@ -554,67 +554,116 @@ export const avenantsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(avenantCreateSchema)
     .mutation(async ({ ctx, input }) => {
-      const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "avenants");
-
-      // N° d'avenant DANS le circuit (séquence propre au circuit).
-      let circuitSequence: number | null = null;
+      // Fusion automatique : si un avenant (non annulé) existe déjà sur le même
+      // circuit à la même date d'effet, on RATTACHE les changements à cet avenant
+      // plutôt que d'en créer un nouveau. Permet de regrouper plusieurs usagers
+      // d'un même circuit modifiés le même jour sous un seul « Avenant n°N ».
+      let existing: typeof avenants.$inferSelect | null = null;
       if (input.circuitId) {
-        const seq = await ctx.db
-          .select({
-            max: sql<number>`coalesce(max(${avenants.circuitSequence}), 0)`,
-          })
+        const found = await ctx.db
+          .select()
           .from(avenants)
           .where(
             and(
               eq(avenants.circuitId, input.circuitId),
+              eq(avenants.effectiveDate, input.effectiveDate),
               eq(avenants.tenantId, ctx.tenantId),
+              isNull(avenants.deletedAt),
             ),
-          );
-        circuitSequence = (seq[0]?.max ?? 0) + 1;
+          )
+          .limit(1);
+        existing = found[0] ?? null;
       }
 
-      const inserted = await ctx.db
-        .insert(avenants)
-        .values({
-          tenantId: ctx.tenantId,
-          displayId,
-          circuitId: input.circuitId ?? null,
-          circuitSequence,
-          effectiveDate: input.effectiveDate,
-          endDate: input.endDate ?? null,
-          reason: input.reason,
-          // Pas de "planifié" : l'avenant est enregistré comme versions datées
-          // qui coexistent. La bascule au jour J est résolue par date.
-          status: "actif",
-          appliedAt: new Date(),
-          createdByUserId: ctx.user.id,
-        })
-        .returning();
-      const avenant = inserted[0]!;
+      let avenant: typeof avenants.$inferSelect;
+      if (existing) {
+        avenant = existing;
+        // Anti-doublon : un même usager ne peut pas avoir deux fois le même type
+        // de changement sur le même avenant (sinon double application).
+        const prior = await ctx.db
+          .select({
+            usagerId: avenantChanges.usagerId,
+            type: avenantChanges.type,
+          })
+          .from(avenantChanges)
+          .where(eq(avenantChanges.avenantId, avenant.id));
+        const seen = new Set(prior.map((c) => `${c.usagerId}:${c.type}`));
+        for (const change of input.changes) {
+          if (seen.has(`${change.usagerId}:${change.type}`)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Un changement de ce type pour cet usager existe déjà sur l'avenant de cette date.",
+            });
+          }
+        }
+      } else {
+        const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "avenants");
+        // N° d'avenant DANS le circuit (séquence propre au circuit).
+        let circuitSequence: number | null = null;
+        if (input.circuitId) {
+          const seq = await ctx.db
+            .select({
+              max: sql<number>`coalesce(max(${avenants.circuitSequence}), 0)`,
+            })
+            .from(avenants)
+            .where(
+              and(
+                eq(avenants.circuitId, input.circuitId),
+                eq(avenants.tenantId, ctx.tenantId),
+              ),
+            );
+          circuitSequence = (seq[0]?.max ?? 0) + 1;
+        }
 
+        const inserted = await ctx.db
+          .insert(avenants)
+          .values({
+            tenantId: ctx.tenantId,
+            displayId,
+            circuitId: input.circuitId ?? null,
+            circuitSequence,
+            effectiveDate: input.effectiveDate,
+            endDate: input.endDate ?? null,
+            reason: input.reason,
+            // Pas de "planifié" : l'avenant est enregistré comme versions datées
+            // qui coexistent. La bascule au jour J est résolue par date.
+            status: "actif",
+            appliedAt: new Date(),
+            createdByUserId: ctx.user.id,
+          })
+          .returning();
+        avenant = inserted[0]!;
+      }
+
+      // Insère les NOUVEAUX changements puis applique UNIQUEMENT ceux-ci
+      // (en fusion, ne pas ré-appliquer les changements déjà présents).
+      const newChanges: (typeof avenantChanges.$inferSelect)[] = [];
       for (const change of input.changes) {
         const previousValue = await capturePrevious(ctx, change);
         const newValue = await buildNewValue(ctx, change);
-        await ctx.db.insert(avenantChanges).values({
-          tenantId: ctx.tenantId,
-          avenantId: avenant.id,
-          usagerId: change.usagerId,
-          type: change.type,
-          usagerCircuitId:
-            "usagerCircuitId" in change ? change.usagerCircuitId : null,
-          usagerAddressId:
-            "usagerAddressId" in change ? (change.usagerAddressId ?? null) : null,
-          previousValue,
-          newValue,
-        });
+        const ins = await ctx.db
+          .insert(avenantChanges)
+          .values({
+            tenantId: ctx.tenantId,
+            avenantId: avenant.id,
+            usagerId: change.usagerId,
+            type: change.type,
+            usagerCircuitId:
+              "usagerCircuitId" in change ? change.usagerCircuitId : null,
+            usagerAddressId:
+              "usagerAddressId" in change
+                ? (change.usagerAddressId ?? null)
+                : null,
+            previousValue,
+            newValue,
+          })
+          .returning();
+        if (ins[0]) newChanges.push(ins[0]);
       }
 
       // Application UNIFORME (passé/présent/futur) : versions datées coexistantes.
-      const changes = await ctx.db
-        .select()
-        .from(avenantChanges)
-        .where(eq(avenantChanges.avenantId, avenant.id));
-      for (const c of changes) await applyChange(ctx, c, input.effectiveDate);
+      for (const c of newChanges) await applyChange(ctx, c, input.effectiveDate);
 
       return avenant;
     }),

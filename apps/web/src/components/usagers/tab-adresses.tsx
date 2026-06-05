@@ -111,14 +111,23 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
     trpc.usagerAddresses.list.queryOptions({ usagerId }),
   );
 
-  // Dès qu'une affectation circuit active existe, les jours de PEC ne s'éditent
-  // plus directement (ils dérivent de l'affectation) : modification via avenant
-  // uniquement, pour la traçabilité. Cohérent avec le verrou de tab-identite
-  // (dates) et tab-circuits (adresse de PEC).
+  // Verrou des jours de PEC PAR ADRESSE : seule une adresse ayant une affectation
+  // active a ses jours verrouillés (ils dérivent de l'affectation → modif via
+  // avenant pour la traçabilité). Les adresses LIBRES restent éditables, sinon
+  // impossible de préparer les jours d'une 2e adresse avant de l'associer.
   const { data: affectations } = useQuery(
     trpc.usagerCircuits.listByUsager.queryOptions({ usagerId }),
   );
-  const affectationLocked = (affectations?.length ?? 0) > 0;
+  const occupiedAddressIds = new Set(
+    (affectations ?? [])
+      .map((a) => a.usagerAddressId)
+      .filter((id): id is string => !!id),
+  );
+
+  // Au moins une adresse éditable (libre) → on affiche le bouton « Enregistrer ».
+  const hasEditableDays = (addresses ?? []).some(
+    (a) => !occupiedAddressIds.has(a.id),
+  );
 
   const invalidateAddresses = () => {
     queryClient.invalidateQueries({
@@ -384,7 +393,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
   return (
     <div className="space-y-4">
       {headerActions?.target &&
-        !affectationLocked &&
+        hasEditableDays &&
         createPortal(
           <Button
             type="button"
@@ -452,7 +461,7 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
                     currentRetour={cur.retour}
                     onDaysChange={handleDaysChange}
                     canDrag={addressCount > 1}
-                    daysReadOnly={affectationLocked}
+                    daysReadOnly={occupiedAddressIds.has(addr.id)}
                     lockHref={`/avenants/new?usagerId=${usagerId}`}
                   />
                 );

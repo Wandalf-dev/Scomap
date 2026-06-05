@@ -23,9 +23,14 @@ import { cn } from "@/lib/utils";
 interface CircuitSelectorProps {
   value: string | null | undefined;
   onChange: (id: string) => void;
+  disabled?: boolean;
 }
 
-export function CircuitSelector({ value, onChange }: CircuitSelectorProps) {
+export function CircuitSelector({
+  value,
+  onChange,
+  disabled,
+}: CircuitSelectorProps) {
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
 
@@ -36,12 +41,13 @@ export function CircuitSelector({ value, onChange }: CircuitSelectorProps) {
   const selected = circuitsList?.find((c) => c.id === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <Popover open={disabled ? false : open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild disabled={disabled}>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className="w-full justify-between cursor-pointer"
         >
           {selected ? (

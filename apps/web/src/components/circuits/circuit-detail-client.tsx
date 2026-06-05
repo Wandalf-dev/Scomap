@@ -13,9 +13,13 @@ import { TabAvenantsCircuit } from "./tab-avenants";
 
 interface CircuitDetailClientProps {
   id: string;
+  initialTab?: string;
 }
 
-export function CircuitDetailClient({ id }: CircuitDetailClientProps) {
+export function CircuitDetailClient({
+  id,
+  initialTab,
+}: CircuitDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -64,6 +68,7 @@ export function CircuitDetailClient({ id }: CircuitDetailClientProps) {
       isDeleting={deleteMutation.isPending}
       deleteEntityName="le circuit"
       deleteLabel={circuit?.name ?? ""}
+      defaultTab={initialTab}
       tabs={[
         {
           value: "informations",
