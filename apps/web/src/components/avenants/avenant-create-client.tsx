@@ -18,13 +18,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DaySelector } from "@/components/shared/day-selector";
-import { ArrowLeft, Route, CalendarDays, MapPin, School, Bus } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Route,
+  CalendarDays,
+  MapPin,
+  School,
+  Bus,
+} from "lucide-react";
 import {
   AVENANT_TYPE_LABELS,
   type AvenantChangeInput,
@@ -46,8 +54,6 @@ const TYPES: { value: AvenantChangeInput["type"]; icon: typeof Route }[] = [
   { value: "type_transport", icon: Bus },
   { value: "etablissement", icon: School },
 ];
-
-const todayStr = () => new Date().toISOString().slice(0, 10);
 
 interface AvenantCreateClientProps {
   usagerId: string | null;
@@ -83,7 +89,9 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   const [newTransportType, setNewTransportType] = useState("");
   const [daysAller, setDaysAller] = useState<DayEntry[]>([]);
   const [daysRetour, setDaysRetour] = useState<DayEntry[]>([]);
-  const [effectiveDate, setEffectiveDate] = useState(todayStr());
+  // Volontairement vide : pas de pré-remplissage à aujourd'hui (date d'effet à
+  // saisir explicitement). Obligatoire à la soumission.
+  const [effectiveDate, setEffectiveDate] = useState("");
   const [reason, setReason] = useState("");
 
   const selectedAffectation = useMemo(
@@ -109,6 +117,61 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
         : null,
     [circuitAvenants, circuitIdForAvenant, effectiveDate],
   );
+
+  // Fenêtre autorisée pour la date d'effet : intersection des bornes du circuit
+  // (entête + nouveau circuit ciblé) et des dates de transport de l'usager.
+  // Comparaisons lexicographiques (format ISO chronologiquement ordonné). La
+  // garde serveur fait foi ; ceci est le retour immédiat à la saisie.
+  const dateBounds = useMemo(() => {
+    const starts: { date: string; label: string }[] = [];
+    const ends: { date: string; label: string }[] = [];
+    const headerCircuit = circuits?.find(
+      (c) => c.id === selectedAffectation?.circuitId,
+    );
+    const targetCircuit =
+      type === "circuit" && newCircuitId
+        ? circuits?.find((c) => c.id === newCircuitId)
+        : undefined;
+    for (const c of [headerCircuit, targetCircuit]) {
+      if (!c) continue;
+      if (c.startDate)
+        starts.push({ date: c.startDate, label: `début du circuit « ${c.name} »` });
+      if (c.endDate)
+        ends.push({ date: c.endDate, label: `fin du circuit « ${c.name} »` });
+    }
+    if (usager?.transportStartDate)
+      starts.push({
+        date: usager.transportStartDate,
+        label: "début de transport de l'usager",
+      });
+    if (usager?.transportEndDate)
+      ends.push({
+        date: usager.transportEndDate,
+        label: "fin de transport de l'usager",
+      });
+    const min = starts.reduce<{ date: string; label: string } | null>(
+      (acc, s) => (!acc || s.date > acc.date ? s : acc),
+      null,
+    );
+    const max = ends.reduce<{ date: string; label: string } | null>(
+      (acc, e) => (!acc || e.date < acc.date ? e : acc),
+      null,
+    );
+    return { min, max };
+  }, [circuits, selectedAffectation, type, newCircuitId, usager]);
+
+  const dateError = useMemo(() => {
+    if (!effectiveDate) return null;
+    if (dateBounds.min && effectiveDate < dateBounds.min.date)
+      return `La date d'effet ne peut pas précéder le ${formatAvenantDate(
+        dateBounds.min.date,
+      )} (${dateBounds.min.label}).`;
+    if (dateBounds.max && effectiveDate > dateBounds.max.date)
+      return `La date d'effet ne peut pas dépasser le ${formatAvenantDate(
+        dateBounds.max.date,
+      )} (${dateBounds.max.label}).`;
+    return null;
+  }, [effectiveDate, dateBounds]);
 
   // Preselect first affectation once loaded
   useEffect(() => {
@@ -181,6 +244,14 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
     const change = buildChange();
     if (!change) {
       toast.error("Renseignez la nouvelle valeur");
+      return;
+    }
+    if (!effectiveDate) {
+      toast.error("La date d'effet est obligatoire");
+      return;
+    }
+    if (dateError) {
+      toast.error(dateError);
       return;
     }
     // En fusion, le motif de l'avenant existant est conservé (le motif saisi est
@@ -294,7 +365,9 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
           <CardTitle>Détail</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5">
-          {needsAffectation && (
+          {/* Pour un changement de circuit, le choix de l'affectation est porté
+              par le bloc « Circuit actuel → Nouveau circuit » ci-dessous. */}
+          {needsAffectation && type !== "circuit" && (
             <div className="grid gap-2">
               <Label>Affectation concernée</Label>
               {noAffectations ? (
@@ -373,26 +446,86 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
             </div>
           )}
 
-          {type === "circuit" && (
-            <div className="grid gap-2">
-              <Label>Nouveau circuit</Label>
-              <Select value={newCircuitId} onValueChange={setNewCircuitId}>
-                <SelectTrigger className="w-full cursor-pointer sm:max-w-md">
-                  <SelectValue placeholder="Sélectionnez un circuit" />
-                </SelectTrigger>
-                <SelectContent>
-                  {circuits
-                    ?.filter((c) => c.id !== selectedAffectation?.circuitId)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="cursor-pointer">
-                        {c.name}
-                        {c.etablissementName ? ` — ${c.etablissementName}` : ""}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {type === "circuit" &&
+            (noAffectations ? (
+              <p className="text-sm text-destructive">
+                Cet usager n&apos;est associé à aucun circuit.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+                {/* Circuit actuel = l'affectation à modifier. Select si l'usager
+                    a plusieurs affectations, sinon affiché en lecture seule. */}
+                <div className="grid flex-1 gap-1.5 sm:max-w-xs">
+                  <Label className="text-xs text-muted-foreground">
+                    Circuit actuel
+                  </Label>
+                  {affectations && affectations.length > 1 ? (
+                    <Select
+                      value={usagerCircuitId}
+                      onValueChange={setUsagerCircuitId}
+                    >
+                      <SelectTrigger className="w-full cursor-pointer">
+                        <SelectValue placeholder="Sélectionnez une affectation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {affectations.map((a) => (
+                          <SelectItem
+                            key={a.id}
+                            value={a.id}
+                            className="cursor-pointer"
+                          >
+                            {a.circuitName}
+                            {a.addressCity ? ` — ${a.addressCity}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex h-9 items-center rounded-[0.3rem] border border-border bg-muted/40 px-3 text-sm text-muted-foreground">
+                      <span className="truncate">
+                        {selectedAffectation
+                          ? `${selectedAffectation.circuitName}${
+                              selectedAffectation.addressCity
+                                ? ` — ${selectedAffectation.addressCity}`
+                                : ""
+                            }`
+                          : "—"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <ArrowRight className="mb-2.5 hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
+
+                {/* Nouveau circuit */}
+                <div className="grid flex-1 gap-1.5 sm:max-w-xs">
+                  <Label className="text-xs text-muted-foreground">
+                    Nouveau circuit
+                  </Label>
+                  <Select value={newCircuitId} onValueChange={setNewCircuitId}>
+                    <SelectTrigger className="w-full cursor-pointer">
+                      <SelectValue placeholder="Sélectionnez un circuit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {circuits
+                        ?.filter((c) => c.id !== selectedAffectation?.circuitId)
+                        .map((c) => (
+                          <SelectItem
+                            key={c.id}
+                            value={c.id}
+                            className="cursor-pointer"
+                          >
+                            {c.name}
+                            {c.etablissementName
+                              ? ` — ${c.etablissementName}`
+                              : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))}
 
           {type === "adresse" && (
             <div className="grid gap-2">
@@ -439,11 +572,13 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
         <CardContent className="grid gap-5">
           <div className="grid gap-2 sm:max-w-xs">
             <Label>Date d&apos;effet</Label>
-            <Input
-              type="date"
+            <DatePicker
               value={effectiveDate}
-              onChange={(e) => setEffectiveDate(e.target.value)}
+              onChange={(v) => setEffectiveDate(v ?? "")}
             />
+            {dateError && (
+              <p className="text-xs text-destructive">{dateError}</p>
+            )}
           </div>
 
           {mergeTarget && (
@@ -495,7 +630,11 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={createMutation.isPending || (needsAffectation && noAffectations)}
+          disabled={
+            createMutation.isPending ||
+            (needsAffectation && noAffectations) ||
+            !!dateError
+          }
           className="cursor-pointer"
         >
           {createMutation.isPending ? "Création…" : "Créer l'avenant"}

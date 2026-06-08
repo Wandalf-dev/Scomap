@@ -476,6 +476,93 @@ function dayBefore(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** ISO (YYYY-MM-DD) → JJ/MM/AAAA pour les messages d'erreur. */
+function frDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// ── Garde : la date d'effet doit tomber dans la fenêtre de validité du circuit
+// ET de chaque usager concerné. Les comparaisons sont lexicographiques (le
+// format ISO YYYY-MM-DD est chronologiquement ordonné). Une borne nulle = pas
+// de contrainte de ce côté. C'est la garde DURE (le client ne fait que doubler).
+async function assertEffectiveDateWithinBounds(
+  ctx: Ctx,
+  input: z.infer<typeof avenantCreateSchema>,
+): Promise<void> {
+  const eff = input.effectiveDate;
+
+  // Circuits à contrôler : l'entête (circuit courant de l'affectation) + le
+  // nouveau circuit d'un éventuel changement de circuit (la nouvelle version
+  // d'affectation y démarre à la date d'effet).
+  const circuitIds = new Set<string>();
+  if (input.circuitId) circuitIds.add(input.circuitId);
+  for (const c of input.changes) {
+    if (c.type === "circuit") circuitIds.add(c.circuitId);
+  }
+
+  if (circuitIds.size > 0) {
+    const rows = await ctx.db
+      .select({
+        name: circuits.name,
+        startDate: circuits.startDate,
+        endDate: circuits.endDate,
+      })
+      .from(circuits)
+      .where(
+        and(
+          eq(circuits.tenantId, ctx.tenantId),
+          inArray(circuits.id, [...circuitIds]),
+        ),
+      );
+    for (const c of rows) {
+      if (c.startDate && eff < c.startDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `La date d'effet (${frDate(eff)}) précède le début du circuit « ${c.name} » (${frDate(c.startDate)}).`,
+        });
+      }
+      if (c.endDate && eff > c.endDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `La date d'effet (${frDate(eff)}) dépasse la fin du circuit « ${c.name} » (${frDate(c.endDate)}).`,
+        });
+      }
+    }
+  }
+
+  // Usagers concernés par les changements.
+  const usagerIds = [...new Set(input.changes.map((c) => c.usagerId))];
+  if (usagerIds.length > 0) {
+    const rows = await ctx.db
+      .select({
+        firstName: usagers.firstName,
+        lastName: usagers.lastName,
+        start: usagers.transportStartDate,
+        end: usagers.transportEndDate,
+      })
+      .from(usagers)
+      .where(
+        and(eq(usagers.tenantId, ctx.tenantId), inArray(usagers.id, usagerIds)),
+      );
+    for (const u of rows) {
+      const who = `${u.firstName} ${u.lastName}`;
+      if (u.start && eff < u.start) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `La date d'effet (${frDate(eff)}) précède le début de transport de ${who} (${frDate(u.start)}).`,
+        });
+      }
+      if (u.end && eff > u.end) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `La date d'effet (${frDate(eff)}) dépasse la fin de transport de ${who} (${frDate(u.end)}).`,
+        });
+      }
+    }
+  }
+}
+
 async function assertAvenantOwned(ctx: Ctx, id: string) {
   const rows = await ctx.db
     .select()
@@ -643,6 +730,11 @@ export const avenantsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(avenantCreateSchema)
     .mutation(async ({ ctx, input }) => {
+      // Garde dates : la date d'effet doit respecter les bornes du circuit et
+      // des usagers (début/fin de transport) — sinon on créerait une version
+      // d'affectation hors période.
+      await assertEffectiveDateWithinBounds(ctx, input);
+
       // Fusion automatique : si un avenant (non annulé) existe déjà sur le même
       // circuit à la même date d'effet, on RATTACHE les changements à cet avenant
       // plutôt que d'en créer un nouveau. Permet de regrouper plusieurs usagers
