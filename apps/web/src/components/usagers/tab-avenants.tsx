@@ -74,6 +74,10 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
         });
+        // La composition du circuit change aussi (versions rouvertes/supprimées).
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagerCircuits.listByCircuit.queryKey(),
+        });
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listByCircuit.queryKey(),
         });

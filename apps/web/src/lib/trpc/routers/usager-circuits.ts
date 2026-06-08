@@ -619,6 +619,17 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerCircuitId: created.id,
           usagerAddressId: input.usagerAddressId,
         });
+        // Marque l'affectation comme créée par cet avenant d'ajout : son annulation
+        // pourra la soft-delete (l'usager n'aurait jamais dû rejoindre le circuit).
+        await ctx.db
+          .update(usagerCircuits)
+          .set({ createdByAvenantId: avenantId })
+          .where(
+            and(
+              eq(usagerCircuits.id, created.id),
+              eq(usagerCircuits.tenantId, ctx.tenantId),
+            ),
+          );
       }
 
       if (created) {

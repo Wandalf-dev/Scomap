@@ -7,6 +7,7 @@ import {
   usagerCircuits,
   trajets,
   arrets,
+  avenantChanges,
 } from "@scomap/db/schema";
 import {
   normalizeDays,
@@ -514,6 +515,300 @@ export async function revertAvenantVersioning(
         ),
       );
   }
+}
+
+/**
+ * RESTAURE les AFFECTATIONS (usager_circuits) et attributs usager qu'un avenant
+ * avait modifiés — complément de `revertAvenantVersioning` (qui ne traite que les
+ * trajets datés produits par `regenerateCircuitTrajets`). Appelée à l'annulation
+ * d'un avenant pour rétablir l'état d'avant :
+ *  1. soft-delete les versions d'affectation CRÉÉES par l'avenant (created_by_avenant_id) ;
+ *  2. ROUVRE (valid_to -> null) les versions clôturées à J-1 par l'avenant :
+ *     - celles ciblées par le changement (circuit / jours_pec / adresse), via usager_circuit_id ;
+ *     - pour type_transport (qui clôt sans recréer), les affectations de l'usager
+ *       clôturées à J-1 ;
+ *  3. réaligne les ARRÊTS sur la composition restaurée (soft-delete ceux créés à J,
+ *     rouvre ceux bornés à J-1), ciblé par (circuit, adresse) des versions touchées ;
+ *  4. restaure les attributs usager modifiés (type de transport, établissement).
+ *
+ * L'ordre soft-delete -> réouverture est important : il évite de violer les index
+ * uniques partiels « une seule version ouverte par (usager, circuit) / (usager, adresse) ».
+ *
+ * ⚠ Comme `revertAvenantVersioning`, fiable pour 1 avenant à une date donnée (la
+ * fusion garantit un seul avenant par (circuit, date)). Pour des chaînes imbriquées,
+ * la réouverture par date reste approximative.
+ */
+export async function revertAvenantAssignments(
+  ctx: TrajetSyncCtx,
+  avenantId: string,
+  effectiveDate: string,
+) {
+  const now = new Date();
+  const endOld = dayBeforeStr(effectiveDate);
+
+  const changes = await ctx.db
+    .select({
+      type: avenantChanges.type,
+      usagerId: avenantChanges.usagerId,
+      usagerCircuitId: avenantChanges.usagerCircuitId,
+      previousValue: avenantChanges.previousValue,
+    })
+    .from(avenantChanges)
+    .where(
+      and(
+        eq(avenantChanges.avenantId, avenantId),
+        eq(avenantChanges.tenantId, ctx.tenantId),
+      ),
+    );
+  if (changes.length === 0) return;
+
+  // ── 1. Versions d'affectation CRÉÉES par l'avenant ─────────────────────────
+  // Lues AVANT le soft-delete pour réaligner ensuite leurs arrêts (circuit + adresse).
+  const createdVersions = await ctx.db
+    .select({
+      circuitId: usagerCircuits.circuitId,
+      usagerAddressId: usagerCircuits.usagerAddressId,
+    })
+    .from(usagerCircuits)
+    .where(
+      and(
+        eq(usagerCircuits.createdByAvenantId, avenantId),
+        eq(usagerCircuits.tenantId, ctx.tenantId),
+        isNull(usagerCircuits.deletedAt),
+      ),
+    );
+
+  // ── 2. Versions à ROUVRIR (clôturées à J-1 par cet avenant) ────────────────
+  // a) ciblées par le changement (circuit / jours_pec / adresse).
+  const targetedIds = [
+    ...new Set(
+      changes
+        .map((c) => c.usagerCircuitId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  // b) type_transport : affectations clôturées à J-1 sans recréation de version.
+  const transportUsagerIds = [
+    ...new Set(
+      changes.filter((c) => c.type === "type_transport").map((c) => c.usagerId),
+    ),
+  ];
+
+  const reopenMap = new Map<
+    string,
+    { id: string; circuitId: string; usagerAddressId: string | null }
+  >();
+  if (targetedIds.length > 0) {
+    const rows = await ctx.db
+      .select({
+        id: usagerCircuits.id,
+        circuitId: usagerCircuits.circuitId,
+        usagerAddressId: usagerCircuits.usagerAddressId,
+      })
+      .from(usagerCircuits)
+      .where(
+        and(
+          inArray(usagerCircuits.id, targetedIds),
+          eq(usagerCircuits.tenantId, ctx.tenantId),
+          eq(usagerCircuits.validTo, endOld),
+          isNull(usagerCircuits.deletedAt),
+        ),
+      );
+    for (const r of rows) reopenMap.set(r.id, r);
+  }
+  if (transportUsagerIds.length > 0) {
+    const rows = await ctx.db
+      .select({
+        id: usagerCircuits.id,
+        circuitId: usagerCircuits.circuitId,
+        usagerAddressId: usagerCircuits.usagerAddressId,
+      })
+      .from(usagerCircuits)
+      .where(
+        and(
+          inArray(usagerCircuits.usagerId, transportUsagerIds),
+          eq(usagerCircuits.tenantId, ctx.tenantId),
+          eq(usagerCircuits.validTo, endOld),
+          isNull(usagerCircuits.deletedAt),
+          // Une version créée par un avenant ne peut pas être une « ancienne »
+          // version à rouvrir (elle a été supprimée à l'étape 3).
+          isNull(usagerCircuits.createdByAvenantId),
+        ),
+      );
+    for (const r of rows) reopenMap.set(r.id, r);
+  }
+  const reopenVersions = [...reopenMap.values()];
+
+  // ── 3. Applique sur usager_circuits : soft-delete PUIS réouverture ─────────
+  if (createdVersions.length > 0) {
+    await ctx.db
+      .update(usagerCircuits)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(usagerCircuits.createdByAvenantId, avenantId),
+          eq(usagerCircuits.tenantId, ctx.tenantId),
+          isNull(usagerCircuits.deletedAt),
+        ),
+      );
+  }
+  if (reopenVersions.length > 0) {
+    await ctx.db
+      .update(usagerCircuits)
+      .set({ validTo: null, updatedAt: now })
+      .where(
+        and(
+          inArray(
+            usagerCircuits.id,
+            reopenVersions.map((v) => v.id),
+          ),
+          eq(usagerCircuits.tenantId, ctx.tenantId),
+        ),
+      );
+  }
+
+  // ── 4. Réaligne les arrêts sur la composition restaurée ────────────────────
+  // Supprime les arrêts créés à J (nouvelle composition de l'avenant)...
+  for (const v of createdVersions) {
+    if (v.usagerAddressId) {
+      await removeAvenantArretsAt(ctx, v.circuitId, v.usagerAddressId, effectiveDate);
+    }
+  }
+  // ... et rouvre ceux bornés à J-1 (ancienne composition).
+  for (const v of reopenVersions) {
+    if (v.usagerAddressId) {
+      await reopenArretsAt(ctx, v.circuitId, v.usagerAddressId, endOld);
+    }
+  }
+
+  // ── 5. Restaure les attributs usager modifiés ──────────────────────────────
+  for (const c of changes) {
+    const prev = c.previousValue;
+    if (!prev) continue;
+    if (c.type === "type_transport" && "transportType" in prev) {
+      await ctx.db
+        .update(usagers)
+        .set({ transportType: prev.transportType, updatedAt: now })
+        .where(
+          and(eq(usagers.id, c.usagerId), eq(usagers.tenantId, ctx.tenantId)),
+        );
+    } else if (c.type === "etablissement" && "etablissementId" in prev) {
+      await ctx.db
+        .update(usagers)
+        .set({
+          etablissementId: prev.etablissementId,
+          secondaryEtablissementId: prev.secondaryEtablissementId ?? null,
+          updatedAt: now,
+        })
+        .where(
+          and(eq(usagers.id, c.usagerId), eq(usagers.tenantId, ctx.tenantId)),
+        );
+    }
+  }
+}
+
+/**
+ * Soft-delete les arrêts d'une adresse, sur les trajets d'un circuit, créés à une
+ * date d'effet (valid_from = J) — la « nouvelle » composition d'un avenant qu'on
+ * annule. Soft-delete ensuite les trajets devenus vides (plus aucun arrêt usager
+ * actif). Granularité ARRÊT (pas trajet) : un trajet partagé créé par l'avenant
+ * mais peuplé par d'autres usagers est préservé.
+ */
+async function removeAvenantArretsAt(
+  ctx: TrajetSyncCtx,
+  circuitId: string,
+  usagerAddressId: string,
+  validFrom: string,
+) {
+  const circuitTrajets = await ctx.db
+    .select({ id: trajets.id })
+    .from(trajets)
+    .where(
+      and(
+        eq(trajets.circuitId, circuitId),
+        eq(trajets.tenantId, ctx.tenantId),
+        isNull(trajets.deletedAt),
+      ),
+    );
+  const trajetIds = circuitTrajets.map((t) => t.id);
+  if (trajetIds.length === 0) return;
+
+  const now = new Date();
+  await ctx.db
+    .update(arrets)
+    .set({ deletedAt: now })
+    .where(
+      and(
+        eq(arrets.tenantId, ctx.tenantId),
+        inArray(arrets.trajetId, trajetIds),
+        eq(arrets.usagerAddressId, usagerAddressId),
+        eq(arrets.validFrom, validFrom),
+        isNull(arrets.deletedAt),
+      ),
+    );
+
+  // Trajets qui ont encore au moins un arrêt usager actif.
+  const stillUsed = await ctx.db
+    .select({ trajetId: arrets.trajetId })
+    .from(arrets)
+    .where(
+      and(
+        eq(arrets.tenantId, ctx.tenantId),
+        inArray(arrets.trajetId, trajetIds),
+        eq(arrets.type, "usager"),
+        isNull(arrets.deletedAt),
+      ),
+    );
+  const usedSet = new Set(stillUsed.map((r) => r.trajetId));
+  const emptyTrajetIds = trajetIds.filter((id) => !usedSet.has(id));
+  if (emptyTrajetIds.length > 0) {
+    await ctx.db
+      .update(trajets)
+      .set({ deletedAt: now })
+      .where(
+        and(
+          eq(trajets.tenantId, ctx.tenantId),
+          inArray(trajets.id, emptyTrajetIds),
+        ),
+      );
+  }
+}
+
+/**
+ * Rouvre (valid_to -> null) les arrêts d'une adresse, sur les trajets d'un circuit,
+ * bornés à J-1 — l'« ancienne » composition qu'un avenant annulé avait clôturée.
+ */
+async function reopenArretsAt(
+  ctx: TrajetSyncCtx,
+  circuitId: string,
+  usagerAddressId: string,
+  endOld: string,
+) {
+  const circuitTrajets = await ctx.db
+    .select({ id: trajets.id })
+    .from(trajets)
+    .where(
+      and(
+        eq(trajets.circuitId, circuitId),
+        eq(trajets.tenantId, ctx.tenantId),
+        isNull(trajets.deletedAt),
+      ),
+    );
+  const trajetIds = circuitTrajets.map((t) => t.id);
+  if (trajetIds.length === 0) return;
+
+  await ctx.db
+    .update(arrets)
+    .set({ validTo: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(arrets.tenantId, ctx.tenantId),
+        inArray(arrets.trajetId, trajetIds),
+        eq(arrets.usagerAddressId, usagerAddressId),
+        eq(arrets.validTo, endOld),
+        isNull(arrets.deletedAt),
+      ),
+    );
 }
 
 /**

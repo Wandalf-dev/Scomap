@@ -23,6 +23,7 @@ import {
   syncTrajetForDirection,
   endUsagerArretsAt,
   revertAvenantVersioning,
+  revertAvenantAssignments,
   type TrajetSyncCtx,
 } from "../services/trajet-sync";
 
@@ -354,7 +355,8 @@ async function applyChange(
       ),
     );
 
-  // 2. Ouvre la nouvelle version à partir de la date d'effet.
+  // 2. Ouvre la nouvelle version à partir de la date d'effet. On la marque comme
+  // créée par cet avenant : l'annulation pourra la soft-delete et rouvrir l'ancienne.
   await ctx.db.insert(usagerCircuits).values({
     tenantId: ctx.tenantId,
     usagerId: old.usagerId,
@@ -366,6 +368,7 @@ async function applyChange(
     authorizationAlone: old.authorizationAlone,
     validFrom: effectiveDate,
     validTo: null,
+    createdByAvenantId: change.avenantId,
   });
 
   // 3. Borne les arrêts de l'ancienne affectation à J-1.
@@ -858,9 +861,9 @@ export const avenantsRouter = createTRPCRouter({
         .update(avenants)
         .set({ status: "annule", deletedAt: new Date(), updatedAt: new Date() })
         .where(eq(avenants.id, input.id));
-      // Annule le versioning de trajets que cet avenant avait produit : supprime
-      // les trajets qu'il a créés et rouvre ceux qu'il avait clôturés (sinon des
-      // trajets « fantômes » datés restent sur le circuit après suppression).
+      // Annule le versioning de trajets DATÉS que cet avenant avait produit
+      // (regenerateCircuitTrajets : cas « ajout » sur circuit démarré) : supprime
+      // les trajets créés et rouvre ceux clôturés à J-1.
       if (header.circuitId) {
         await revertAvenantVersioning(
           ctx,
@@ -869,6 +872,12 @@ export const avenantsRouter = createTRPCRouter({
           input.id,
         );
       }
+      // Restaure les AFFECTATIONS (usager_circuits), leurs arrêts et les attributs
+      // usager modifiés (type de transport, établissement) — sinon l'usager reste
+      // sur la nouvelle version, l'ancienne reste clôturée, et usagerCount /
+      // « Composition initiale » se faussent. Indépendant du circuit d'entête
+      // (un avenant type_transport / établissement peut ne pas en avoir).
+      await revertAvenantAssignments(ctx, input.id, header.effectiveDate);
       return { ...header, status: "annule" };
     }),
 });
