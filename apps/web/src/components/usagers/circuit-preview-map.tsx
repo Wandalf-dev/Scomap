@@ -78,7 +78,12 @@ export function CircuitPreviewMap({
     });
     mapRef.current = map;
     setLoaded(false);
-    map.on("load", () => setLoaded(true));
+    map.on("load", () => {
+      setLoaded(true);
+      // Le conteneur peut avoir été mesuré à 0 au moment de l'init (layout pas
+      // encore flush / panneau sticky) → canvas blanc. On force un recalcul.
+      map.resize();
+    });
 
     return () => {
       map.remove();
@@ -127,9 +132,11 @@ export function CircuitPreviewMap({
 
   return (
     <div className={`relative ${className ?? ""}`}>
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Conteneur en hauteur réelle (h-full) et non absolute : MapLibre mesure
+          ainsi correctement le conteneur à l'init (sinon canvas blanc). */}
+      <div ref={containerRef} className="h-full w-full" />
       {geoPoints.length === 0 && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground">
           Sélectionnez une adresse pour prévisualiser les points.
         </div>
       )}
