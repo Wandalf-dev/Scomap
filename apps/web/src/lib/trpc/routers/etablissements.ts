@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { eq, and, isNull, inArray } from "drizzle-orm";
-import { etablissements, arrets } from "@scomap/db/schema";
+import { etablissements, arrets, circuits, trajets } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import {
   etablissementSchema,
   etablissementDetailSchema,
   schedulesSchema,
 } from "@/lib/validators/etablissement";
+import {
+  resolveScheduleAnchor,
+  type EtablissementSchedules,
+} from "../services/trajet-sync";
+import { normalizeDays } from "@/lib/types/day-entry";
 
 export const etablissementsRouter = createTRPCRouter({
   list: tenantProcedure.query(async ({ ctx }) => {
@@ -158,6 +163,23 @@ export const etablissementsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Coordonnées avant modification, pour détecter un changement de géoloc.
+      const beforeRows = await ctx.db
+        .select({
+          latitude: etablissements.latitude,
+          longitude: etablissements.longitude,
+        })
+        .from(etablissements)
+        .where(
+          and(
+            eq(etablissements.id, input.id),
+            eq(etablissements.tenantId, ctx.tenantId),
+            isNull(etablissements.deletedAt),
+          ),
+        )
+        .limit(1);
+      const before = beforeRows[0];
+
       const result = await ctx.db
         .update(etablissements)
         .set({
@@ -212,6 +234,71 @@ export const etablissementsRouter = createTRPCRouter({
           );
       }
 
+      // Si la géolocalisation a changé, le calcul itinéraire/horaires des
+      // trajets des circuits liés n'est plus valide : on le réinitialise pour
+      // forcer un recalcul (l'état « OK » ne reposant que sur ces champs).
+      const coordsChanged =
+        !!updated &&
+        (before?.latitude !== updated.latitude ||
+          before?.longitude !== updated.longitude);
+
+      if (updated && coordsChanged) {
+        const circuitRows = await ctx.db
+          .select({ id: circuits.id })
+          .from(circuits)
+          .where(
+            and(
+              eq(circuits.etablissementId, updated.id),
+              eq(circuits.tenantId, ctx.tenantId),
+            ),
+          );
+        const circuitIds = circuitRows.map((c) => c.id);
+
+        if (circuitIds.length > 0) {
+          const trajetRows = await ctx.db
+            .select({ id: trajets.id })
+            .from(trajets)
+            .where(
+              and(
+                inArray(trajets.circuitId, circuitIds),
+                eq(trajets.tenantId, ctx.tenantId),
+                isNull(trajets.deletedAt),
+              ),
+            );
+          const trajetIds = trajetRows.map((t) => t.id);
+
+          if (trajetIds.length > 0) {
+            // Réinitialise km / temps / tracé du trajet.
+            await ctx.db
+              .update(trajets)
+              .set({
+                routeGeometry: null,
+                totalDistanceKm: null,
+                totalDurationSeconds: null,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  inArray(trajets.id, trajetIds),
+                  eq(trajets.tenantId, ctx.tenantId),
+                ),
+              );
+            // Réinitialise les horaires de PEC des arrêts (hors verrouillés).
+            await ctx.db
+              .update(arrets)
+              .set({ arrivalTime: null, updatedAt: new Date() })
+              .where(
+                and(
+                  inArray(arrets.trajetId, trajetIds),
+                  eq(arrets.tenantId, ctx.tenantId),
+                  eq(arrets.timeLocked, false),
+                  isNull(arrets.deletedAt),
+                ),
+              );
+          }
+        }
+      }
+
       return updated ?? null;
     }),
 
@@ -223,6 +310,20 @@ export const etablissementsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Horaires avant modification, pour détecter un vrai changement.
+      const beforeRows = await ctx.db
+        .select({ schedules: etablissements.schedules })
+        .from(etablissements)
+        .where(
+          and(
+            eq(etablissements.id, input.id),
+            eq(etablissements.tenantId, ctx.tenantId),
+            isNull(etablissements.deletedAt),
+          ),
+        )
+        .limit(1);
+      const before = beforeRows[0];
+
       const result = await ctx.db
         .update(etablissements)
         .set({
@@ -237,6 +338,98 @@ export const etablissementsRouter = createTRPCRouter({
           ),
         )
         .returning();
+
+      const updated = result[0];
+
+      // Si les horaires de l'établissement changent, les horaires de PEC des
+      // trajets des circuits liés ne sont plus valides : on les réinitialise
+      // (sauf arrêts à horaire verrouillé manuellement) pour forcer un recalcul.
+      const schedulesChanged =
+        !!updated &&
+        JSON.stringify(before?.schedules ?? null) !==
+          JSON.stringify(input.schedules ?? null);
+
+      if (updated && schedulesChanged) {
+        const circuitRows = await ctx.db
+          .select({ id: circuits.id })
+          .from(circuits)
+          .where(
+            and(
+              eq(circuits.etablissementId, updated.id),
+              eq(circuits.tenantId, ctx.tenantId),
+            ),
+          );
+        const circuitIds = circuitRows.map((c) => c.id);
+
+        if (circuitIds.length > 0) {
+          const trajetRows = await ctx.db
+            .select({
+              id: trajets.id,
+              direction: trajets.direction,
+              recurrence: trajets.recurrence,
+            })
+            .from(trajets)
+            .where(
+              and(
+                inArray(trajets.circuitId, circuitIds),
+                eq(trajets.tenantId, ctx.tenantId),
+                isNull(trajets.deletedAt),
+              ),
+            );
+          const trajetIds = trajetRows.map((t) => t.id);
+
+          if (trajetIds.length > 0) {
+            // Re-ancre chaque trajet sur l'horaire de l'établissement
+            // (matin pour un aller, soir pour un retour).
+            for (const t of trajetRows) {
+              const rec = t.recurrence as { daysOfWeek?: unknown } | null;
+              const anchor = resolveScheduleAnchor(
+                input.schedules as EtablissementSchedules,
+                t.direction,
+                normalizeDays(rec?.daysOfWeek),
+              );
+              await ctx.db
+                .update(trajets)
+                .set({ departureTime: anchor, updatedAt: new Date() })
+                .where(
+                  and(
+                    eq(trajets.id, t.id),
+                    eq(trajets.tenantId, ctx.tenantId),
+                  ),
+                );
+              // Arrêt établissement = ancre verrouillée (horaire école).
+              await ctx.db
+                .update(arrets)
+                .set({
+                  arrivalTime: anchor,
+                  timeLocked: anchor != null,
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(arrets.trajetId, t.id),
+                    eq(arrets.type, "etablissement"),
+                    eq(arrets.tenantId, ctx.tenantId),
+                    isNull(arrets.deletedAt),
+                  ),
+                );
+            }
+            // Invalide les horaires de PEC calculés (hors verrouillés) :
+            // ils seront recalculés à partir de la nouvelle ancre.
+            await ctx.db
+              .update(arrets)
+              .set({ arrivalTime: null, updatedAt: new Date() })
+              .where(
+                and(
+                  inArray(arrets.trajetId, trajetIds),
+                  eq(arrets.tenantId, ctx.tenantId),
+                  eq(arrets.timeLocked, false),
+                  isNull(arrets.deletedAt),
+                ),
+              );
+          }
+        }
+      }
 
       return result[0] ?? null;
     }),

@@ -24,9 +24,14 @@ export const trajets = pgTable("trajets", {
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
+  // N° lisible séquentiel par tenant (façon Transcolaire), distinct de l'UUID.
+  displayId: integer("display_id").notNull(),
   circuitId: uuid("circuit_id")
     .notNull()
     .references(() => circuits.id, { onDelete: "cascade" }),
+  // Avenant ayant créé ce trajet (FK posée en SQL pour éviter un cycle
+  // d'import schéma trajets <-> avenants). Null si association directe.
+  createdByAvenantId: uuid("created_by_avenant_id"),
   chauffeurId: uuid("chauffeur_id").references(() => chauffeurs.id, {
     onDelete: "set null",
   }),
@@ -58,8 +63,12 @@ export const trajets = pgTable("trajets", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+  preparationCampaignId: uuid("preparation_campaign_id"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
-});
+}, (t) => [
+  uniqueIndex("trajets_tenant_display_id_idx").on(t.tenantId, t.displayId),
+]);
 
 export const trajetOccurrences = pgTable(
   "trajet_occurrences",
@@ -134,6 +143,8 @@ export const arrets = pgTable("arrets", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+  preparationCampaignId: uuid("preparation_campaign_id"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 

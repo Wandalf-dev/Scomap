@@ -8,6 +8,10 @@ export const AVENANT_TYPE_LABELS = {
   jours_pec: "Jours de PEC",
   adresse: "Adresse",
   type_transport: "Type de transport",
+  // Créé automatiquement quand un usager rejoint un circuit déjà démarré
+  // (cf. usagerCircuits.create). Pas dans avenantChangeInputSchema : non saisi
+  // via le formulaire d'avenant, uniquement généré côté serveur.
+  ajout: "Ajout d'usager",
 } as const;
 
 export type AvenantChangeType = keyof typeof AVENANT_TYPE_LABELS;

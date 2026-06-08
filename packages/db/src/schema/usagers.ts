@@ -53,6 +53,11 @@ export const usagers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Archivage (historisation) : null = courant, daté = archivé.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+    preparationCampaignId: uuid("preparation_campaign_id"),
+    sourceId: uuid("source_id"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [unique("usagers_tenant_display_id_unique").on(t.tenantId, t.displayId)],

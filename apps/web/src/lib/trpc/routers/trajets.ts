@@ -9,6 +9,7 @@ import {
   vehicules,
   etablissements,
   arrets,
+  avenants,
 } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import {
@@ -21,18 +22,33 @@ import {
   resolveRoutingConfig,
   computeSegmentForTenant,
 } from "../services/routing/resolve";
+import { buildTrajetName } from "../services/trajet-sync";
+import { nextDisplayId } from "@/lib/db/display-id";
 
 export const trajetsRouter = createTRPCRouter({
   listByCircuit: tenantProcedure
-    .input(z.object({ circuitId: z.string().uuid() }))
+    .input(
+      z.object({
+        circuitId: z.string().uuid(),
+        // Date de résolution (défaut : aujourd'hui). Fournir une date d'avenant
+        // fige l'état du circuit tel qu'il est à cette date (vue « à la date de
+        // l'avenant ») : validité/compteurs des trajets résolus à cette date.
+        date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
-      const today = new Date().toISOString().slice(0, 10);
+      // NB : nommé `today` mais = date de référence (peut être une date passée).
+      const today = input.date ?? new Date().toISOString().slice(0, 10);
       // Agrégats temporels par trajet (présence des usagers, résolue par date)
       // pour distinguer trajets actifs / à venir / terminés après un avenant.
       const usagerArretCond = sql`a.type = 'usager' and a.deleted_at is null`;
       const rows = await ctx.db
         .select({
           id: trajets.id,
+          displayId: trajets.displayId,
           name: trajets.name,
           direction: trajets.direction,
           departureTime: trajets.departureTime,
@@ -40,6 +56,14 @@ export const trajetsRouter = createTRPCRouter({
           startDate: trajets.startDate,
           endDate: trajets.endDate,
           etat: trajets.etat,
+          circuitCode: circuits.code,
+          notes: trajets.notes,
+          circuitName: circuits.name,
+          circuitStartDate: circuits.startDate,
+          createdByAvenantId: trajets.createdByAvenantId,
+          avenantDisplayId: avenants.displayId,
+          avenantEffectiveDate: avenants.effectiveDate,
+          etablissementCount: sql<number>`(select count(distinct a.etablissement_id) from ${arrets} a where a.trajet_id = ${trajets.id} and a.type = 'etablissement' and a.deleted_at is null)::int`,
           chauffeurFirstName: chauffeurs.firstName,
           chauffeurLastName: chauffeurs.lastName,
           vehiculeName: vehicules.name,
@@ -58,6 +82,8 @@ export const trajetsRouter = createTRPCRouter({
         .from(trajets)
         .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))
         .leftJoin(vehicules, eq(trajets.vehiculeId, vehicules.id))
+        .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
+        .leftJoin(avenants, eq(trajets.createdByAvenantId, avenants.id))
         .where(
           and(
             eq(trajets.circuitId, input.circuitId),
@@ -75,6 +101,7 @@ export const trajetsRouter = createTRPCRouter({
 
       const mapped = rows.map((row) => {
         const rec = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
+        const normDays = rec ? normalizeDays(rec.daysOfWeek) : [];
         let validity: Validity;
         if (row.activeCount > 0) validity = { status: "actif", date: null };
         else if (row.futureCount > 0)
@@ -84,9 +111,10 @@ export const trajetsRouter = createTRPCRouter({
         else validity = { status: "vide", date: null };
         return {
           ...row,
-          recurrence: rec
-            ? { frequency: rec.frequency, daysOfWeek: normalizeDays(rec.daysOfWeek) }
-            : null,
+          name: normDays.length
+            ? buildTrajetName(row.direction, normDays)
+            : row.name,
+          recurrence: rec ? { frequency: rec.frequency, daysOfWeek: normDays } : null,
           validity,
         };
       });
@@ -104,6 +132,7 @@ export const trajetsRouter = createTRPCRouter({
     const rows = await ctx.db
       .select({
         id: trajets.id,
+        displayId: trajets.displayId,
         name: trajets.name,
         direction: trajets.direction,
         departureTime: trajets.departureTime,
@@ -132,7 +161,8 @@ export const trajetsRouter = createTRPCRouter({
         and(
           eq(trajets.tenantId, ctx.tenantId),
           isNull(trajets.deletedAt),
-          eq(circuits.isActive, true),
+          isNull(trajets.preparationCampaignId),
+          isNull(circuits.archivedAt),
         ),
       )
       .orderBy(asc(trajets.direction), asc(trajets.name))
@@ -140,11 +170,11 @@ export const trajetsRouter = createTRPCRouter({
 
     return rows.map((row) => {
       const rec = row.recurrence as { frequency: string; daysOfWeek: unknown } | null;
+      const normDays = rec ? normalizeDays(rec.daysOfWeek) : [];
       return {
         ...row,
-        recurrence: rec
-          ? { frequency: rec.frequency, daysOfWeek: normalizeDays(rec.daysOfWeek) }
-          : null,
+        name: normDays.length ? buildTrajetName(row.direction, normDays) : row.name,
+        recurrence: rec ? { frequency: rec.frequency, daysOfWeek: normDays } : null,
       };
     });
   }),
@@ -155,6 +185,7 @@ export const trajetsRouter = createTRPCRouter({
       const result = await ctx.db
         .select({
           id: trajets.id,
+          displayId: trajets.displayId,
           name: trajets.name,
           direction: trajets.direction,
           departureTime: trajets.departureTime,
@@ -172,7 +203,7 @@ export const trajetsRouter = createTRPCRouter({
           circuitName: circuits.name,
           circuitStartDate: circuits.startDate,
           circuitEndDate: circuits.endDate,
-          circuitIsActive: circuits.isActive,
+          circuitArchivedAt: circuits.archivedAt,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
           chauffeurId: trajets.chauffeurId,
@@ -203,7 +234,7 @@ export const trajetsRouter = createTRPCRouter({
 
       // Compute effective state
       let effectiveEtat: string;
-      if (row.circuitIsActive === false) {
+      if (row.circuitArchivedAt != null) {
         effectiveEtat = "suspendu";
       } else if (row.routeGeometry && row.totalDistanceKm) {
         effectiveEtat = "ok";
@@ -220,6 +251,9 @@ export const trajetsRouter = createTRPCRouter({
 
       return {
         ...row,
+        name: normalizedRecDays.length
+          ? buildTrajetName(row.direction, normalizedRecDays)
+          : row.name,
         effectiveEtat,
         effectiveStartDate,
         effectiveEndDate,
@@ -230,10 +264,12 @@ export const trajetsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(trajetSchema)
     .mutation(async ({ ctx, input }) => {
+      const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "trajets");
       const result = await ctx.db
         .insert(trajets)
         .values({
           tenantId: ctx.tenantId,
+          displayId,
           name: input.name,
           circuitId: input.circuitId,
           direction: input.direction,
@@ -251,10 +287,12 @@ export const trajetsRouter = createTRPCRouter({
   createFull: tenantProcedure
     .input(trajetDetailSchema)
     .mutation(async ({ ctx, input }) => {
+      const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "trajets");
       const result = await ctx.db
         .insert(trajets)
         .values({
           tenantId: ctx.tenantId,
+          displayId,
           name: input.name,
           circuitId: input.circuitId,
           direction: input.direction,

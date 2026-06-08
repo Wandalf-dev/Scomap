@@ -6,8 +6,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
-import { Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, ExternalLink, Archive, ArchiveRestore, Copy } from "lucide-react";
 import { UsersIcon } from "@/components/ui/users-icon";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { UsagerFormDialog } from "./usager-form-dialog";
@@ -60,6 +62,7 @@ interface UsagerRow {
   transportParticularity: string | null;
   specificity: string | null;
   notes: string | null;
+  archivedAt: Date | null;
 }
 
 type UsagerFilters = {
@@ -115,11 +118,16 @@ function formatDate(dateStr: string | null) {
   }
 }
 
-export function UsagersClient() {
+export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const isPrepa = !!campaignId;
+  // En préparation, les fiches s'ouvrent sur des routes dédiées (retour +
+  // sidebar cohérents avec l'onglet Préparation).
+  const detailBase = isPrepa ? "/preparation/usagers" : "/usagers";
 
+  const [activeTab, setActiveTab] = useState<"current" | "archived">("current");
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingItem, setEditingItem] = useState<UsagerRow | null>(null);
@@ -128,8 +136,29 @@ export function UsagersClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: usagersList, isLoading, error } = useQuery(
-    trpc.usagers.list.queryOptions(),
+    trpc.usagers.list.queryOptions(campaignId ? { campaignId } : undefined),
   );
+
+  const { data: currentCampaign } = useQuery({
+    ...trpc.preparation.getCurrentCampaign.queryOptions(),
+    enabled: !isPrepa,
+  });
+
+  const copyToPrepaMutation = useMutation(
+    trpc.preparation.copyUsagers.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(
+          `${data.copied} usager${data.copied > 1 ? "s" : ""} copié${data.copied > 1 ? "s" : ""} en préparation`,
+        );
+      },
+      onError: () => toast.error("Erreur lors de la copie en préparation"),
+    }),
+  );
+
+  const currentUsagers = usagersList?.filter((u) => !u.archivedAt) ?? [];
+  const archivedUsagers = usagersList?.filter((u) => !!u.archivedAt) ?? [];
+  const displayedUsagers =
+    activeTab === "current" ? currentUsagers : archivedUsagers;
 
   const etablissementOptions = useMemo(() => {
     if (!usagersList) return [];
@@ -217,6 +246,20 @@ export function UsagersClient() {
     }),
   );
 
+  const archiveMutation = useMutation(
+    trpc.usagers.setArchived.mutationOptions({
+      onSuccess: (_data, variables) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagers.list.queryKey(),
+        });
+        toast.success(variables.archived ? "Usager archivé" : "Usager désarchivé");
+      },
+      onError: () => {
+        toast.error("Erreur lors de l'archivage");
+      },
+    }),
+  );
+
   function handleSort(column: string) {
     const col = column as SortColumn;
     if (sortColumn === col) {
@@ -245,20 +288,78 @@ export function UsagersClient() {
   }
 
   return (
-    <DataList<UsagerRow, UsagerFilters>
-      data={usagersList}
-      isLoading={isLoading}
-      error={error}
+    <div className="space-y-4">
+      {!isPrepa && (
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "current" | "archived")}
+        >
+          <TabsList>
+            <TabsTrigger value="current" className="cursor-pointer">
+              Courants
+              {!isLoading && (
+                <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
+                  {currentUsagers.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="archived" className="cursor-pointer">
+              Archivés
+              {!isLoading && archivedUsagers.length > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
+                  {archivedUsagers.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
+      <DataList<UsagerRow, UsagerFilters>
+        data={displayedUsagers}
+        isLoading={isLoading}
+        error={error}
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
+      bulkActions={
+        isPrepa
+          ? undefined
+          : [
+              {
+                label: "Copier en préparation",
+                icon: Copy,
+                onClick: (ids: string[]) => {
+                  if (currentCampaign) {
+                    copyToPrepaMutation.mutate({
+                      campaignId: currentCampaign.id,
+                      usagerIds: ids,
+                    });
+                  } else {
+                    toast.info(
+                      "Aucune préparation en cours — démarrez-en une d'abord.",
+                    );
+                    router.push("/preparation");
+                  }
+                },
+              },
+            ]
+      }
       rowAccent={(row) => TRANSPORT_ACCENT[row.transportType ?? ""] ?? null}
       title="Usagers"
       description="Gerez les eleves transportes"
       emptyIcon={UsersIcon}
-      emptyTitle="Aucun usager"
-      emptyDescription="Commencez par ajouter votre premier usager."
-      addButtonLabel="Ajouter un usager"
-      addHref="/usagers/new"
+      emptyTitle={
+        activeTab === "archived" ? "Aucun usager archivé" : "Aucun usager"
+      }
+      emptyDescription={
+        activeTab === "archived"
+          ? "Les usagers archivés apparaîtront ici."
+          : "Commencez par ajouter votre premier usager."
+      }
+      addButtonLabel={
+        isPrepa || activeTab === "archived" ? undefined : "Ajouter un usager"
+      }
+      addHref={isPrepa || activeTab === "archived" ? undefined : "/usagers/new"}
       storageKey="usagers"
       defaultVisibleColumns={[
         "displayId",
@@ -459,7 +560,7 @@ export function UsagersClient() {
         },
       ]}
       getRowId={(row) => row.id}
-      onRowClick={(row) => router.push(`/usagers/${row.id}`)}
+      onRowClick={(row) => router.push(`${detailBase}/${row.id}`)}
       sortColumn={sortColumn}
       sortDirection={sortDirection}
       onSort={handleSort}
@@ -586,7 +687,7 @@ export function UsagersClient() {
         {
           label: "Voir la fiche",
           icon: ExternalLink,
-          onClick: (row) => router.push(`/usagers/${row.id}`),
+          onClick: (row) => router.push(`${detailBase}/${row.id}`),
         },
         {
           label: "Modifier rapidement",
@@ -597,6 +698,19 @@ export function UsagersClient() {
             setFormOpen(true);
           },
         },
+        activeTab === "archived"
+          ? {
+              label: "Désarchiver",
+              icon: ArchiveRestore,
+              onClick: (row) =>
+                archiveMutation.mutate({ id: row.id, archived: false }),
+            }
+          : {
+              label: "Archiver",
+              icon: Archive,
+              onClick: (row) =>
+                archiveMutation.mutate({ id: row.id, archived: true }),
+            },
         {
           label: "Supprimer",
           icon: Trash2,
@@ -634,5 +748,6 @@ export function UsagersClient() {
         isPending={deleteMutation.isPending}
       />
     </DataList>
+    </div>
   );
 }

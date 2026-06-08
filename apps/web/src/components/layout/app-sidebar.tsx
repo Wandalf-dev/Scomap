@@ -20,6 +20,7 @@ import { UsersIcon } from "@/components/ui/users-icon";
 import { ShareIcon } from "@/components/ui/share-icon";
 import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
 import { CalendarCogIcon } from "@/components/ui/calendar-cog-icon";
+import { GraduationCapIcon } from "@/components/ui/graduation-cap-icon";
 import { TruckIcon } from "@/components/ui/truck-icon";
 import { UserIcon } from "@/components/ui/user-icon";
 import { DocumentCurrencyEuroIcon } from "@/components/ui/document-currency-euro-icon";
@@ -36,6 +37,7 @@ const data = {
         { title: "Circuits", url: "/circuits", icon: ShareIcon },
         { title: "Trajets", url: "/trajets", icon: ArrowPathRoundedSquareIcon },
         { title: "Planning", url: "/planning", icon: CalendarCogIcon },
+        { title: "Préparation", url: "/preparation", icon: GraduationCapIcon },
       ],
     },
     {

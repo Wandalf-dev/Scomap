@@ -73,6 +73,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, PencilLine, Trash2, MapPin, Phone, Mail, UserCheck, GripVertical } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input";
+import { AddressMapDialog } from "@/components/shared/address-map-dialog";
 import { DayPecGrid, type OccupiedDay } from "@/components/shared/day-pec-grid";
 import { useHeaderActions } from "@/components/shared/header-actions-context";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
@@ -621,6 +622,13 @@ function SortableAddressCard({
           )}
         </div>
         <div className="ml-auto flex shrink-0 gap-1">
+          <AddressMapDialog
+            latitude={addr.latitude}
+            longitude={addr.longitude}
+            label={addr.address || positionLabel}
+            variant="ghost"
+            triggerClassName="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+          />
           <Button
             variant="ghost"
             size="icon"

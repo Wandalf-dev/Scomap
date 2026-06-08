@@ -12,12 +12,20 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  Download,
-  DownloadCloud,
-  Trash2,
   ChevronLeft,
   ChevronRight,
+  Calendar as CalendarIcon,
 } from "lucide-react";
+import { DeleteIcon } from "@/components/ui/delete-icon";
+import { LogInIcon } from "@/components/ui/log-in-icon";
+import {
+  DownloadIcon,
+  type DownloadIconHandle,
+} from "@/components/ui/download-icon";
+import {
+  CloudDownloadIcon,
+  type CloudDownloadIconHandle,
+} from "@/components/ui/cloud-download-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +73,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,7 +107,7 @@ export interface ColumnConfig<TRow> {
 export interface FilterConfig {
   key: string;
   label: string;
-  type: "text" | "select";
+  type: "text" | "select" | "date" | "daterange";
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
   className?: string;
@@ -112,6 +121,16 @@ export interface RowAction<TRow> {
   separator?: boolean;
 }
 
+/** Action groupée sur la sélection (menu « Actions » de la barre de sélection). */
+export interface BulkAction {
+  label: string;
+  icon: LucideIcon;
+  /** Reçoit les ids sélectionnés ; la sélection est vidée juste après. */
+  onClick: (ids: string[]) => void;
+  variant?: "default" | "destructive";
+  separator?: boolean;
+}
+
 interface DataListProps<TRow, TFilters extends Record<string, string>> {
   data: TRow[] | undefined;
   isLoading: boolean;
@@ -121,8 +140,9 @@ interface DataListProps<TRow, TFilters extends Record<string, string>> {
   emptyIcon: React.ElementType;
   emptyTitle: string;
   emptyDescription: string;
-  addButtonLabel: string;
-  addHref: string;
+  /** Bouton d'ajout : masqué si addHref absent (ex. onglet « Archivés »). */
+  addButtonLabel?: string;
+  addHref?: string;
   columns: ColumnConfig<TRow>[];
   getRowId: (row: TRow) => string;
   onRowClick: (row: TRow) => void;
@@ -136,6 +156,8 @@ interface DataListProps<TRow, TFilters extends Record<string, string>> {
   sortFn?: (a: TRow, b: TRow, column: string, direction: "asc" | "desc") => number;
   onBulkDelete?: (ids: string[]) => void;
   isBulkDeleting?: boolean;
+  /** Actions groupées (menu « Actions ») affichées quand des lignes sont cochées. */
+  bulkActions?: BulkAction[];
   children?: React.ReactNode;
   /** Optional left-edge accent bar per row. Return a Tailwind bg-* class (e.g. "bg-blue-500") or null. */
   rowAccent?: (row: TRow) => string | null | undefined;
@@ -176,6 +198,89 @@ function InlineColumnFilter({
 }) {
   const active = config.type === "select" ? value !== "" && value !== "all" : !!value;
 
+  if (config.type === "daterange") {
+    // Valeur encodée "from|to" (chacune ISO yyyy-MM-dd, éventuellement vide).
+    const [from = "", to = ""] = value.split("|");
+    const setRange = (f: string, t: string) =>
+      onChange(f || t ? `${f}|${t}` : "");
+    const fmt = (iso: string) => {
+      if (!iso) return null;
+      const [y, m, d] = iso.split("-");
+      return `${d}/${m}/${y}`;
+    };
+    const summary =
+      from && to
+        ? `${fmt(from)} → ${fmt(to)}`
+        : from
+          ? `dès ${fmt(from)}`
+          : to
+            ? `jusqu'au ${fmt(to)}`
+            : (config.placeholder ?? "Période…");
+    return (
+      <div className="relative" onClick={(e) => e.stopPropagation()}>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`flex h-7 w-full items-center justify-between gap-1 rounded-[0.3rem] border bg-transparent pl-2.5 pr-7 text-left text-xs font-normal ${
+                active
+                  ? "border-primary/50 text-foreground"
+                  : "border-input text-muted-foreground"
+              }`}
+            >
+              <span className="truncate">{summary}</span>
+              <CalendarIcon className="size-3.5 shrink-0 opacity-60" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 space-y-3 p-3" align="start">
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Du</span>
+              <DatePicker
+                value={from || null}
+                onChange={(v) => setRange(v ?? "", to)}
+                clearable
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Au</span>
+              <DatePicker
+                value={to || null}
+                onChange={(v) => setRange(from, v ?? "")}
+                clearable
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
+        {active && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+            aria-label={`Effacer le filtre ${config.label}`}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (config.type === "date") {
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <DatePicker
+          value={value || null}
+          onChange={(v) => onChange(v ?? "")}
+          clearable
+          placeholder={config.placeholder ?? "jj/mm/aaaa"}
+          className={`[&_input]:h-7 [&_input]:text-xs [&_input]:font-normal ${
+            active ? "[&_input]:border-primary/50" : ""
+          }`}
+        />
+      </div>
+    );
+  }
+
   if (config.type === "select") {
     return (
       <Select value={value || "all"} onValueChange={onChange}>
@@ -200,23 +305,26 @@ function InlineColumnFilter({
 
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
+      {/* pr-7 réservé en permanence : l'apparition de la croix ne décale plus
+          le texte (sinon le contenu « saute » au premier caractère tapé). */}
       <Input
         placeholder={config.placeholder ?? "Filtrer…"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        className={`h-7 w-full text-xs font-normal ${active ? "border-primary/50 pr-6" : ""}`}
+        className={`h-7 w-full pr-7 text-xs font-normal ${active ? "border-primary/50" : ""}`}
       />
-      {active && (
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-          aria-label={`Effacer le filtre ${config.label}`}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => onChange("")}
+        className={`absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground transition-opacity hover:text-foreground ${
+          active ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-label={`Effacer le filtre ${config.label}`}
+        tabIndex={active ? 0 : -1}
+      >
+        <X className="h-3 w-3" />
+      </button>
     </div>
   );
 }
@@ -305,6 +413,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   sortFn,
   onBulkDelete,
   isBulkDeleting,
+  bulkActions,
   children,
   rowAccent,
   storageKey,
@@ -439,13 +548,6 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
     });
   }, [filterValues, filterConfigs]);
 
-  const activeFilterCount = useMemo(() => {
-    return Object.entries(filterValues).filter(([key, val]) => {
-      const config = filterConfigs.find((f) => f.key === key);
-      if (config?.type === "select") return val !== "all";
-      return val !== "";
-    }).length;
-  }, [filterValues, filterConfigs]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -497,6 +599,8 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   // ── Column resize ──────────────────────────────────────────
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const tableRef = useRef<HTMLTableElement>(null);
+  const exportPageIconRef = useRef<DownloadIconHandle>(null);
+  const exportAllIconRef = useRef<CloudDownloadIconHandle>(null);
 
   const hasFixedWidths = Object.keys(columnWidths).length > 0;
   const actionsColWidth = 50;
@@ -629,13 +733,15 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button
-          onClick={() => router.push(addHref)}
-          className="cursor-pointer"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter
-        </Button>
+        {addHref && (
+          <Button
+            onClick={() => router.push(addHref)}
+            className="cursor-pointer"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Ajouter
+          </Button>
+        )}
       </div>
 
       {/* Toolbar — rendered only after mount so SSR and the first client render
@@ -728,8 +834,10 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                 size="icon"
                 className="h-8 w-8 cursor-pointer"
                 onClick={() => handleExport("page")}
+                onMouseEnter={() => exportPageIconRef.current?.startAnimation()}
+                onMouseLeave={() => exportPageIconRef.current?.stopAnimation()}
               >
-                <Download className="h-4 w-4" />
+                <DownloadIcon ref={exportPageIconRef} size={16} />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -745,8 +853,10 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                 size="icon"
                 className="h-8 w-8 cursor-pointer"
                 onClick={() => handleExport("all")}
+                onMouseEnter={() => exportAllIconRef.current?.startAnimation()}
+                onMouseLeave={() => exportAllIconRef.current?.stopAnimation()}
               >
-                <DownloadCloud className="h-4 w-4" />
+                <CloudDownloadIcon ref={exportAllIconRef} size={16} />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -805,21 +915,54 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           )}
 
           {/* Bulk actions */}
-          {selectionCount > 0 && onBulkDelete && (
+          {selectionCount > 0 && (onBulkDelete || !!bulkActions?.length) && (
             <>
               <div className="h-4 w-px bg-border" />
               <span className="text-sm font-medium text-foreground">
                 {selectionCount} selectionne{selectionCount > 1 ? "s" : ""}
               </span>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setBulkDeleteOpen(true)}
-                className="cursor-pointer"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Supprimer
-              </Button>
+              {!!bulkActions?.length && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="cursor-pointer">
+                      <LogInIcon size={16} className="mr-2" />
+                      Actions
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {bulkActions.map((action) => (
+                      <div key={action.label}>
+                        {action.separator && <DropdownMenuSeparator />}
+                        <DropdownMenuItem
+                          className={`cursor-pointer ${
+                            action.variant === "destructive"
+                              ? "text-destructive focus:text-destructive"
+                              : ""
+                          }`}
+                          onClick={() => {
+                            action.onClick(Array.from(selectedIds));
+                            clearSelection();
+                          }}
+                        >
+                          <action.icon className="mr-2 h-4 w-4" />
+                          {action.label}
+                        </DropdownMenuItem>
+                      </div>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {onBulkDelete && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <DeleteIcon size={16} className="mr-2" />
+                  Supprimer
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -876,14 +1019,16 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           <p className="mt-1 text-sm text-muted-foreground">
             {emptyDescription}
           </p>
-          <Button
-            onClick={() => router.push(addHref)}
-            variant="outline"
-            className="mt-4 cursor-pointer"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {addButtonLabel}
-          </Button>
+          {addHref && addButtonLabel && (
+            <Button
+              onClick={() => router.push(addHref)}
+              variant="outline"
+              className="mt-4 cursor-pointer"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {addButtonLabel}
+            </Button>
+          )}
         </div>
       ) : (
         <>

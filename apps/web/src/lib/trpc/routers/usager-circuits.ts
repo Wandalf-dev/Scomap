@@ -8,6 +8,8 @@ import {
   usagerAddresses,
   trajets,
   arrets,
+  avenants,
+  avenantChanges,
 } from "@scomap/db/schema";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "../init";
@@ -16,12 +18,16 @@ import {
   usagerCircuitUpdateSchema,
 } from "@/lib/validators/usager-circuit";
 import { isCircuitCompatibleTransport } from "@/lib/validators/usager";
+import { dateRangesOverlap } from "@/lib/utils/date-helpers";
 import { ADDRESS_TYPE_LABELS } from "@/lib/validators/usager-address";
 import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
 import {
   syncTrajetForDirection,
   removeUsagerArretsFromCircuit,
+  regenerateCircuitTrajets,
+  type TrajetSyncCtx,
 } from "../services/trajet-sync";
+import { nextDisplayId } from "@/lib/db/display-id";
 import {
   suggestCircuits,
   type CandidateCircuit,
@@ -42,6 +48,100 @@ function activeOnDate(dateStr: string) {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Avenant automatique « ajout d'usager » : tracé quand un usager rejoint un
+ * circuit DÉJÀ DÉMARRÉ (sa date de début de transport est postérieure au début
+ * du circuit). Fusionne dans l'avenant non annulé du même circuit à la même
+ * date d'effet (comme avenants.create), sinon en crée un (numéroté par circuit).
+ * Retourne l'id de l'avenant — passé aux trajets/arrêts pour la traçabilité.
+ */
+async function createAjoutAvenant(
+  ctx: TrajetSyncCtx & { user: { id: string } },
+  params: {
+    circuitId: string;
+    effectiveDate: string;
+    usagerId: string;
+    usagerCircuitId: string;
+    usagerAddressId: string;
+  },
+): Promise<string> {
+  const { circuitId, effectiveDate, usagerId, usagerCircuitId, usagerAddressId } =
+    params;
+
+  // Fusion : réutilise l'avenant du même circuit à la même date d'effet.
+  const found = await ctx.db
+    .select()
+    .from(avenants)
+    .where(
+      and(
+        eq(avenants.circuitId, circuitId),
+        eq(avenants.effectiveDate, effectiveDate),
+        eq(avenants.tenantId, ctx.tenantId),
+        isNull(avenants.deletedAt),
+      ),
+    )
+    .limit(1);
+  let avenant = found[0] ?? null;
+
+  if (!avenant) {
+    const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "avenants");
+    // N° d'avenant DANS le circuit (séquence propre au circuit).
+    const seq = await ctx.db
+      .select({
+        max: sql<number>`coalesce(max(${avenants.circuitSequence}), 0)`,
+      })
+      .from(avenants)
+      .where(
+        and(
+          eq(avenants.circuitId, circuitId),
+          eq(avenants.tenantId, ctx.tenantId),
+        ),
+      );
+    const circuitSequence = (seq[0]?.max ?? 0) + 1;
+    const inserted = await ctx.db
+      .insert(avenants)
+      .values({
+        tenantId: ctx.tenantId,
+        displayId,
+        circuitId,
+        circuitSequence,
+        effectiveDate,
+        reason: "Ajout au circuit",
+        // Versions datées coexistantes, bascule résolue par date (zéro trigger).
+        status: "actif",
+        appliedAt: new Date(),
+        createdByUserId: ctx.user.id,
+      })
+      .returning();
+    avenant = inserted[0]!;
+  }
+
+  // Snapshot « après » : l'usager est désormais sur ce circuit / cette adresse.
+  // Pas de « avant » (previousValue null) : il n'était pas sur le circuit.
+  const circuitRow = await ctx.db
+    .select({ name: circuits.name })
+    .from(circuits)
+    .where(and(eq(circuits.id, circuitId), eq(circuits.tenantId, ctx.tenantId)))
+    .limit(1);
+
+  await ctx.db.insert(avenantChanges).values({
+    tenantId: ctx.tenantId,
+    avenantId: avenant.id,
+    usagerId,
+    type: "ajout",
+    usagerCircuitId,
+    usagerAddressId,
+    previousValue: null,
+    newValue: {
+      circuitId,
+      circuitName: circuitRow[0]?.name ?? null,
+      usagerAddressId,
+    },
+  });
+
+  return avenant.id;
+}
+
 export const usagerCircuitsRouter = createTRPCRouter({
   listByUsager: tenantProcedure
     .input(z.object({ usagerId: z.string().uuid() }))
@@ -52,6 +152,9 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerId: usagerCircuits.usagerId,
           circuitId: usagerCircuits.circuitId,
           usagerAddressId: usagerCircuits.usagerAddressId,
+          // Début de cette version d'affectation (null = depuis toujours :
+          // l'usager démarre alors à sa date de début de transport).
+          validFrom: usagerCircuits.validFrom,
           arrivalNotification: usagerCircuits.arrivalNotification,
           authorizationAlone: usagerCircuits.authorizationAlone,
           circuitName: circuits.name,
@@ -79,7 +182,12 @@ export const usagerCircuitsRouter = createTRPCRouter({
           and(
             eq(usagerCircuits.usagerId, input.usagerId),
             eq(usagerCircuits.tenantId, ctx.tenantId),
-            activeOnDate(todayStr()),
+            // Versions OUVERTES (en cours ou à venir) — cohérent avec la garde
+            // « un circuit actif par adresse » et l'index unique partiel.
+            // Une affectation future (valid_from > aujourd'hui) occupe déjà
+            // l'adresse : elle doit donc apparaître ici.
+            isNull(usagerCircuits.validTo),
+            isNull(usagerCircuits.deletedAt),
           ),
         );
 
@@ -91,7 +199,21 @@ export const usagerCircuitsRouter = createTRPCRouter({
     }),
 
   listByCircuit: tenantProcedure
-    .input(z.object({ circuitId: z.string().uuid() }))
+    .input(
+      z.object({
+        circuitId: z.string().uuid(),
+        // Date de résolution (défaut : aujourd'hui). Une date d'avenant donne la
+        // composition usagers/PEC du circuit telle qu'à cette date.
+        date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        // true = toutes les affectations OUVERTES (courantes + à venir), pour la
+        // liste des usagers du circuit (un usager futur doit y figurer). Défaut
+        // (false) = composition active à la date (recap).
+        openOnly: z.boolean().optional(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db
         .select({
@@ -99,9 +221,11 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerId: usagerCircuits.usagerId,
           circuitId: usagerCircuits.circuitId,
           usagerAddressId: usagerCircuits.usagerAddressId,
+          validFrom: usagerCircuits.validFrom,
           usagerFirstName: usagers.firstName,
           usagerLastName: usagers.lastName,
           usagerCode: usagers.code,
+          transportStartDate: usagers.transportStartDate,
           addressType: usagerAddresses.type,
           addressCity: usagerAddresses.city,
           addressAddress: usagerAddresses.address,
@@ -114,6 +238,7 @@ export const usagerCircuitsRouter = createTRPCRouter({
           authorizationAlone: usagerCircuits.authorizationAlone,
           daysAller: usagerCircuits.daysAller,
           daysRetour: usagerCircuits.daysRetour,
+          avenantCount: sql<number>`(select count(*) from ${avenantChanges} ac join ${avenants} a on a.id = ac.avenant_id where ac.usager_id = ${usagerCircuits.usagerId} and a.circuit_id = ${usagerCircuits.circuitId} and a.deleted_at is null)::int`,
         })
         .from(usagerCircuits)
         .innerJoin(usagers, eq(usagerCircuits.usagerId, usagers.id))
@@ -125,7 +250,14 @@ export const usagerCircuitsRouter = createTRPCRouter({
           and(
             eq(usagerCircuits.circuitId, input.circuitId),
             eq(usagerCircuits.tenantId, ctx.tenantId),
-            activeOnDate(todayStr()),
+            // openOnly : toutes les versions ouvertes (courantes + futures) ;
+            // sinon composition active à la date (défaut : aujourd'hui).
+            input.openOnly
+              ? and(
+                  isNull(usagerCircuits.validTo),
+                  isNull(usagerCircuits.deletedAt),
+                )
+              : activeOnDate(input.date ?? todayStr()),
           ),
         );
 
@@ -236,7 +368,7 @@ export const usagerCircuitsRouter = createTRPCRouter({
           and(
             eq(circuits.tenantId, ctx.tenantId),
             isNull(circuits.deletedAt),
-            eq(circuits.isActive, true),
+            isNull(circuits.archivedAt),
           ),
         );
       const candidates = circuitRows.filter((c) => !linkedSet.has(c.id));
@@ -339,7 +471,12 @@ export const usagerCircuitsRouter = createTRPCRouter({
       // relèvent du remboursement. La règle est aussi appliquée côté UI, mais on la
       // (re)valide ici pour ne pas créer de données incohérentes via un appel direct.
       const [targetUsager] = await ctx.db
-        .select({ transportType: usagers.transportType })
+        .select({
+          transportType: usagers.transportType,
+          transportStartDate: usagers.transportStartDate,
+          transportEndDate: usagers.transportEndDate,
+          preparationCampaignId: usagers.preparationCampaignId,
+        })
         .from(usagers)
         .where(
           and(
@@ -357,6 +494,42 @@ export const usagerCircuitsRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message:
             "Le type de transport de cet usager ne permet pas d'affectation à un circuit.",
+        });
+      }
+
+      // Cohérence des dates : la période de transport de l'usager doit chevaucher
+      // la période de validité du circuit. Un circuit terminé avant le début de
+      // transport (ou commençant après sa fin) ne peut pas lui être affecté.
+      const [targetCircuit] = await ctx.db
+        .select({
+          startDate: circuits.startDate,
+          endDate: circuits.endDate,
+          preparationCampaignId: circuits.preparationCampaignId,
+        })
+        .from(circuits)
+        .where(
+          and(
+            eq(circuits.id, input.circuitId),
+            eq(circuits.tenantId, ctx.tenantId),
+            isNull(circuits.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!targetCircuit) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Circuit non trouvé" });
+      }
+      if (
+        !dateRangesOverlap(
+          targetUsager.transportStartDate,
+          targetUsager.transportEndDate,
+          targetCircuit.startDate,
+          targetCircuit.endDate,
+        )
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Les dates de transport de l'usager ne chevauchent pas la période de validité du circuit.",
         });
       }
 
@@ -388,10 +561,34 @@ export const usagerCircuitsRouter = createTRPCRouter({
       const addr = await ctx.db
         .select({ daysAller: usagerAddresses.daysAller, daysRetour: usagerAddresses.daysRetour })
         .from(usagerAddresses)
-        .where(eq(usagerAddresses.id, input.usagerAddressId))
+        .where(
+          and(
+            eq(usagerAddresses.id, input.usagerAddressId),
+            eq(usagerAddresses.tenantId, ctx.tenantId),
+          ),
+        )
         .limit(1);
       const addrDaysAller = normalizeDays(addr[0]?.daysAller);
       const addrDaysRetour = normalizeDays(addr[0]?.daysRetour);
+
+      // L'usager rejoint-il un circuit DÉJÀ DÉMARRÉ ? (sa date de début de
+      // transport est postérieure au début du circuit). Si oui : on borne son
+      // affectation à sa date de début (valid_from) — il n'apparaît pas avant —
+      // ET on trace l'ajout par un avenant automatique. Sinon : intégration
+      // initiale directe (valid_from null = présent dès le début du circuit).
+      // Exclu en préparation de rentrée : pas d'avenant dans une campagne (le
+      // sandbox se construit à plat, sans historique de changements).
+      const isPreparation =
+        !!targetUsager.preparationCampaignId ||
+        !!targetCircuit.preparationCampaignId;
+      const circuitStart = targetCircuit.startDate;
+      const usagerStart = targetUsager.transportStartDate;
+      const joinsRunningCircuit =
+        !isPreparation &&
+        !!circuitStart &&
+        !!usagerStart &&
+        usagerStart > circuitStart;
+      const validFrom = joinsRunningCircuit ? usagerStart : null;
 
       const result = await ctx.db
         .insert(usagerCircuits)
@@ -404,30 +601,60 @@ export const usagerCircuitsRouter = createTRPCRouter({
           daysRetour: addrDaysRetour.length > 0 ? addrDaysRetour : null,
           arrivalNotification: input.arrivalNotification ?? false,
           authorizationAlone: input.authorizationAlone ?? false,
+          validFrom,
         })
         .returning();
 
       const created = result[0];
 
-      // Auto-create trajets + arrets
+      // Avenant automatique « ajout d'usager » (uniquement si circuit démarré).
+      let avenantId: string | null = null;
+      if (created && joinsRunningCircuit && usagerStart) {
+        avenantId = await createAjoutAvenant(ctx, {
+          circuitId: input.circuitId,
+          effectiveDate: usagerStart,
+          usagerId: input.usagerId,
+          usagerCircuitId: created.id,
+          usagerAddressId: input.usagerAddressId,
+        });
+      }
+
       if (created) {
-        if (addrDaysAller.length > 0) {
-          await syncTrajetForDirection(
+        if (joinsRunningCircuit && avenantId && usagerStart) {
+          // Rejoint un circuit DÉJÀ DÉMARRÉ → on VERSIONNE les trajets : l'avenant
+          // d'ajout crée de nouveaux trajets datés (nouvelle composition depuis J),
+          // l'ancien est clôturé à J-1. L'affectation du nouvel usager vient d'être
+          // posée → regenerate lit la composition complète à la date d'effet.
+          await regenerateCircuitTrajets(
             ctx,
             input.circuitId,
-            "aller",
-            addrDaysAller,
-            input.usagerAddressId,
+            usagerStart,
+            avenantId,
           );
-        }
-        if (addrDaysRetour.length > 0) {
-          await syncTrajetForDirection(
-            ctx,
-            input.circuitId,
-            "retour",
-            addrDaysRetour,
-            input.usagerAddressId,
-          );
+        } else {
+          // Intégration initiale (base, « avenant 0 ») : trajets non versionnés.
+          if (addrDaysAller.length > 0) {
+            await syncTrajetForDirection(
+              ctx,
+              input.circuitId,
+              "aller",
+              addrDaysAller,
+              input.usagerAddressId,
+              validFrom,
+              avenantId,
+            );
+          }
+          if (addrDaysRetour.length > 0) {
+            await syncTrajetForDirection(
+              ctx,
+              input.circuitId,
+              "retour",
+              addrDaysRetour,
+              input.usagerAddressId,
+              validFrom,
+              avenantId,
+            );
+          }
         }
       }
 
@@ -466,7 +693,12 @@ export const usagerCircuitsRouter = createTRPCRouter({
         const addr = await ctx.db
           .select({ daysAller: usagerAddresses.daysAller, daysRetour: usagerAddresses.daysRetour })
           .from(usagerAddresses)
-          .where(eq(usagerAddresses.id, newAddressId))
+          .where(
+            and(
+              eq(usagerAddresses.id, newAddressId),
+              eq(usagerAddresses.tenantId, ctx.tenantId),
+            ),
+          )
           .limit(1);
         addrDaysAller = normalizeDays(addr[0]?.daysAller);
         addrDaysRetour = normalizeDays(addr[0]?.daysRetour);
@@ -536,40 +768,52 @@ export const usagerCircuitsRouter = createTRPCRouter({
 
       const old = existing[0];
 
+      // Garde : dès qu'un circuit a un avenant (au-delà de la composition de base
+      // « avenant 0 »), sa composition est versionnée → on n'enlève plus aucun
+      // usager directement (cela corromprait l'historique daté des trajets). Il
+      // faut d'abord annuler les avenants (un retrait passera à terme par un
+      // avenant dédié).
+      if (old) {
+        const circuitAvenants = await ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(avenants)
+          .where(
+            and(
+              eq(avenants.circuitId, old.circuitId),
+              eq(avenants.tenantId, ctx.tenantId),
+              isNull(avenants.deletedAt),
+            ),
+          );
+        if ((circuitAvenants[0]?.count ?? 0) > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "Impossible de dissocier : ce circuit a des avenants. Annulez-les d'abord pour modifier sa composition.",
+          });
+        }
+      }
+
       // Remove arrets before deleting the association
       if (old?.usagerAddressId) {
         await removeUsagerArretsFromCircuit(ctx, old.circuitId, old.usagerAddressId);
       }
 
+      // Soft-delete (cohérent avec le modèle daté : on conserve l'historique ;
+      // l'index partiel "1 circuit actif/adresse" se libère via deleted_at).
       const result = await ctx.db
-        .delete(usagerCircuits)
+        .update(usagerCircuits)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
         .where(
           and(
             eq(usagerCircuits.id, input.id),
             eq(usagerCircuits.tenantId, ctx.tenantId),
+            isNull(usagerCircuits.deletedAt),
           ),
         )
         .returning();
 
-      // If no more usagers on this circuit, set it inactive
-      if (old) {
-        const remaining = await ctx.db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(usagerCircuits)
-          .where(
-            and(
-              eq(usagerCircuits.circuitId, old.circuitId),
-              eq(usagerCircuits.tenantId, ctx.tenantId),
-            ),
-          );
-
-        if ((remaining[0]?.count ?? 0) === 0) {
-          await ctx.db
-            .update(circuits)
-            .set({ isActive: false, updatedAt: new Date() })
-            .where(eq(circuits.id, old.circuitId));
-        }
-      }
+      // Note : l'archivage d'un circuit est désormais MANUEL (plus de bascule
+      // automatique « inactif » quand le dernier usager est dissocié).
 
       return result[0] ?? null;
     }),

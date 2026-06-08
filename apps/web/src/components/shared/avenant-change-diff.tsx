@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { DayBadges } from "./day-badges";
 import type { DayEntry } from "@/lib/types/day-entry";
 
@@ -31,6 +31,20 @@ export function AvenantChangeDiff({
   previous: Snap;
   next: Snap;
 }) {
+  // Ajout d'usager : il n'y a pas d'« avant » (l'usager n'était pas sur le
+  // circuit) → on affiche la cible, pas un delta.
+  if (type === "ajout") {
+    const circuitName = String(next?.circuitName ?? "");
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Plus className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <span className="font-medium text-foreground">
+          Ajouté au circuit{circuitName ? ` ${circuitName}` : ""}
+        </span>
+      </div>
+    );
+  }
+
   if (type === "jours_pec") {
     return (
       <div className="space-y-1.5">

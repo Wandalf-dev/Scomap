@@ -102,3 +102,25 @@ export function isSameDay(a: Date, b: Date): boolean {
 export function isToday(date: Date): boolean {
   return isSameDay(date, new Date());
 }
+
+/**
+ * Deux périodes [aStart, aEnd] et [bStart, bEnd] se chevauchent-elles ?
+ * Une borne `null`/`undefined` = période ouverte de ce côté (aucune contrainte).
+ * Les dates sont attendues au format ISO « YYYY-MM-DD » (comparables
+ * lexicographiquement, donc pas besoin de parser en Date).
+ *
+ * Sert notamment à n'autoriser l'affectation d'un usager à un circuit que si
+ * leurs périodes de validité se recouvrent.
+ */
+export function dateRangesOverlap(
+  aStart: string | null | undefined,
+  aEnd: string | null | undefined,
+  bStart: string | null | undefined,
+  bEnd: string | null | undefined,
+): boolean {
+  // Pas de chevauchement si A se termine avant le début de B,
+  // ou si A commence après la fin de B.
+  if (aEnd && bStart && aEnd < bStart) return false;
+  if (aStart && bEnd && aStart > bEnd) return false;
+  return true;
+}

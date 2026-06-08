@@ -190,6 +190,48 @@
       "when": 1771160000000,
       "tag": "0026_one_circuit_per_address",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1771170000000,
+      "tag": "0027_add_display_id_trajets",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1771180000000,
+      "tag": "0028_trajet_code_and_avenant_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1771190000000,
+      "tag": "0029_move_code_to_circuit",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1771200000000,
+      "tag": "0030_add_display_id_circuits",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1771210000000,
+      "tag": "0031_circuit_status_and_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1771220000000,
+      "tag": "0032_preparation_campaigns",
+      "breakpoints": true
     }
   ]
 }

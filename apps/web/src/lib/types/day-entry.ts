@@ -21,13 +21,13 @@ export const dayEntrySchema = z.object({
 export const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 export const DAY_LABELS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "Me",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
+  1: "LU",
+  2: "MA",
+  3: "ME",
+  4: "JE",
+  5: "VE",
+  6: "SA",
+  7: "DI",
 };
 
 export const DAY_LABELS_FULL: Record<number, string> = {
@@ -116,7 +116,8 @@ export function hasParityRules(entries: DayEntry[]): boolean {
 }
 
 /**
- * Build a display string for days, e.g. "L-M-Me" or "L-Me(P)-V(I)"
+ * Build a display string for days, e.g. "LU-MA-ME" or "LU-MEP-VEI"
+ * (parité accolée : P = paires, I = impaires).
  */
 export function formatDaysShort(entries: DayEntry[]): string {
   if (!entries.length) return "";
@@ -125,7 +126,7 @@ export function formatDaysShort(entries: DayEntry[]): string {
     .map((e) => {
       const label = DAY_LABELS[e.day] ?? "";
       if (e.parity === "all") return label;
-      return `${label}(${PARITY_LABELS[e.parity]})`;
+      return `${label}${PARITY_LABELS[e.parity]}`;
     })
     .join("-");
 }

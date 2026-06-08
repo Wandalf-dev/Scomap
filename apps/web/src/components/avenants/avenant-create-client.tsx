@@ -27,7 +27,6 @@ import { DaySelector } from "@/components/shared/day-selector";
 import { ArrowLeft, Route, CalendarDays, MapPin, School, Bus } from "lucide-react";
 import {
   AVENANT_TYPE_LABELS,
-  type AvenantChangeType,
   type AvenantChangeInput,
 } from "@/lib/validators/avenant";
 import {
@@ -38,7 +37,9 @@ import {
 import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
 import { formatAvenantDate } from "@/components/shared/avenant-status-badge";
 
-const TYPES: { value: AvenantChangeType; icon: typeof Route }[] = [
+// Types SAISISSABLES via le formulaire (exclut « ajout », généré automatiquement
+// côté serveur lors de l'association à un circuit déjà démarré).
+const TYPES: { value: AvenantChangeInput["type"]; icon: typeof Route }[] = [
   { value: "circuit", icon: Route },
   { value: "jours_pec", icon: CalendarDays },
   { value: "adresse", icon: MapPin },
@@ -75,7 +76,7 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   });
 
   const [usagerCircuitId, setUsagerCircuitId] = useState("");
-  const [type, setType] = useState<AvenantChangeType>("circuit");
+  const [type, setType] = useState<AvenantChangeInput["type"]>("circuit");
   const [newCircuitId, setNewCircuitId] = useState("");
   const [newAddressId, setNewAddressId] = useState("");
   const [newEtablissementId, setNewEtablissementId] = useState("");

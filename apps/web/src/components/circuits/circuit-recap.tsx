@@ -15,19 +15,19 @@ import {
   Clock,
   Bell,
   ShieldCheck,
-  ArrowRight,
-  ArrowLeft,
   Check,
   ExternalLink,
 } from "lucide-react";
 
 interface CircuitRecapProps {
   circuitId: string;
+  /** Date de résolution (défaut : aujourd'hui). Fige l'état à la date d'un avenant. */
+  date?: string;
 }
 
 function formatKm(km: number | null | undefined): string {
   if (km == null) return "—";
-  return `${km.toFixed(1).replace(".", ",")} km`;
+  return km.toFixed(1).replace(".", ",");
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -54,7 +54,7 @@ function TimeChip({
     return <span className="text-sm text-muted-foreground/50">—</span>;
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm font-bold tabular-nums text-foreground shadow-sm">
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border dark:border-foreground/30 bg-card px-2.5 py-1.5 text-sm font-bold tabular-nums text-foreground shadow-sm">
       <Clock
         className={cn(
           "size-3.5",
@@ -68,14 +68,59 @@ function TimeChip({
   );
 }
 
-export function CircuitRecap({ circuitId }: CircuitRecapProps) {
+/** En-tête de colonne Aller/Retour façon Transcolaire : libellé du sens, puis
+ *  le N° (lien vert vers le trajet) et l'intitulé (jours). Sans flèche. */
+function DirectionHeaderCell({
+  trajet,
+  direction,
+  backParam,
+}: {
+  trajet: { id: string; displayId: number | null; name: string } | null;
+  direction: "aller" | "retour";
+  backParam: string;
+}) {
+  const label = direction === "aller" ? "Aller" : "Retour";
+
+  if (!trajet) {
+    return (
+      <span className="font-bold uppercase tracking-wide text-foreground">
+        {label}
+      </span>
+    );
+  }
+
+  // Le sens est déjà affiché en libellé : on retire le préfixe du nom.
+  const daysLabel = trajet.name.replace(/^(Aller|Retour)\s+/i, "");
+
+  return (
+    <div className="mx-auto flex max-w-[150px] flex-col items-center gap-0.5">
+      <span className="font-bold uppercase tracking-wide text-foreground">
+        {label}
+      </span>
+      <Link
+        href={`/trajets/${trajet.id}?back=${backParam}`}
+        className="inline-flex items-center gap-1 font-bold text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+      >
+        {trajet.displayId != null ? `N°${trajet.displayId}` : label}
+        <ExternalLink className="size-3" />
+      </Link>
+      {daysLabel && (
+        <span className="font-medium normal-case text-muted-foreground">
+          {daysLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
   const trpc = useTRPC();
 
   const { data: trajets } = useQuery(
-    trpc.trajets.listByCircuit.queryOptions({ circuitId }),
+    trpc.trajets.listByCircuit.queryOptions({ circuitId, date }),
   );
   const { data: usagers } = useQuery(
-    trpc.usagerCircuits.listByCircuit.queryOptions({ circuitId }),
+    trpc.usagerCircuits.listByCircuit.queryOptions({ circuitId, date }),
   );
 
   // Trajet représentatif par sens : l'actif d'abord, sinon le premier.
@@ -116,6 +161,38 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
     return m;
   }, [retourArrets]);
 
+  // Ordre de ramassage : on suit l'ordre réel des arrêts à l'aller (sinon
+  // retour), pour lister les usagers dans l'ordre de la tournée — l'école
+  // (destination) étant rendue en fin de tableau.
+  const pickupOrderByAddr = useMemo(() => {
+    const source =
+      allerArrets && allerArrets.length > 0 ? allerArrets : (retourArrets ?? []);
+    const m = new Map<string, number>();
+    for (const a of source) {
+      if (a.type === "usager" && a.usagerAddressId) {
+        m.set(a.usagerAddressId, a.orderIndex);
+      }
+    }
+    return m;
+  }, [allerArrets, retourArrets]);
+
+  const sortedUsagers = useMemo(() => {
+    const list = [...(usagers ?? [])];
+    list.sort((a, b) => {
+      const oa = a.usagerAddressId
+        ? pickupOrderByAddr.get(a.usagerAddressId)
+        : undefined;
+      const ob = b.usagerAddressId
+        ? pickupOrderByAddr.get(b.usagerAddressId)
+        : undefined;
+      if (oa == null && ob == null) return 0;
+      if (oa == null) return 1; // arrêt inconnu → en fin de liste
+      if (ob == null) return -1;
+      return oa - ob;
+    });
+    return list;
+  }, [usagers, pickupOrderByAddr]);
+
   const allerEtab = (allerArrets ?? []).find((a) => a.type === "etablissement");
   const retourEtab = (retourArrets ?? []).find(
     (a) => a.type === "etablissement",
@@ -146,11 +223,20 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
     retourTrajet?.totalDistanceKm != null;
   const totalKm =
     (allerTrajet?.totalDistanceKm ?? 0) + (retourTrajet?.totalDistanceKm ?? 0);
+  const hasDuration =
+    allerTrajet?.totalDurationSeconds != null ||
+    retourTrajet?.totalDurationSeconds != null;
+  const totalDurationSeconds =
+    (allerTrajet?.totalDurationSeconds ?? 0) +
+    (retourTrajet?.totalDurationSeconds ?? 0);
+  // Retour contextuel : depuis un trajet ouvert via le récap, revenir sur
+  // l'onglet Trajets de ce circuit (et non la liste globale des trajets).
+  const backParam = encodeURIComponent(`/circuits/${circuitId}?tab=trajets`);
 
   return (
-    <div className="overflow-hidden rounded-[0.3rem] border border-border bg-card shadow-xs">
+    <div className="overflow-hidden rounded-[0.3rem] border border-border dark:border-foreground/30 bg-card shadow-xs">
       {/* En-tête + options d'affichage */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-gradient-to-r from-primary/[0.08] to-transparent px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border dark:border-foreground/30 bg-gradient-to-r from-primary/[0.08] to-transparent px-4 py-2.5">
         <h3 className="text-[15px] font-bold tracking-tight text-foreground">
           Récapitulatif des prises en charge
         </h3>
@@ -169,92 +255,33 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm [&_td:not(:first-child)]:border-border [&_th:not(:first-child)]:border-border [&_td:not(:first-child)]:border-l [&_th:not(:first-child)]:border-l">
+        <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b-2 border-border bg-muted text-[11px] font-bold uppercase tracking-wide text-foreground">
+            <tr className="border-b-2 border-border dark:border-foreground/30 bg-muted text-[11px] font-bold uppercase tracking-wide text-foreground">
               <th className="w-full px-4 py-2.5 text-left">Arrêt / Usager</th>
-              <th className="w-[130px] px-3 py-2.5 text-center">
-                <span className="inline-flex items-center gap-1.5 text-primary">
-                  <span className="flex size-5 items-center justify-center rounded-md bg-primary/10">
-                    <ArrowRight className="size-3.5" />
-                  </span>
-                  Aller
-                </span>
-                {allerTrajet?.departureTime && (
-                  <span className="block font-medium normal-case text-muted-foreground">
-                    départ {allerTrajet.departureTime}
-                  </span>
-                )}
+              <th className="w-[150px] border-l border-border dark:border-foreground/30 px-3 py-2.5 text-center">
+                <DirectionHeaderCell
+                  trajet={allerTrajet}
+                  direction="aller"
+                  backParam={backParam}
+                />
               </th>
-              <th className="w-[130px] px-3 py-2.5 text-center">
-                <span className="inline-flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
-                  <span className="flex size-5 items-center justify-center rounded-md bg-indigo-500/10">
-                    <ArrowLeft className="size-3.5" />
-                  </span>
-                  Retour
-                </span>
-                {retourTrajet?.departureTime && (
-                  <span className="block font-medium normal-case text-muted-foreground">
-                    départ {retourTrajet.departureTime}
-                  </span>
-                )}
+              <th className="w-[150px] border-l border-border dark:border-foreground/30 px-3 py-2.5 text-center">
+                <DirectionHeaderCell
+                  trajet={retourTrajet}
+                  direction="retour"
+                  backParam={backParam}
+                />
               </th>
-              <th className="px-4 py-2.5 text-right">Jours de PEC</th>
+              <th className="border-l border-border dark:border-foreground/30 px-4 py-2.5 text-right">
+                Jours de PEC
+              </th>
             </tr>
           </thead>
 
           <tbody>
-            {/* Établissement (destination) */}
-            <tr className="border-b border-border bg-primary/[0.06]">
-              <td className="border-l-[3px] border-l-primary px-4 py-3">
-                <div className="flex items-start gap-2.5">
-                  <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-                    <School className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-foreground">
-                      {etabId ? (
-                        <span className="group/etab inline-flex items-center gap-1.5 align-middle">
-                          <Link
-                            href={`/etablissements/${etabId}`}
-                            className="transition-colors hover:text-primary"
-                          >
-                            {etabName}
-                          </Link>
-                          <Link
-                            href={`/etablissements/${etabId}`}
-                            target="_blank"
-                            className="text-muted-foreground opacity-0 transition-opacity hover:!opacity-100 hover:text-primary group-hover/etab:opacity-70"
-                          >
-                            <ExternalLink className="size-3.5" />
-                          </Link>
-                        </span>
-                      ) : (
-                        etabName
-                      )}
-                      <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                        destination
-                      </span>
-                    </p>
-                    {etabAddress && (
-                      <p className="text-xs text-muted-foreground">
-                        {etabAddress}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </td>
-              <td className="px-3 py-3 text-center">
-                <TimeChip time={allerEtab?.arrivalTime} direction="aller" />
-              </td>
-              <td className="px-3 py-3 text-center">
-                <TimeChip time={retourEtab?.arrivalTime} direction="retour" />
-              </td>
-              <td className="px-4 py-3" />
-            </tr>
-
-            {/* Usagers */}
-            {usagers.length === 0 ? (
+            {/* Usagers d'abord (ordre de ramassage) — établissement en fin */}
+            {sortedUsagers.length === 0 ? (
               <tr>
                 <td
                   colSpan={4}
@@ -264,7 +291,7 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
                 </td>
               </tr>
             ) : (
-              usagers.map((u, i) => {
+              sortedUsagers.map((u, i) => {
                 const responsible = [
                   u.addressCivility,
                   u.responsibleFirstName,
@@ -295,7 +322,7 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
                   <tr
                     key={u.id}
                     className={cn(
-                      "border-b border-border align-middle last:border-b-0",
+                      "border-b border-border dark:border-foreground/30 align-middle",
                       i % 2 === 1 && "bg-muted/20",
                     )}
                   >
@@ -362,13 +389,13 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-center align-middle">
+                    <td className="border-l border-border dark:border-foreground/30 px-3 py-3 text-center align-middle">
                       <TimeChip time={allerTime} direction="aller" />
                     </td>
-                    <td className="px-3 py-3 text-center align-middle">
+                    <td className="border-l border-border dark:border-foreground/30 px-3 py-3 text-center align-middle">
                       <TimeChip time={retourTime} direction="retour" />
                     </td>
-                    <td className="px-4 py-3 align-top">
+                    <td className="border-l border-border dark:border-foreground/30 px-4 py-3 align-top">
                       {!hasAllerDays && !hasRetourDays ? (
                         <div className="text-right text-sm text-muted-foreground/50">
                           —
@@ -402,63 +429,125 @@ export function CircuitRecap({ circuitId }: CircuitRecapProps) {
                 );
               })
             )}
+
+            {/* Établissement (destination) — fin de tournée à l'aller */}
+            <tr className="bg-primary/[0.06]">
+              <td className="border-l-[3px] border-l-primary px-4 py-3">
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
+                    <School className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      {etabId ? (
+                        <span className="group/etab inline-flex items-center gap-1.5 align-middle">
+                          <Link
+                            href={`/etablissements/${etabId}`}
+                            className="transition-colors hover:text-primary"
+                          >
+                            {etabName}
+                          </Link>
+                          <Link
+                            href={`/etablissements/${etabId}`}
+                            target="_blank"
+                            className="text-muted-foreground opacity-0 transition-opacity hover:!opacity-100 hover:text-primary group-hover/etab:opacity-70"
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </Link>
+                        </span>
+                      ) : (
+                        etabName
+                      )}
+                      <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        destination
+                      </span>
+                    </p>
+                    {etabAddress && (
+                      <p className="text-xs text-muted-foreground">
+                        {etabAddress}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </td>
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-3 text-center">
+                <TimeChip time={allerEtab?.arrivalTime} direction="aller" />
+              </td>
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-3 text-center">
+                <TimeChip time={retourEtab?.arrivalTime} direction="retour" />
+              </td>
+              <td className="border-l border-border dark:border-foreground/30 px-4 py-3" />
+            </tr>
           </tbody>
 
           {/* Totaux */}
-          <tfoot className="border-t-2 border-border bg-muted/50 text-sm">
-            <tr className="border-b border-border/60">
+          <tfoot className="border-t-2 border-border dark:border-foreground/30 bg-muted/50 text-sm">
+            <tr className="border-b border-border dark:border-foreground/30">
               <td className="px-4 py-2 text-right font-medium text-muted-foreground">
                 Kilomètre en charge
+              </td>
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-2 text-center font-bold tabular-nums">
+                {formatKm(allerTrajet?.totalDistanceKm)}
+              </td>
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-2 text-center font-bold tabular-nums">
+                {formatKm(retourTrajet?.totalDistanceKm)}
+              </td>
+              <td className="border-l border-border dark:border-foreground/30 px-4 py-2 text-right">
                 {hasKm && (
-                  <span className="ml-2 rounded bg-primary/[0.12] px-1.5 py-0.5 text-xs font-bold text-primary">
-                    total {formatKm(totalKm)}
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Total km en charge :{" "}
+                    <span className="font-bold text-foreground">
+                      {formatKm(totalKm)}
+                    </span>
                   </span>
                 )}
               </td>
-              <td className="px-3 py-2 text-center font-bold tabular-nums">
-                {formatKm(allerTrajet?.totalDistanceKm)}
-              </td>
-              <td className="px-3 py-2 text-center font-bold tabular-nums">
-                {formatKm(retourTrajet?.totalDistanceKm)}
-              </td>
-              <td />
             </tr>
-            <tr className="border-b border-border/60">
+            <tr className="border-b border-border dark:border-foreground/30">
               <td className="px-4 py-2 text-right font-medium text-muted-foreground">
                 Temps en charge
               </td>
-              <td className="px-3 py-2 text-center font-bold tabular-nums">
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-2 text-center font-bold tabular-nums">
                 {formatDuration(allerTrajet?.totalDurationSeconds)}
               </td>
-              <td className="px-3 py-2 text-center font-bold tabular-nums">
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-2 text-center font-bold tabular-nums">
                 {formatDuration(retourTrajet?.totalDurationSeconds)}
               </td>
-              <td />
+              <td className="border-l border-border dark:border-foreground/30 px-4 py-2 text-right">
+                {hasDuration && (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Total temps en charge :{" "}
+                    <span className="font-bold text-foreground">
+                      {formatDuration(totalDurationSeconds)}
+                    </span>
+                  </span>
+                )}
+              </td>
             </tr>
             <tr>
               <td className="px-4 py-2 text-right font-medium text-muted-foreground">
                 Usagers transportés
               </td>
-              <td className="px-3 py-2 text-center font-bold tabular-nums">
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-2 text-center font-bold tabular-nums">
                 {allerTrajet?.activeCount ?? 0}
               </td>
-              <td className="px-3 py-2 text-center font-bold tabular-nums">
+              <td className="border-l border-border dark:border-foreground/30 px-3 py-2 text-center font-bold tabular-nums">
                 {retourTrajet?.activeCount ?? 0}
               </td>
-              <td />
+              <td className="border-l border-border dark:border-foreground/30" />
             </tr>
           </tfoot>
         </table>
       </div>
 
       {!hasKm && (
-        <div className="border-t border-border bg-amber-500/[0.08] px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+        <div className="border-t border-border dark:border-foreground/30 bg-amber-500/[0.08] px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-300">
           Itinéraire non finalisé — distances et horaires de prise en charge non
           encore calculés pour ce circuit.
         </div>
       )}
 
-      <div className="border-t border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+      <div className="border-t border-border dark:border-foreground/30 bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
         Horaires donnés à titre indicatif · susceptibles de légères variations.
       </div>
     </div>

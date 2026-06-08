@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { UseFormReturn } from "react-hook-form";
 import {
   USAGER_STATUSES,
@@ -31,7 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User, GraduationCap, Bus, MessageSquareText, Route } from "lucide-react";
+import {
+  User,
+  GraduationCap,
+  Bus,
+  MessageSquareText,
+  Route,
+  ExternalLink,
+} from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -77,6 +85,34 @@ function SectionHeader({
         {children}
       </h2>
     </div>
+  );
+}
+
+/** Bouton « ouvrir la fiche établissement » (nouvel onglet), à droite d'un
+ *  sélecteur. Masqué si aucun établissement n'est choisi. */
+function EtabLinkButton({
+  etablissementId,
+}: {
+  etablissementId: string | null | undefined;
+}) {
+  if (!etablissementId) return null;
+  return (
+    <Button
+      type="button"
+      asChild
+      variant="outline"
+      size="icon"
+      className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+      title="Ouvrir la fiche de l'établissement"
+    >
+      <Link
+        href={`/etablissements/${etablissementId}`}
+        target="_blank"
+        aria-label="Ouvrir la fiche de l'établissement"
+      >
+        <ExternalLink className="size-4" />
+      </Link>
+    </Button>
   );
 }
 
@@ -250,38 +286,41 @@ export function UsagerFormFields({
                       </FormLabel>
                       {locked && <FieldLock href={avenantHref!} />}
                     </div>
-                    <Select
-                      onValueChange={(val) => {
-                        field.onChange(val);
-                        // Reset classe quand on change d'établissement
-                        const newEtab = etablissements?.find((e) => e.id === val);
-                        const newType = newEtab?.type as keyof typeof CLASSES_BY_TYPE | undefined;
-                        const currentClasse = form.getValues("classe");
-                        if (newType && currentClasse) {
-                          const validClasses = CLASSES_BY_TYPE[newType]?.map((c) => c.value) ?? [];
-                          if (!validClasses.includes(currentClasse)) {
-                            form.setValue("classe", "");
+                    <div className="flex items-center gap-2">
+                      <Select
+                        onValueChange={(val) => {
+                          field.onChange(val);
+                          // Reset classe quand on change d'établissement
+                          const newEtab = etablissements?.find((e) => e.id === val);
+                          const newType = newEtab?.type as keyof typeof CLASSES_BY_TYPE | undefined;
+                          const currentClasse = form.getValues("classe");
+                          if (newType && currentClasse) {
+                            const validClasses = CLASSES_BY_TYPE[newType]?.map((c) => c.value) ?? [];
+                            if (!validClasses.includes(currentClasse)) {
+                              form.setValue("classe", "");
+                            }
                           }
-                        }
-                      }}
-                      value={field.value ?? ""}
-                      disabled={locked}
-                    >
-                      <FormControl>
-                        <SelectTrigger
-                          className={`w-full ${locked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
-                        >
-                          <SelectValue placeholder="Sélectionner" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {etablissements?.map((e) => (
-                          <SelectItem key={e.id} value={e.id} className="cursor-pointer">
-                            {e.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        }}
+                        value={field.value ?? ""}
+                        disabled={locked}
+                      >
+                        <FormControl>
+                          <SelectTrigger
+                            className={`w-full ${locked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                          >
+                            <SelectValue placeholder="Sélectionner" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {etablissements?.map((e) => (
+                            <SelectItem key={e.id} value={e.id} className="cursor-pointer">
+                              {e.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <EtabLinkButton etablissementId={field.value} />
+                    </div>
                     <FormMessage />
                   </FormItem>
                 );
@@ -293,20 +332,23 @@ export function UsagerFormFields({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Établissement secondaire</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                    <FormControl>
-                      <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="Aucun" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {etablissements?.map((e) => (
-                        <SelectItem key={e.id} value={e.id} className="cursor-pointer">
-                          {e.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Aucun" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {etablissements?.map((e) => (
+                          <SelectItem key={e.id} value={e.id} className="cursor-pointer">
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <EtabLinkButton etablissementId={field.value} />
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

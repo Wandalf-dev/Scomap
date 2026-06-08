@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, isNull, desc, inArray, sql } from "drizzle-orm";
+import { eq, and, or, isNull, desc, inArray, sql } from "drizzle-orm";
 import {
   avenants,
   avenantChanges,
@@ -22,6 +22,7 @@ import {
 import {
   syncTrajetForDirection,
   endUsagerArretsAt,
+  revertAvenantVersioning,
   type TrajetSyncCtx,
 } from "../services/trajet-sync";
 
@@ -44,7 +45,9 @@ async function capturePrevious(
         secondaryEtablissementId: usagers.secondaryEtablissementId,
       })
       .from(usagers)
-      .where(eq(usagers.id, change.usagerId))
+      .where(
+        and(eq(usagers.id, change.usagerId), eq(usagers.tenantId, ctx.tenantId)),
+      )
       .limit(1);
     const u = rows[0];
     if (!u) return null;
@@ -65,7 +68,9 @@ async function capturePrevious(
     const rows = await ctx.db
       .select({ transportType: usagers.transportType })
       .from(usagers)
-      .where(eq(usagers.id, change.usagerId))
+      .where(
+        and(eq(usagers.id, change.usagerId), eq(usagers.tenantId, ctx.tenantId)),
+      )
       .limit(1);
     const t = rows[0]?.transportType ?? null;
     return {
@@ -87,7 +92,12 @@ async function capturePrevious(
     })
     .from(usagerCircuits)
     .innerJoin(circuits, eq(usagerCircuits.circuitId, circuits.id))
-    .where(eq(usagerCircuits.id, change.usagerCircuitId))
+    .where(
+      and(
+        eq(usagerCircuits.id, change.usagerCircuitId),
+        eq(usagerCircuits.tenantId, ctx.tenantId),
+      ),
+    )
     .limit(1);
   const uc = ucRows[0];
   if (!uc) return null;
@@ -164,7 +174,12 @@ async function buildNewValue(
     const c = await ctx.db
       .select({ name: circuits.name })
       .from(circuits)
-      .where(eq(circuits.id, change.circuitId))
+      .where(
+        and(
+          eq(circuits.id, change.circuitId),
+          eq(circuits.tenantId, ctx.tenantId),
+        ),
+      )
       .limit(1);
     return {
       circuitId: change.circuitId,
@@ -177,7 +192,12 @@ async function buildNewValue(
     const uc = await ctx.db
       .select({ circuitId: usagerCircuits.circuitId })
       .from(usagerCircuits)
-      .where(eq(usagerCircuits.id, change.usagerCircuitId))
+      .where(
+        and(
+          eq(usagerCircuits.id, change.usagerCircuitId),
+          eq(usagerCircuits.tenantId, ctx.tenantId),
+        ),
+      )
       .limit(1);
     return {
       circuitId: uc[0]?.circuitId ?? "",
@@ -257,7 +277,12 @@ async function applyChange(
         await ctx.db
           .update(usagerCircuits)
           .set({ validTo: endOld, updatedAt: new Date() })
-          .where(eq(usagerCircuits.id, uc.id));
+          .where(
+            and(
+              eq(usagerCircuits.id, uc.id),
+              eq(usagerCircuits.tenantId, ctx.tenantId),
+            ),
+          );
         // Borne les arrêts de l'usager sur ce circuit à J-1.
         if (uc.usagerAddressId) {
           await endUsagerArretsAt(ctx, uc.circuitId, uc.usagerAddressId, endOld);
@@ -271,7 +296,12 @@ async function applyChange(
   const ucRows = await ctx.db
     .select()
     .from(usagerCircuits)
-    .where(eq(usagerCircuits.id, change.usagerCircuitId))
+    .where(
+      and(
+        eq(usagerCircuits.id, change.usagerCircuitId),
+        eq(usagerCircuits.tenantId, ctx.tenantId),
+      ),
+    )
     .limit(1);
   const old = ucRows[0];
   // On ne version que depuis une version OUVERTE et non supprimée.
@@ -317,7 +347,12 @@ async function applyChange(
   await ctx.db
     .update(usagerCircuits)
     .set({ validTo: endOld, updatedAt: new Date() })
-    .where(eq(usagerCircuits.id, old.id));
+    .where(
+      and(
+        eq(usagerCircuits.id, old.id),
+        eq(usagerCircuits.tenantId, ctx.tenantId),
+      ),
+    );
 
   // 2. Ouvre la nouvelle version à partir de la date d'effet.
   await ctx.db.insert(usagerCircuits).values({
@@ -345,6 +380,7 @@ async function applyChange(
       { daysAller, daysRetour },
       newAddressId,
       effectiveDate,
+      change.avenantId,
     );
   }
 }
@@ -357,10 +393,18 @@ async function resolveEtabNames(
   const valid = ids.filter((id): id is string => !!id);
   const map = new Map<string, string>();
   if (valid.length === 0) return map;
+  // Filtre tenant + inArray : ne lit que les établissements du tenant ciblés
+  // (corrige une fuite cross-tenant ET un scan de table complet).
   const rows = await ctx.db
     .select({ id: etablissements.id, name: etablissements.name })
-    .from(etablissements);
-  for (const r of rows) if (valid.includes(r.id)) map.set(r.id, r.name);
+    .from(etablissements)
+    .where(
+      and(
+        eq(etablissements.tenantId, ctx.tenantId),
+        inArray(etablissements.id, valid),
+      ),
+    );
+  for (const r of rows) map.set(r.id, r.name);
   return map;
 }
 
@@ -375,7 +419,12 @@ async function readAddress(ctx: Ctx, addressId: string) {
       type: usagerAddresses.type,
     })
     .from(usagerAddresses)
-    .where(eq(usagerAddresses.id, addressId))
+    .where(
+      and(
+        eq(usagerAddresses.id, addressId),
+        eq(usagerAddresses.tenantId, ctx.tenantId),
+      ),
+    )
     .limit(1);
   return rows[0] ?? null;
 }
@@ -391,7 +440,12 @@ async function readAddressDays(
       daysRetour: usagerAddresses.daysRetour,
     })
     .from(usagerAddresses)
-    .where(eq(usagerAddresses.id, addressId))
+    .where(
+      and(
+        eq(usagerAddresses.id, addressId),
+        eq(usagerAddresses.tenantId, ctx.tenantId),
+      ),
+    )
     .limit(1);
   return {
     daysAller: normalizeDays(rows[0]?.daysAller),
@@ -405,12 +459,13 @@ async function syncTrajets(
   days: { daysAller: DayEntry[]; daysRetour: DayEntry[] },
   usagerAddressId: string,
   validFrom: string | null = null,
+  createdByAvenantId: string | null = null,
 ) {
   if (days.daysAller.length > 0) {
-    await syncTrajetForDirection(ctx, circuitId, "aller", days.daysAller, usagerAddressId, validFrom);
+    await syncTrajetForDirection(ctx, circuitId, "aller", days.daysAller, usagerAddressId, validFrom, createdByAvenantId);
   }
   if (days.daysRetour.length > 0) {
-    await syncTrajetForDirection(ctx, circuitId, "retour", days.daysRetour, usagerAddressId, validFrom);
+    await syncTrajetForDirection(ctx, circuitId, "retour", days.daysRetour, usagerAddressId, validFrom, createdByAvenantId);
   }
 }
 
@@ -444,6 +499,32 @@ export const avenantsRouter = createTRPCRouter({
   listByUsager: tenantProcedure
     .input(z.object({ usagerId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      // Circuits sur lesquels l'usager est affecté (versions ouvertes).
+      const circuitRows = await ctx.db
+        .select({ circuitId: usagerCircuits.circuitId })
+        .from(usagerCircuits)
+        .where(
+          and(
+            eq(usagerCircuits.usagerId, input.usagerId),
+            eq(usagerCircuits.tenantId, ctx.tenantId),
+            isNull(usagerCircuits.validTo),
+            isNull(usagerCircuits.deletedAt),
+          ),
+        );
+      const circuitIds = [...new Set(circuitRows.map((r) => r.circuitId))];
+
+      // Visibles pour cet usager : SES propres changements OU tout avenant portant
+      // sur un circuit auquel il est affecté (même si le sujet est un AUTRE usager
+      // du circuit — important pour voir l'historique partagé du circuit). On joint
+      // les usagers pour afficher de qui est chaque changement.
+      const visibleFilter =
+        circuitIds.length > 0
+          ? or(
+              eq(avenantChanges.usagerId, input.usagerId),
+              inArray(avenants.circuitId, circuitIds),
+            )
+          : eq(avenantChanges.usagerId, input.usagerId);
+
       const rows = await ctx.db
         .select({
           changeId: avenantChanges.id,
@@ -451,10 +532,16 @@ export const avenantsRouter = createTRPCRouter({
           previousValue: avenantChanges.previousValue,
           newValue: avenantChanges.newValue,
           usagerCircuitId: avenantChanges.usagerCircuitId,
+          usagerId: avenantChanges.usagerId,
+          usagerFirstName: usagers.firstName,
+          usagerLastName: usagers.lastName,
           avenantId: avenants.id,
           displayId: avenants.displayId,
           circuitSequence: avenants.circuitSequence,
           circuitId: avenants.circuitId,
+          circuitCode: circuits.code,
+          circuitName: circuits.name,
+          circuitStartDate: circuits.startDate,
           effectiveDate: avenants.effectiveDate,
           endDate: avenants.endDate,
           reason: avenants.reason,
@@ -464,11 +551,13 @@ export const avenantsRouter = createTRPCRouter({
         })
         .from(avenantChanges)
         .innerJoin(avenants, eq(avenantChanges.avenantId, avenants.id))
+        .innerJoin(usagers, eq(avenantChanges.usagerId, usagers.id))
+        .leftJoin(circuits, eq(avenants.circuitId, circuits.id))
         .where(
           and(
-            eq(avenantChanges.usagerId, input.usagerId),
-            eq(avenantChanges.tenantId, ctx.tenantId),
+            eq(avenants.tenantId, ctx.tenantId),
             isNull(avenants.deletedAt),
+            visibleFilter,
           ),
         )
         .orderBy(desc(avenants.effectiveDate), desc(avenants.createdAt));
@@ -672,13 +761,22 @@ export const avenantsRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const header = await assertAvenantOwned(ctx, input.id);
-      // Soft delete : l'avenant est retiré de l'historique actif. La réversion
-      // automatique des versions datées n'est pas faite (créer un avenant
-      // inverse pour revenir en arrière).
+      // Soft delete de l'avenant.
       await ctx.db
         .update(avenants)
         .set({ status: "annule", deletedAt: new Date(), updatedAt: new Date() })
         .where(eq(avenants.id, input.id));
+      // Annule le versioning de trajets que cet avenant avait produit : supprime
+      // les trajets qu'il a créés et rouvre ceux qu'il avait clôturés (sinon des
+      // trajets « fantômes » datés restent sur le circuit après suppression).
+      if (header.circuitId) {
+        await revertAvenantVersioning(
+          ctx,
+          header.circuitId,
+          header.effectiveDate,
+          input.id,
+        );
+      }
       return { ...header, status: "annule" };
     }),
 });

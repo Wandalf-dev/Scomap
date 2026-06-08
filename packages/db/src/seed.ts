@@ -240,9 +240,9 @@ async function main() {
     const etab = pick(etabRows);
     await db.insert(circuits).values({
       tenantId,
+      displayId: i + 1,
       etablissementId: etab.id,
       name: circuitNames[i]!,
-      isActive: true,
       operatingDays: [1, 2, 3, 4, 5],
       startDate: TRANSPORT_START,
       endDate: TRANSPORT_END,

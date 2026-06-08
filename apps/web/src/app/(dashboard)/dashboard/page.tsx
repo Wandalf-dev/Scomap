@@ -18,7 +18,7 @@ export default async function DashboardPage() {
       caller.trajets.listOccurrences({ fromDate: today, toDate: today }),
     ]);
 
-  const circuitsActifs = circuits.filter((c) => c.isActive).length;
+  const circuitsActifs = circuits.filter((c) => !c.archivedAt).length;
 
   return (
     <>

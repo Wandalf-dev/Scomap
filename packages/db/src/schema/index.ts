@@ -13,3 +13,4 @@ export * from "./avenants";
 export * from "./tenant-settings";
 export * from "./tenant-provider-keys";
 export * from "./tenant-counters";
+export * from "./preparation-campaigns";

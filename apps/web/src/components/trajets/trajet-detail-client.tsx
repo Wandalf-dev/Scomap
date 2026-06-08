@@ -69,7 +69,8 @@ export function TrajetDetailClient({
   );
 
   const { data: arretsList } = useQuery(
-    trpc.arrets.list.queryOptions({ trajetId: id }),
+    // Composition complète du trajet (y compris arrêts à venir d'un avenant).
+    trpc.arrets.list.queryOptions({ trajetId: id, all: true }),
   );
 
   // Fond de carte configuré par le tenant (réglages > Paramètres).

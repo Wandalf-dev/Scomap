@@ -46,6 +46,7 @@ import {
   CalendarDays,
   SquarePlus,
   AlertTriangle,
+  CalendarRange,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ADDRESS_TYPE_LABELS } from "@/lib/validators/usager-address";
@@ -53,7 +54,8 @@ import {
   isCircuitCompatibleTransport,
   USAGER_TRANSPORT_TYPE_LABELS,
 } from "@/lib/validators/usager";
-import { getDayNumbers } from "@/lib/types/day-entry";
+import { DayBadges } from "@/components/shared/day-badges";
+import { dateRangesOverlap } from "@/lib/utils/date-helpers";
 
 // --- Schemas (réutilisés tels quels depuis l'ancienne modal) ---
 
@@ -83,6 +85,9 @@ interface CircuitListItem {
   name: string;
   etablissementName: string | null;
   etablissementCity: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  usagerCount: number;
 }
 
 interface CircuitSuggestionReason {
@@ -200,6 +205,10 @@ function CircuitRow({
   const subline = [circuit.etablissementName, circuit.etablissementCity]
     .filter(Boolean)
     .join(" · ");
+  const periode =
+    circuit.startDate || circuit.endDate
+      ? formatCircuitPeriode(circuit.startDate, circuit.endDate)
+      : null;
   return (
     <button
       type="button"
@@ -232,6 +241,19 @@ function CircuitRow({
             {subline}
           </span>
         )}
+        {/* Infos pratiques : période de validité + nombre d'usagers affectés. */}
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground">
+          {periode && (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <CalendarRange className="size-3 shrink-0" />
+              {periode}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1">
+            <Users className="size-3 shrink-0" />
+            {circuit.usagerCount} usager{circuit.usagerCount > 1 ? "s" : ""}
+          </span>
+        </span>
         {suggestion && suggestion.reasons.length > 0 && (
           <span className="mt-2 flex flex-wrap gap-1.5">
             {suggestion.reasons.map((r, i) => (
@@ -432,6 +454,24 @@ function PreviewStat({
   );
 }
 
+// "YYYY-MM-DD" → "JJ/MM/AAAA".
+function formatDate(d: string | null | undefined): string {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}
+
+// Libellé de la période de validité d'un circuit selon les dates disponibles.
+function formatCircuitPeriode(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string {
+  if (start && end) return `Du ${formatDate(start)} au ${formatDate(end)}`;
+  if (start) return `À partir du ${formatDate(start)}`;
+  if (end) return `Jusqu'au ${formatDate(end)}`;
+  return "Période non définie";
+}
+
 function CircuitPreviewPanel({
   circuit,
   suggestion,
@@ -445,9 +485,20 @@ function CircuitPreviewPanel({
   const circuitId = circuit?.id ?? null;
   const enabled = !isNew && !!circuitId;
 
+  // Dates de validité du circuit (début / fin de transport) pour l'aperçu.
+  const { data: circuitInfo } = useQuery({
+    ...trpc.circuits.getById.queryOptions({ id: circuitId ?? "" }),
+    enabled,
+  });
+
+  // Aperçu = reflet de l'état courant du circuit (trajets/arrêts changent dès
+  // qu'un usager est associé). On force le refetch au montage : sinon le
+  // staleTime global (30s) sert un cache périmé en navigation client → panneau
+  // vide tant qu'on n'a pas rechargé la page.
   const { data: circuitTrajets } = useQuery({
     ...trpc.trajets.listByCircuit.queryOptions({ circuitId: circuitId ?? "" }),
     enabled,
+    refetchOnMount: "always",
   });
   const trajet = circuitTrajets?.[0] ?? null;
   const trajetId = trajet?.id ?? null;
@@ -455,10 +506,12 @@ function CircuitPreviewPanel({
   const { data: trajetDetail } = useQuery({
     ...trpc.trajets.getById.queryOptions({ id: trajetId ?? "" }),
     enabled: enabled && !!trajetId,
+    refetchOnMount: "always",
   });
   const { data: arretsList } = useQuery({
     ...trpc.arrets.list.queryOptions({ trajetId: trajetId ?? "" }),
     enabled: enabled && !!trajetId,
+    refetchOnMount: "always",
   });
   const { data: basemap } = useQuery({
     ...trpc.basemap.getStyle.queryOptions(),
@@ -517,6 +570,17 @@ function CircuitPreviewPanel({
                     .join(" · ")}
                 </p>
               )}
+              {circuitInfo && (
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CalendarRange className="size-3.5 shrink-0" />
+                  <span className="tabular-nums">
+                    {formatCircuitPeriode(
+                      circuitInfo.startDate,
+                      circuitInfo.endDate,
+                    )}
+                  </span>
+                </p>
+              )}
             </div>
 
             {suggestion && suggestion.reasons.length > 0 && (
@@ -528,22 +592,31 @@ function CircuitPreviewPanel({
             )}
 
             {!isNew && trajet && arretsList && (
-              <div className="grid grid-cols-3 gap-2">
-                <PreviewStat
-                  icon={MapPin}
-                  value={String(arretsList.length)}
-                  label={arretsList.length > 1 ? "arrêts" : "arrêt"}
-                />
-                <PreviewStat
-                  icon={Users}
-                  value={String(trajet.totalUsager)}
-                  label={trajet.totalUsager > 1 ? "usagers" : "usager"}
-                />
-                <PreviewStat
-                  icon={CalendarDays}
-                  value={String(getDayNumbers(days).length)}
-                  label="jours"
-                />
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <PreviewStat
+                    icon={MapPin}
+                    value={String(arretsList.length)}
+                    label={arretsList.length > 1 ? "arrêts" : "arrêt"}
+                  />
+                  <PreviewStat
+                    icon={Users}
+                    value={String(trajet.totalUsager)}
+                    label={trajet.totalUsager > 1 ? "usagers" : "usager"}
+                  />
+                </div>
+                {/* Jours de circulation : on montre concrètement les jours
+                    (LU MA…) plutôt qu'un total ambigu. Dérivés des jours de PEC
+                    des usagers du circuit. */}
+                {days.length > 0 && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <CalendarDays className="size-3.5" />
+                      Jours de circulation
+                    </p>
+                    <DayBadges days={days} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -607,6 +680,27 @@ function getAddressTypeLabel(type: string | null): string {
   return ADDRESS_TYPE_LABELS[type as keyof typeof ADDRESS_TYPE_LABELS] ?? type;
 }
 
+/**
+ * Badge de rang d'adresse : position 1 = « Principale » (mise en avant), les
+ * suivantes « Adresse 2/3/4 ». Convention position=1 ⇒ principale, identique au
+ * reste de l'app (onglet Adresses, calcul de distance domicile↔école).
+ */
+function AddressRankBadge({ position }: { position: number }) {
+  const isPrimary = position === 1;
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+        isPrimary
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-border bg-background text-muted-foreground",
+      )}
+    >
+      {isPrimary ? "Principale" : `Adresse ${position}`}
+    </span>
+  );
+}
+
 function AddressCards({
   control,
   addresses,
@@ -663,6 +757,7 @@ function AddressCards({
                           <span className="text-sm font-medium text-foreground">
                             {label}
                           </span>
+                          <AddressRankBadge position={addr.position} />
                           <span className="rounded-full border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                             Déjà sur un circuit
                           </span>
@@ -715,11 +810,14 @@ function AddressCards({
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-foreground">
-                        {label}
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          {label}
+                        </span>
+                        <AddressRankBadge position={addr.position} />
                       </span>
                       {full && (
-                        <span className="block truncate text-xs text-muted-foreground">
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                           {full}
                         </span>
                       )}
@@ -870,11 +968,25 @@ export function AssocierCircuitClient({
   const linkedIds = new Set(linkedCircuits?.map((lc) => lc.circuitId) ?? []);
   const availableCircuits: CircuitListItem[] = (allCircuits ?? [])
     .filter((c) => !linkedIds.has(c.id))
+    // On ne propose que les circuits dont la période de validité chevauche
+    // la période de transport de l'usager : un circuit terminé avant le début
+    // de transport (ou commençant après sa fin) n'a aucun sens pour cet usager.
+    .filter((c) =>
+      dateRangesOverlap(
+        usager?.transportStartDate,
+        usager?.transportEndDate,
+        c.startDate,
+        c.endDate,
+      ),
+    )
     .map((c) => ({
       id: c.id,
       name: c.name,
       etablissementName: c.etablissementName,
       etablissementCity: c.etablissementCity,
+      startDate: c.startDate,
+      endDate: c.endDate,
+      usagerCount: c.usagerCount,
     }));
 
   // Adresses déjà affectées à un circuit actif : non sélectionnables ici
@@ -905,6 +1017,30 @@ export function AssocierCircuitClient({
       queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
     });
     queryClient.invalidateQueries({ queryKey: trpc.circuits.list.queryKey() });
+    // Associer/dissocier change usagerCount du circuit → rafraîchit la fiche
+    // circuit (verrou des dates) sans cibler un id précis.
+    queryClient.invalidateQueries({
+      queryKey: trpc.circuits.getById.queryKey(),
+    });
+    // L'association crée/complète des trajets + arrêts (syncTrajetForDirection) :
+    // on invalide pour que l'aperçu et les vues circuit reflètent le nouvel état.
+    queryClient.invalidateQueries({
+      queryKey: trpc.trajets.listByCircuit.queryKey(),
+    });
+    queryClient.invalidateQueries({ queryKey: trpc.arrets.list.queryKey() });
+    // Liste des usagers du circuit (onglet Usagers de la fiche circuit).
+    queryClient.invalidateQueries({
+      queryKey: trpc.usagerCircuits.listByCircuit.queryKey(),
+    });
+    // Rejoindre un circuit déjà démarré crée un avenant automatique « ajout » :
+    // on rafraîchit les timelines d'avenants. listByUsager sans argument = tous
+    // les usagers (l'avenant devient visible chez les AUTRES usagers du circuit).
+    queryClient.invalidateQueries({
+      queryKey: trpc.avenants.listByUsager.queryKey(),
+    });
+    queryClient.invalidateQueries({
+      queryKey: trpc.avenants.listByCircuit.queryKey(),
+    });
   };
 
   const createMutation = useMutation(
@@ -914,7 +1050,8 @@ export function AssocierCircuitClient({
         toast.success("Circuit associé");
         backToTab();
       },
-      onError: () => toast.error("Erreur lors de l'association"),
+      onError: (err) =>
+        toast.error(err.message || "Erreur lors de l'association"),
     }),
   );
   const updateMutation = useMutation(
@@ -924,7 +1061,8 @@ export function AssocierCircuitClient({
         toast.success("Circuit modifié");
         backToTab();
       },
-      onError: () => toast.error("Erreur lors de la modification"),
+      onError: (err) =>
+        toast.error(err.message || "Erreur lors de la modification"),
     }),
   );
   const createCircuitMutation = useMutation(
@@ -1043,6 +1181,23 @@ export function AssocierCircuitClient({
     });
   }
 
+  // Soumission invalide : on amène le premier champ en erreur dans le viewport.
+  // Le bouton « Associer » est sticky en haut, donc l'erreur inline (FormMessage,
+  // déjà en place) peut se trouver hors écran. On ne décale rien et on n'ajoute
+  // aucun élément d'UI ; on s'appuie sur le message rouge existant sous le champ.
+  function scrollToFirstError() {
+    // Double rAF : laisser React monter les <FormMessage> avant de cibler.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const form = document.getElementById(FORM_ID);
+        const message = form?.querySelector('[data-slot="form-message"]');
+        const target =
+          message?.closest('[data-slot="form-item"]') ?? message ?? null;
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }),
+    );
+  }
+
   const useCreateForm = mode === "new" && !isEdit;
 
   const ctaLabel = isPending
@@ -1100,14 +1255,15 @@ export function AssocierCircuitClient({
   if (isEdit && linkedCircuits !== undefined && !editingItem) {
     return (
       <div className="w-full space-y-4">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={backToTab}
-          className="-ml-2 inline-flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="-ml-2 cursor-pointer gap-1.5 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
           Retour à la fiche
-        </button>
+        </Button>
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
           Association introuvable.
         </div>
@@ -1125,23 +1281,51 @@ export function AssocierCircuitClient({
     // `w-full` (sans mx-auto) évite aussi le piège flexbox : mx-auto sur un
     // flex-item du shell annulait le stretch et la largeur sautait selon le contenu.
     <div className="w-full">
-      {/* En-tête */}
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={backToTab}
-          className="-ml-2 inline-flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Retour à la fiche
-        </button>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-          {isEdit ? "Modifier l'association" : "Associer un circuit"}
-        </h1>
-        {subtitle && (
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
-        )}
+      {/* En-tête collant — boutons d'action à droite (façon fiche usager) */}
+      <div className="sticky top-0 z-20 -mx-4 mb-6 flex items-center justify-between gap-4 border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:-mx-6 lg:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={backToTab}
+            className="-ml-2 shrink-0 cursor-pointer gap-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Retour à la fiche
+          </Button>
+          <div className="h-6 w-px shrink-0 bg-border/70" aria-hidden />
+          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight text-foreground">
+            {isEdit ? "Modifier l'association" : "Associer un circuit"}
+          </h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={backToTab}
+            disabled={isPending}
+            className="cursor-pointer"
+          >
+            Annuler
+          </Button>
+          <Button
+            type="submit"
+            form={FORM_ID}
+            size="sm"
+            disabled={
+              isPending || !circuitEligible || (!isEdit && !hasFreeAddress)
+            }
+            className="cursor-pointer"
+          >
+            {ctaLabel}
+          </Button>
+        </div>
       </div>
+
+      {subtitle && (
+        <p className="mb-6 text-sm text-muted-foreground">{subtitle}</p>
+      )}
 
       {!circuitEligible && (
         <div className="mb-6 flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
@@ -1199,7 +1383,7 @@ export function AssocierCircuitClient({
             <Form {...linkForm}>
               <form
                 id={FORM_ID}
-                onSubmit={linkForm.handleSubmit(onSubmitEdit)}
+                onSubmit={linkForm.handleSubmit(onSubmitEdit, scrollToFirstError)}
                 className="space-y-6"
               >
                 <SectionCard icon={Route} title="Circuit">
@@ -1235,7 +1419,7 @@ export function AssocierCircuitClient({
             <Form {...createForm}>
               <form
                 id={FORM_ID}
-                onSubmit={createForm.handleSubmit(onSubmitNew)}
+                onSubmit={createForm.handleSubmit(onSubmitNew, scrollToFirstError)}
                 className="space-y-6"
               >
                 <SectionCard icon={SquarePlus} title="Créer un nouveau circuit">
@@ -1297,7 +1481,7 @@ export function AssocierCircuitClient({
             <Form {...linkForm}>
               <form
                 id={FORM_ID}
-                onSubmit={linkForm.handleSubmit(onSubmitExisting)}
+                onSubmit={linkForm.handleSubmit(onSubmitExisting, scrollToFirstError)}
                 className="space-y-6"
               >
                 <SectionCard icon={Route} title="Choisir le circuit">
@@ -1336,26 +1520,6 @@ export function AssocierCircuitClient({
         </div>
       </div>
 
-      {/* Barre d'action collante */}
-      <div className="sticky bottom-0 z-10 -mx-4 mt-8 flex items-center justify-end gap-2 border-t border-border bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:-mx-6 lg:px-6">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={backToTab}
-          disabled={isPending}
-          className="cursor-pointer"
-        >
-          Annuler
-        </Button>
-        <Button
-          type="submit"
-          form={FORM_ID}
-          disabled={isPending || !circuitEligible || (!isEdit && !hasFreeAddress)}
-          className="cursor-pointer"
-        >
-          {ctaLabel}
-        </Button>
-      </div>
     </div>
   );
 }

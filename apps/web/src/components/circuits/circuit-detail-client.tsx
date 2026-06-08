@@ -1,11 +1,20 @@
 "use client";
 
+import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Archive, ArchiveRestore } from "lucide-react";
+import {
+  ArchiveBoxIcon,
+  type ArchiveBoxIconHandle,
+} from "@/components/ui/archive-box-icon";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
+import { PrepaBanner } from "@/components/preparation/prepa-banner";
+import { CircuitStatusBadge } from "./circuit-status-badge";
 import { TabInformations } from "./tab-informations";
 import { TabTrajets } from "./tab-trajets";
 import { TabUsagers } from "./tab-usagers";
@@ -14,19 +23,31 @@ import { TabAvenantsCircuit } from "./tab-avenants";
 interface CircuitDetailClientProps {
   id: string;
   initialTab?: string;
+  /** Destination du bouton « Retour » (et après suppression). Défaut : liste prod. */
+  backHref?: string;
+  /** Fiche affichée dans le contexte d'une préparation de rentrée. */
+  isPreparation?: boolean;
 }
 
 export function CircuitDetailClient({
   id,
   initialTab,
+  backHref = "/circuits",
+  isPreparation = false,
 }: CircuitDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const archiveIconRef = useRef<ArchiveBoxIconHandle>(null);
 
   const { data: circuit, isLoading } = useQuery(
     trpc.circuits.getById.queryOptions({ id }),
   );
+
+  const { data: campaign } = useQuery({
+    ...trpc.preparation.getCurrentCampaign.queryOptions(),
+    enabled: isPreparation,
+  });
 
   const deleteMutation = useMutation(
     trpc.circuits.delete.mutationOptions({
@@ -35,7 +56,7 @@ export function CircuitDetailClient({
           queryKey: trpc.circuits.list.queryKey(),
         });
         toast.success("Circuit supprime");
-        router.push("/circuits");
+        router.push(backHref);
       },
       onError: () => {
         toast.error("Erreur lors de la suppression");
@@ -43,25 +64,78 @@ export function CircuitDetailClient({
     }),
   );
 
+  const archiveMutation = useMutation(
+    trpc.circuits.setArchived.mutationOptions({
+      onSuccess: (_data, variables) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.circuits.getById.queryKey({ id }),
+        });
+        queryClient.invalidateQueries({
+          queryKey: trpc.circuits.list.queryKey(),
+        });
+        toast.success(variables.archived ? "Circuit archivé" : "Circuit désarchivé");
+      },
+      onError: () => {
+        toast.error("Erreur lors de l'archivage");
+      },
+    }),
+  );
+
+  const isArchived = !!circuit?.archivedAt;
+
   return (
+    <>
+      {isPreparation && (
+        <PrepaBanner
+          fullBleed
+          label={campaign?.label}
+          note="les modifications n'affectent pas le circuit sur l'année en cours"
+        />
+      )}
     <EntityDetailLayout
       isLoading={isLoading}
       entity={circuit}
-      backHref="/circuits"
+      backHref={backHref}
       entityName="Circuit"
       title={circuit?.name ?? ""}
       badges={
         circuit && (
-          <Badge
-            variant={circuit.isActive ? "default" : "secondary"}
-            className={
-              circuit.isActive
-                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                : ""
+          <span className="flex items-center gap-2">
+            <CircuitStatusBadge status={circuit.status} />
+            {isArchived && (
+              <Badge variant="secondary" className="gap-1">
+                <Archive className="size-3" />
+                Archivé
+              </Badge>
+            )}
+          </span>
+        )
+      }
+      headerExtra={
+        circuit && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              archiveMutation.mutate({ id: circuit.id, archived: !isArchived })
             }
+            onMouseEnter={() => archiveIconRef.current?.startAnimation()}
+            onMouseLeave={() => archiveIconRef.current?.stopAnimation()}
+            disabled={archiveMutation.isPending}
+            className="cursor-pointer gap-1.5 text-muted-foreground hover:text-foreground"
           >
-            {circuit.isActive ? "Actif" : "Inactif"}
-          </Badge>
+            {isArchived ? (
+              <>
+                <ArchiveRestore className="size-4" />
+                Désarchiver
+              </>
+            ) : (
+              <>
+                <ArchiveBoxIcon ref={archiveIconRef} size={16} />
+                Archiver
+              </>
+            )}
+          </Button>
         )
       }
       onDelete={() => circuit && deleteMutation.mutate({ id: circuit.id })}
@@ -92,5 +166,6 @@ export function CircuitDetailClient({
         },
       ]}
     />
+    </>
   );
 }

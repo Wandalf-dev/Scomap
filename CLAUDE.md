@@ -12,295 +12,135 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Scomap is a French B2B SaaS for school transport management. It manages students, schools, routes, schedules, drivers, vehicles, and billing for transport operators and local authorities.
+Scomap is a French B2B SaaS for school transport management (transport scolaire). It manages students, schools, routes, trips, drivers, vehicles and (later) billing for transport operators and local authorities. **The entire UI and domain vocabulary is in French** — keep it that way.
 
 ## Tech Stack
 
-- **Monorepo**: Turborepo + pnpm
-- **Next.js 15** (App Router, Turbopack, `src/` directory)
-- **React 19** (Server Components by default)
-- **TypeScript** (strict mode, no `any`)
-- **Tailwind CSS v4** + **shadcn/ui** (style: `new-york`)
-- **Drizzle ORM** (PostgreSQL + PostGIS)
-- **Auth.js** (authentication)
-- **tRPC** (type-safe API)
-- **TanStack Query v5** (data fetching)
-- **Zod** + **react-hook-form** (validation)
-- **MapLibre GL JS** + **OpenFreeMap** (maps)
-- **next-themes** (theme persistence)
+- **Monorepo**: Turborepo + pnpm (Node ≥ 20)
+- **Next.js 15** (App Router, Turbopack, `src/` dir) + **React 19** (Server Components by default)
+- **TypeScript** strict, no `any`
+- **Tailwind CSS v4** + **shadcn/ui** (`new-york`, components under `components/ui/`)
+- **Drizzle ORM** + **PostgreSQL** (plain Postgres, **NO PostGIS**)
+- **tRPC v11** + **TanStack Query v5** (via `@trpc/tanstack-react-query`)
+- **Auth.js v5** (next-auth beta) — Credentials provider
+- **Zod v4** + **react-hook-form**
+- **MapLibre GL JS** for maps; **OSRM** for routing; **adresse.data.gouv.fr** for geocoding
+- **superjson** transformer; **framer-motion/motion**, **lucide-react**, **sonner**, **exceljs** (xlsx export), **dnd-kit** (sortable)
 
 ## Commands
 
 ```bash
-pnpm dev              # Start dev server (Turbopack)
-pnpm build            # Production build
-pnpm lint             # ESLint
-pnpm db:generate      # Generate Drizzle migrations
-pnpm db:migrate       # Run migrations
-pnpm db:studio        # Open Drizzle Studio
+pnpm dev                       # Dev server (Turbopack) — turbo run dev
+pnpm build                     # Production build
+pnpm lint                      # ESLint (next lint) — the primary check
+pnpm db:generate               # Drizzle: generate migration from schema diff
+pnpm db:migrate                # Apply migrations (needs DATABASE_URL)
+pnpm db:studio                 # Drizzle Studio
+
+# Type-check (no dedicated script — run tsc directly per package):
+pnpm --filter web exec tsc --noEmit
+pnpm --filter @scomap/db exec tsc --noEmit   # NB: pre-existing `process`/@types/node errors in seed.ts are unrelated noise
 ```
+
+There is **no test runner** configured (no Jest/Vitest/Playwright). After changes, validate with `pnpm --filter web lint` and `pnpm --filter web exec tsc --noEmit`.
+
+**Always ask before**: `git commit`/`push`/`reset`, starting servers (`pnpm dev`), installing deps, running `db:migrate`. Never use Chrome DevTools MCP (browser) without explicit permission.
+
+## Local dev
+
+- DB: `postgresql://lou@localhost:5432/scomap` (Postgres.app, user `lou` = superuser, no password)
+- Multi-tenant by subdomain: add `demo.localhost` to `/etc/hosts`, then use `http://demo.localhost:3000` (tenant slug `demo`)
 
 ## Architecture
 
-### Monorepo Structure
+### Monorepo layout
 
 ```
-scomap/
-├── apps/
-│   └── web/                    # Next.js app
-├── packages/
-│   ├── db/                     # Drizzle schema + migrations
-│   ├── ui/                     # Shared components (optional)
-│   └── config/                 # Shared configs
-├── turbo.json
-└── pnpm-workspace.yaml
+apps/web/                      # Next.js app (everything UI + API lives here)
+packages/db/                   # Drizzle schema + migrations + seed (@scomap/db)
 ```
 
-### App Structure (apps/web/src/)
+`@scomap/db` exports `db` (`.`) and all tables (`./schema`). Migrations live in `packages/db/src/migrations/`.
 
-```
-src/
-├── app/
-│   ├── (auth)/                 # Auth pages (no sidebar)
-│   │   ├── layout.tsx          # 2-column layout
-│   │   ├── login/
-│   │   └── signup/
-│   ├── (dashboard)/            # App pages (with sidebar)
-│   │   ├── layout.tsx          # Sidebar + Header
-│   │   ├── dashboard/
-│   │   ├── etablissements/
-│   │   ├── usagers/
-│   │   ├── circuits/
-│   │   ├── trajets/
-│   │   ├── planning/
-│   │   ├── vehicules/
-│   │   ├── chauffeurs/
-│   │   └── facturation/
-│   └── api/                    # tRPC routes
-├── components/
-│   ├── ui/                     # shadcn (DO NOT MODIFY)
-│   ├── layout/                 # AppSidebar, SiteHeader
-│   ├── maps/                   # MapLibre components
-│   └── forms/                  # Business forms
-├── lib/
-│   ├── auth/                   # Auth.js config
-│   ├── trpc/                   # tRPC client/server
-│   └── utils/                  # Helpers (cn, etc.)
-├── hooks/
-├── types/
-└── providers/
-```
+### Multi-tenant flow (READ THIS FIRST)
+
+Tenancy is resolved by **subdomain**, and isolation is enforced at the **application layer** — not by Postgres RLS:
+
+1. `middleware.ts` extracts the subdomain from the Host header → sets `x-tenant-slug` request header. It also does a lightweight session-cookie redirect guard for protected routes.
+2. `lib/tenant.ts#getTenantSlug()` reads that header in server code.
+3. Auth (`lib/auth/`) resolves the tenant by slug at login and puts `tenantId` on the session (`session.user.tenantId`).
+4. `lib/trpc/context.ts` exposes `{ db, session, tenantId }`.
+5. `lib/trpc/init.ts` defines procedures: `baseProcedure`, `protectedProcedure` (authed), and **`tenantProcedure`** (authed + has tenant). **Use `tenantProcedure` for all tenant data.**
+6. **Every query/mutation must filter by `eq(table.tenantId, ctx.tenantId)` explicitly.** This is the real isolation mechanism.
+
+⚠️ RLS policies exist only in migration `0003` for a couple of early tables and key off `current_setting('app.tenant_id')`, which the app **never sets** (and the local superuser bypasses RLS anyway). **Do not rely on RLS** — always add the explicit `tenantId` filter.
+
+### tRPC
+
+- Routers in `apps/web/src/lib/trpc/routers/`, composed in `root.ts` (`appRouter`).
+- Server caller: `lib/trpc/server.ts`; client/provider: `lib/trpc/client.tsx`; `query-client.ts`.
+- Client usage: `const trpc = useTRPC()` then `useQuery(trpc.x.y.queryOptions(...))` / `useMutation(trpc.x.y.mutationOptions(...))`; invalidate via `queryClient.invalidateQueries({ queryKey: trpc.x.y.queryKey(...) })`.
+- Server Components read `searchParams` (a Promise) directly to pass initial values (e.g. `?tab=`, `?back=`) — avoids `useSearchParams` hydration issues.
+- Heavier domain logic lives in `lib/trpc/services/` (e.g. `trajet-sync.ts`, `circuit-suggestions.ts`, `routing/`).
+
+### Database conventions
+
+- Tables `snake_case` plural; columns `snake_case`; PK `id` UUID; FKs `{singular}_id`; `created_at`/`updated_at` everywhere; **soft delete** via `deleted_at` (filter `isNull(table.deletedAt)` in reads).
+- **Geo = plain columns** `latitude`/`longitude` (`doublePrecision`). No PostGIS, no `geometry` type.
+- **Per-tenant human-readable IDs (`display_id`)**: usagers, trajets, circuits and avenants each have a sequential per-tenant `displayId` (shown as "N°"), distinct from the UUID. Allocate via `lib/db/display-id.ts#nextDisplayId(db, tenantId, entity)`, backed by the `tenant_counters` table. When adding `display_id` to a new entity, follow migrations `0020`/`0027`/`0030`: add nullable → backfill with `ROW_NUMBER()` → seed `tenant_counters` → set NOT NULL + unique index `(tenant_id, display_id)`.
+- **Migrations are hand-written** (numbered `.sql`) since `0014`, and must be **manually registered** in `migrations/meta/_journal.json` (incrementing `idx` + a monotonic `when`). `pnpm db:generate` (diff-based) is generally not used for these.
+
+### Domain model essentials
+
+- **`usager_circuits`** is **date-versioned** (`valid_from`/`valid_to`): the open version is `valid_to IS NULL AND deleted_at IS NULL`. One active circuit per `(usager, address)` is enforced (UI + server guard + partial unique index, migration `0026`).
+- **Avenants** (amendments) = header (circuit + effective date + reason) + N `avenant_changes` (one per usager × change type), numbered per circuit. Creating an avenant **auto-merges** into an existing non-cancelled one with the same `(circuitId, effectiveDate)`. Resolution is by date at read time (no triggers). A usager with avenants on a circuit **cannot be dissociated** (server guard) — cancel/delete the avenants first.
+- **Trajets are largely derived, not free-form.** `lib/trpc/services/trajet-sync.ts` creates/groups one trajet per `(direction, set-of-days)` from the usagers' PEC (prise en charge) days. The trajet `name` and `recurrence.daysOfWeek` are **derived** from usagers — these fields are read-only in the trajet form (change via avenant). The establishment's opening/closing hours feed the trajet's `departureTime` anchor (morning→aller, evening→retour), and the establishment stop is created pre-filled + `timeLocked` so `calculateTimes` uses it as the anchor.
+- **Cascade invalidation**: changing an establishment's address (lat/lng) or schedules resets the affected trajets' computed route/times so their état no longer reads "OK" (see `routers/etablissements.ts`).
+- **Trajet état** is explicit (`shared/trajet-etat-badge.tsx`): "OK" only when both distance AND horaires are computed; otherwise it spells out what's missing. Billing is deferred and depends on trajets being "OK".
+- **Day model** (`lib/types/day-entry.ts`): each PEC day is `{ day: 1-7, parity: "all"|"even"|"odd" }`. Labels are 2-letter codes `LU MA ME JE VE SA DI`; parity is appended (`LUP`=lundi paire, `LUI`=impaire). Use the `DAY_LABELS` / `formatDaysShort` helpers — they drive both badges and derived trajet names.
+
+### Frontend patterns
+
+- **Detail pages** use `components/shared/entity-detail-layout.tsx` (`EntityDetailLayout`): sticky header with back button, delete dialog, plus a **header-actions portal** + **unsaved-changes context**. Tab forms inject their Save buttons into the header via `useHeaderActions()` + `createPortal`, register dirty state via `useUnsavedChanges()`, and submit through `<form id=...>` + `<Button form={id} type="submit">`. Save buttons go in the header (top), not at the bottom. Reference: `usagers/tab-identite.tsx`.
+- **List pages** use the generic `components/shared/data-list.tsx` (`DataList`): columns, per-column filters (`type: "text" | "select"`, keyed to the column `key`), bulk delete, column picker, pagination, xlsx export, clickable rows.
+- **Forms**: Zod schema in `lib/validators/` + react-hook-form + `zodResolver`. Always handle loading / error / empty states.
+- **Maps**: `components/trajets/trajet-map.tsx` (numbered markers for ordered stops); `components/shared/point-map.tsx` (single pin to verify one address); `components/shared/address-map-dialog.tsx` (reusable "Voir sur la carte" button). Tile style comes from `trpc.basemap.getStyle` (per-tenant provider; keys encrypted via `lib/crypto/`).
+- Server Components by default; `'use client'` as low as possible. Named exports (pages excepted). shadcn `ui/` components are extended by composition, **never edited directly**.
+
+### Known workaround
+
+- **React is pinned to `19.1.8`** via root `pnpm.overrides` to dodge a Next 15.5 + React 19.2 `useId` hydration bug. Remove once fixed upstream.
 
 ## Design System
 
-### Theme (CRITICAL)
-
-| Property | Value |
-|----------|-------|
-| **Theme** | Solar Dusk (warm amber/orange tones) |
-| **Border Radius** | `0.3rem` (all components: buttons, cards, inputs, etc.) |
-| **Primary Color** | `#B45309` (Amber) light / `#F97316` (Orange) dark |
-| **Background** | `#FDFBF7` light / `#1C1917` dark |
-| **Font** | Inter |
-| **shadcn style** | `new-york` |
-
-### CSS Variables (globals.css)
-
-```css
-:root {
-  --radius: 0.3rem;
-  --background: #FDFBF7;
-  --foreground: #4A3B33;
-  --primary: #B45309;
-  --primary-foreground: #FFFFFF;
-  --card: #F8F4EE;
-  --card-foreground: #4A3B33;
-  --secondary: #E4C090;
-  --secondary-foreground: #57534E;
-  --muted: #F1E9DA;
-  --muted-foreground: #78716C;
-  --accent: #f2daba;
-  --accent-foreground: #57534E;
-  --border: #E4D9BC;
-  --input: #E4D9BC;
-  --ring: #B45309;
-  --destructive: #991B1B;
-  --destructive-foreground: #FFFFFF;
-}
-
-.dark {
-  --background: #1C1917;
-  --foreground: #F5F5F4;
-  --primary: #F97316;
-  --card: #292524;
-  --secondary: #57534E;
-  --muted: #292524;
-  --muted-foreground: #A8A29E;
-  --accent: #1e4252;
-  --border: #44403C;
-  --input: #44403C;
-  --ring: #F97316;
-}
-```
-
-### Radius Usage
-
-ALL interactive and container elements must use `0.3rem` radius:
-- Buttons: `rounded-[0.3rem]` or use CSS var `rounded-lg` mapped to `--radius`
-- Cards: same radius
-- Inputs: same radius
-- Modals/Dialogs: same radius
-- Dropdowns: same radius
-- Badges: same radius
-
-## Database
-
-### Multi-tenant Strategy (RLS)
-
-Every table with user data MUST have:
-1. A `tenant_id` column (UUID, NOT NULL)
-2. RLS policies enabled
-3. Policies that filter by `auth.jwt() ->> 'tenant_id'`
-
-```sql
--- Example RLS policy
-ALTER TABLE etablissements ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation ON etablissements
-  USING (tenant_id = (auth.jwt() ->> 'tenant_id')::uuid);
-```
-
-### Schema Conventions
-
-- Tables: `snake_case` plural (e.g., `etablissements`, `usagers`)
-- Columns: `snake_case` (e.g., `created_at`, `tenant_id`)
-- Primary keys: `id` (UUID)
-- Foreign keys: `{table_singular}_id` (e.g., `etablissement_id`)
-- Timestamps: `created_at`, `updated_at` on all tables
-- Soft delete: `deleted_at` (nullable timestamp)
-- Geolocation: Use PostGIS `geometry(Point, 4326)` type
-
-### Core Tables
-
-| Table | Description |
-|-------|-------------|
-| `tenants` | Organizations (departments, transport companies) |
-| `users` | Users with tenant association |
-| `etablissements` | Schools (name, address, coordinates, schedules) |
-| `usagers` | Students (up to 4 addresses) |
-| `circuits` | Route definitions |
-| `trajets` | Route instances (date, time, driver, vehicle) |
-| `arrets` | Stop points (coordinates, times) |
-| `chauffeurs` | Drivers |
-| `vehicules` | Vehicles |
-| `factures` | Invoices |
+- **Theme**: oklch color space, **indigo** primary (`--primary: oklch(0.578 0.235 278.291)` light / `oklch(0.495 0.171 268.388)` dark), white-ish cards, light gray background. CSS vars are defined directly in `globals.css` for `:root` and `.dark` (no `html.dark` overrides).
+- `--radius: 0.5rem`. Note: many table/recap components hardcode `rounded-[0.3rem]` — match the surrounding component rather than assuming one value.
+- Font **Inter**; `cursor-pointer` on all clickable buttons/links.
+- **Tokens only** for colors (light + dark). Tolerated hardcoded accents, always with explicit `dark:` variants: indigo, emerald, amber, sky. In Tailwind v4 a bare `border-l` defaults to currentColor — always pair borders with `border-border` (or `dark:border-foreground/30` for stronger contrast on dark muted backgrounds).
 
 ## Code Conventions
 
-### Import Order
+- **Import order**: React → Next.js → external libs → internal (`@/`) → types last.
+- Components `PascalCase.tsx`; utils/hooks `kebab-case.ts`; DB `snake_case`; interface for all props.
+- **Comments**: add them **occasionally, not everywhere** — only where the code isn't self-evident (the *why*: business rules, non-obvious tradeoffs, gotchas, workarounds). Skip them on trivial/obvious code. Write comments in **French**, matching the existing codebase style.
+- Commits: Conventional Commits, **no co-author attribution**. Commit body in **English** even though the app/conversation is French.
 
-1. React
-2. Next.js
-3. External libraries
-4. Internal (`@/` imports)
-5. Types (always last)
+## Domain Glossary (French → English)
 
-### Naming
-
-- Components: `PascalCase.tsx`
-- Utils/Hooks: `kebab-case.ts`
-- DB tables/columns: `snake_case`
-- API routes: kebab-case
-
-### Components
-
-- Server Components by default (no directive)
-- `'use client'` only when needed, as low as possible in the tree
-- Named exports (no default except pages)
-- Interface for all props
-- shadcn components in `ui/` — extend via composition, NEVER modify directly
-
-### Forms
-
-Always use Zod + react-hook-form:
-
-```typescript
-const schema = z.object({
-  nom: z.string().min(1, "Nom requis"),
-  adresse: z.string().min(1, "Adresse requise"),
-})
-
-const form = useForm<z.infer<typeof schema>>({
-  resolver: zodResolver(schema),
-  defaultValues: { nom: "", adresse: "" }
-})
-```
-
-### Loading States
-
-Always handle all 3 states:
-
-```typescript
-if (isLoading) return <Skeleton />
-if (error) return <ErrorMessage error={error} />
-return <Component data={data} />
-```
-
-### Maps
-
-Use MapLibre GL JS with OpenFreeMap tiles:
-
-```typescript
-const map = new maplibregl.Map({
-  container: 'map',
-  style: 'https://tiles.openfreemap.org/styles/liberty',
-  center: [2.3522, 48.8566], // Paris
-  zoom: 12
-})
-```
-
-### Geocoding
-
-Use adresse.data.gouv.fr (French government API, free, unlimited):
-
-```typescript
-const geocode = async (address: string) => {
-  const res = await fetch(
-    `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}`
-  )
-  const data = await res.json()
-  if (data.features.length > 0) {
-    const [lng, lat] = data.features[0].geometry.coordinates
-    return { lat, lng }
-  }
-  return null
-}
-```
-
-## Security Rules
-
-- Auth: Double check (middleware + layout)
-- RLS on ALL tenant tables (no exceptions)
-- Validate all inputs with Zod
-- Never expose tenant_id in URLs (use session)
-- Soft delete for audit trail
+| Term | Meaning |
+|------|---------|
+| Établissement | School |
+| Usager | Student / transported person |
+| Circuit | Route (defined path with stops) |
+| Trajet | Trip — a directional instance of a circuit (aller/retour) |
+| Arrêt | Stop (pick-up / drop-off) |
+| Avenant | Amendment to a circuit/assignment (date-versioned change) |
+| PEC (prise en charge) | Pick-up (the days/times a usager is transported) |
+| Chauffeur / Véhicule | Driver / Vehicle |
+| Transporteur | Carrier company |
+| AO | Autorité Organisatrice (organizing authority) |
 
 ## Reference Projects
 
+- **Legacy system (domain knowledge)**: `/Users/lou/Documents/Transcolaire` — its table layouts and circuit "fiche" recap mirror this app's expectations.
 - **UI/Design inspiration**: `/Users/lou/Documents/ProjetDev/subsy`
-- **Legacy system (domain knowledge)**: `/Users/lou/Documents/Transcolaire`
-
-## Domain Glossary (French)
-
-| Term | English | Description |
-|------|---------|-------------|
-| Établissement | School | Educational institution |
-| Usager | Student/User | Person being transported |
-| Circuit | Route | Defined path with stops |
-| Trajet | Trip | Instance of a circuit (specific date/time) |
-| Arrêt | Stop | Pick-up/drop-off point |
-| Avenant | Amendment | Temporary modification to a circuit |
-| Chauffeur | Driver | Vehicle operator |
-| Véhicule | Vehicle | Bus, minibus, etc. |
-| Transporteur | Carrier | Transport company |
-| AO | Authority | Autorité Organisatrice (organizing authority) |

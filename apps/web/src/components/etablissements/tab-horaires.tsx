@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "nextjs-toploader/app";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
 import {
   schedulesSchema,
   type SchedulesFormValues,
@@ -54,8 +59,16 @@ interface TabHorairesProps {
 export function TabHoraires({ etablissement }: TabHorairesProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const exitAfterSaveRef = useRef(false);
+  const formId = "etablissement-horaires-form";
 
-  const savedSchedules = etablissement.schedules as SchedulesFormValues | null;
+  // Valide la structure jsonb au lieu d'un cast aveugle : une donnée inattendue
+  // en base retombe proprement sur les valeurs par défaut.
+  const parsedSchedules = schedulesSchema.safeParse(etablissement.schedules);
+  const savedSchedules = parsedSchedules.success ? parsedSchedules.data : null;
 
   const form = useForm<SchedulesFormValues>({
     resolver: zodResolver(schedulesSchema),
@@ -64,14 +77,20 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
 
   const mutation = useMutation(
     trpc.etablissements.updateSchedules.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({
           queryKey: trpc.etablissements.getById.queryKey({ id: etablissement.id }),
         });
         toast.success("Horaires enregistrés");
+        form.reset(variables.schedules);
+        if (exitAfterSaveRef.current) {
+          router.push("/etablissements");
+        }
+        exitAfterSaveRef.current = false;
       },
       onError: () => {
         toast.error("Erreur lors de l'enregistrement");
+        exitAfterSaveRef.current = false;
       },
     }),
   );
@@ -79,6 +98,14 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
   function onSubmit(values: SchedulesFormValues) {
     mutation.mutate({ id: etablissement.id, schedules: values });
   }
+
+  // Synchronise l'état « modifié » avec le bandeau (avertissement au retour).
+  const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setDirty?.("etablissement-horaires", isDirty);
+    return () => setDirty?.("etablissement-horaires", false);
+  }, [isDirty, setDirty]);
 
   function copyMondayToAll() {
     const lundi = form.getValues("lundi");
@@ -92,9 +119,50 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
+    <>
+      {headerActions?.target &&
+        createPortal(
+          <>
+            <Button
+              type="submit"
+              form={formId}
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = false;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && !exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer"}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = true;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer et quitter"}
+            </Button>
+          </>,
+          headerActions.target,
+        )}
+
+      <Form {...form}>
+        <form
+          id={formId}
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-6"
+        >
+          <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Horaires hebdomadaires</CardTitle>
             <Button
@@ -164,13 +232,8 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
             </div>
           </CardContent>
         </Card>
-
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
-      </form>
-    </Form>
+        </form>
+      </Form>
+    </>
   );
 }

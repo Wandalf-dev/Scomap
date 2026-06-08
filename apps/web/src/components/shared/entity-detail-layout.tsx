@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DeleteIcon, type DeleteIconHandle } from "@/components/ui/delete-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tabs,
@@ -51,6 +52,8 @@ interface EntityDetailLayoutProps {
   tabs: Tab[];
   /** Onglet initial (ex. depuis ?tab=...). Ignoré s'il ne correspond à aucun onglet. */
   defaultTab?: string;
+  /** Actions supplémentaires dans le bandeau (ex. Archiver), avant Supprimer. */
+  headerExtra?: React.ReactNode;
 }
 
 function HeaderActionsSlot() {
@@ -131,8 +134,10 @@ function EntityDetailLayoutInner({
   deleteLabel,
   tabs,
   defaultTab,
+  headerExtra,
 }: EntityDetailLayoutProps) {
   const router = useRouter();
+  const deleteIconRef = useRef<DeleteIconHandle>(null);
   const activeDefault =
     defaultTab && tabs.some((t) => t.value === defaultTab)
       ? defaultTab
@@ -186,14 +191,17 @@ function EntityDetailLayoutInner({
 
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-2">
+          {headerExtra}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
+                onMouseEnter={() => deleteIconRef.current?.startAnimation()}
+                onMouseLeave={() => deleteIconRef.current?.stopAnimation()}
                 className="cursor-pointer gap-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
-                <Trash2 className="size-4" />
+                <DeleteIcon ref={deleteIconRef} size={16} />
                 Supprimer
               </Button>
             </AlertDialogTrigger>

@@ -13,7 +13,15 @@ import { arretSchema } from "@/lib/validators/trajet";
 
 export const arretsRouter = createTRPCRouter({
   list: tenantProcedure
-    .input(z.object({ trajetId: z.string().uuid() }))
+    .input(
+      z.object({
+        trajetId: z.string().uuid(),
+        // true = TOUS les arrêts non supprimés (composition complète du trajet,
+        // y compris ceux à venir) — pour la fiche trajet. Défaut = présence
+        // active aujourd'hui (recap/aperçu).
+        all: z.boolean().optional(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       // Verify trajet ownership
       const trajet = await ctx.db
@@ -76,9 +84,14 @@ export const arretsRouter = createTRPCRouter({
           and(
             eq(arrets.trajetId, input.trajetId),
             isNull(arrets.deletedAt),
-            // Présence active aujourd'hui (arrêts bornés par avenant).
-            or(isNull(arrets.validFrom), lte(arrets.validFrom, today)),
-            or(isNull(arrets.validTo), gte(arrets.validTo, today)),
+            // Présence active aujourd'hui (arrêts bornés par avenant), sauf en
+            // mode `all` où l'on renvoie toute la composition du trajet.
+            ...(input.all
+              ? []
+              : [
+                  or(isNull(arrets.validFrom), lte(arrets.validFrom, today)),
+                  or(isNull(arrets.validTo), gte(arrets.validTo, today)),
+                ]),
           ),
         )
         .orderBy(asc(arrets.orderIndex));
@@ -173,7 +186,11 @@ export const arretsRouter = createTRPCRouter({
         })
         .from(arrets)
         .where(
-          and(eq(arrets.trajetId, input.trajetId), isNull(arrets.deletedAt)),
+          and(
+            eq(arrets.trajetId, input.trajetId),
+            eq(arrets.tenantId, ctx.tenantId),
+            isNull(arrets.deletedAt),
+          ),
         )
         .orderBy(asc(arrets.orderIndex));
 
@@ -196,7 +213,12 @@ export const arretsRouter = createTRPCRouter({
             await tx
               .update(arrets)
               .set({ orderIndex: a.orderIndex + 1, updatedAt: new Date() })
-              .where(eq(arrets.id, a.id));
+              .where(
+                and(
+                  eq(arrets.id, a.id),
+                  eq(arrets.tenantId, ctx.tenantId),
+                ),
+              );
           }
         }
 
@@ -321,6 +343,7 @@ export const arretsRouter = createTRPCRouter({
           and(
             eq(arrets.id, input.id),
             eq(arrets.trajetId, input.trajetId),
+            eq(arrets.tenantId, ctx.tenantId),
           ),
         )
         .returning();
@@ -355,6 +378,7 @@ export const arretsRouter = createTRPCRouter({
           and(
             eq(arrets.id, input.id),
             eq(arrets.trajetId, input.trajetId),
+            eq(arrets.tenantId, ctx.tenantId),
           ),
         )
         .limit(1);
@@ -373,6 +397,7 @@ export const arretsRouter = createTRPCRouter({
           and(
             eq(arrets.id, input.id),
             eq(arrets.trajetId, input.trajetId),
+            eq(arrets.tenantId, ctx.tenantId),
           ),
         )
         .returning();
@@ -448,6 +473,7 @@ export const arretsRouter = createTRPCRouter({
           and(
             eq(arrets.id, input.id),
             eq(arrets.trajetId, input.trajetId),
+            eq(arrets.tenantId, ctx.tenantId),
           ),
         )
         .returning();

@@ -5,7 +5,6 @@ import { useRouter } from "nextjs-toploader/app";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -19,25 +18,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { FileText, CalendarClock, X, Plus } from "lucide-react";
-import { AvenantChangeDiff } from "@/components/shared/avenant-change-diff";
+import { FileText, X, Plus } from "lucide-react";
 import {
-  AVENANT_TYPE_LABELS,
-  type AvenantChangeType,
-} from "@/lib/validators/avenant";
-import {
-  AvenantStatusBadge,
-  avenantTodayStr,
-  formatAvenantDate,
-  getHeadAvenantId,
-} from "@/components/shared/avenant-status-badge";
-
-/** « Avenant n°2 » (numéro par circuit) ou « AV-014 » à défaut. */
-function avenantLabel(circuitSequence: number | null, displayId: number) {
-  return circuitSequence != null
-    ? `Avenant n°${circuitSequence}`
-    : `AV-${String(displayId).padStart(3, "0")}`;
-}
+  AvenantTable,
+  type AvenantTableRow,
+} from "@/components/avenants/avenant-table";
 
 type ChangeRow = {
   changeId: string;
@@ -45,10 +30,16 @@ type ChangeRow = {
   previousValue: Record<string, unknown> | null;
   newValue: Record<string, unknown> | null;
   usagerCircuitId: string | null;
+  usagerId: string;
+  usagerFirstName: string;
+  usagerLastName: string;
   avenantId: string;
   displayId: number;
   circuitSequence: number | null;
   circuitId: string | null;
+  circuitCode: string | null;
+  circuitName: string | null;
+  circuitStartDate: string | null;
   effectiveDate: string;
   endDate: string | null;
   reason: string;
@@ -56,6 +47,65 @@ type ChangeRow = {
   appliedAt: Date | null;
   createdAt: Date;
 };
+
+/** « Nom Prénom, … : motif » — façon objet d'avenant Transcolaire. */
+function buildObjet(changes: ChangeRow[], reason: string): string {
+  const names = [
+    ...new Set(
+      changes
+        .map((c) => `${c.usagerLastName} ${c.usagerFirstName}`.trim())
+        .filter(Boolean),
+    ),
+  ];
+  return names.length > 0 ? `${names.join(", ")} : ${reason}` : reason;
+}
+
+function CancelAvenantButton({
+  label,
+  onConfirm,
+  pending,
+}: {
+  label: string;
+  onConfirm: () => void;
+  pending: boolean;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 cursor-pointer text-muted-foreground hover:text-destructive"
+          aria-label="Annuler l'avenant"
+        >
+          <X className="size-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Annuler l&apos;avenant n°{label}</AlertDialogTitle>
+          <AlertDialogDescription>
+            L&apos;avenant est retiré de l&apos;historique actif et son
+            versioning de trajets annulé (les trajets recréés sont supprimés et
+            les anciens rouverts).
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="cursor-pointer">
+            Retour
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            disabled={pending}
+            className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Annuler l&apos;avenant
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 interface TabAvenantsProps {
   usagerId: string;
@@ -73,11 +123,23 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
   const cancelMutation = useMutation(
     trpc.avenants.cancel.mutationOptions({
       onSuccess: () => {
+        // Tous les usagers (l'avenant peut être visible chez d'autres usagers du
+        // même circuit) + vues circuit (versioning de trajets annulé).
         queryClient.invalidateQueries({
-          queryKey: trpc.avenants.listByUsager.queryKey({ usagerId }),
+          queryKey: trpc.avenants.listByUsager.queryKey(),
         });
         queryClient.invalidateQueries({
           queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
+        });
+        queryClient.invalidateQueries({
+          queryKey: trpc.trajets.listByCircuit.queryKey(),
+        });
+        queryClient.invalidateQueries({ queryKey: trpc.arrets.list.queryKey() });
+        queryClient.invalidateQueries({
+          queryKey: trpc.avenants.listByCircuit.queryKey(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: trpc.circuits.getById.queryKey(),
         });
         toast.success("Avenant annulé");
       },
@@ -85,12 +147,9 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
     }),
   );
 
-  // Group change rows by avenant
+  // Regroupe les lignes de changement par avenant.
   const grouped = useMemo(() => {
-    const map = new Map<
-      string,
-      { header: ChangeRow; changes: ChangeRow[] }
-    >();
+    const map = new Map<string, { header: ChangeRow; changes: ChangeRow[] }>();
     for (const r of (rows ?? []) as ChangeRow[]) {
       const g = map.get(r.avenantId);
       if (g) g.changes.push(r);
@@ -98,32 +157,6 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
     }
     return Array.from(map.values());
   }, [rows]);
-
-  // État courant = dernier avenant (non annulé) dont la date d'effet est passée.
-  const today = avenantTodayStr();
-  const headAvenantId = useMemo(
-    () =>
-      getHeadAvenantId(
-        grouped.map((g) => ({
-          id: g.header.avenantId,
-          status: g.header.status,
-          effectiveDate: g.header.effectiveDate,
-          circuitSequence: g.header.circuitSequence,
-        })),
-        today,
-      ),
-    [grouped, today],
-  );
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-24 w-full" />
-        ))}
-      </div>
-    );
-  }
 
   const newButton = (
     <Button
@@ -136,15 +169,87 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
     </Button>
   );
 
-  if (grouped.length === 0) {
+  if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Avenants (0)
-          </h3>
-          {newButton}
-        </div>
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  const avenantRows: AvenantTableRow[] = grouped.map(({ header, changes }) => {
+    // « Propre » = l'usager est sujet d'au moins un changement ; sinon avenant du
+    // circuit (autre usager) → visible mais non annulable d'ici.
+    const isOwn = changes.some((c) => c.usagerId === usagerId);
+    const cancellable = isOwn && header.status !== "annule";
+    // N° = ID de l'objet avenant (displayId).
+    const numero = String(header.displayId);
+    return {
+      key: header.avenantId,
+      circuitKey: header.circuitId ?? undefined,
+      numero,
+      isBase: false,
+      fromCircuit: !isOwn,
+      effectiveDate: header.effectiveDate,
+      objet: buildObjet(changes, header.reason),
+      code: header.circuitCode,
+      circuitName: header.circuitName,
+      // Depuis la fiche usager : le circuit est cliquable (≠ fiche circuit).
+      circuitHref: header.circuitId ? `/circuits/${header.circuitId}` : null,
+      href: header.circuitId
+        ? `/circuits/${header.circuitId}/avenants/${header.avenantId}`
+        : null,
+      actions: cancellable ? (
+        <CancelAvenantButton
+          label={numero}
+          pending={cancelMutation.isPending}
+          onConfirm={() => cancelMutation.mutate({ id: header.avenantId })}
+        />
+      ) : undefined,
+    };
+  });
+
+  // Ligne N°0 (composition initiale) par circuit distinct présent dans les avenants.
+  const circuitsSeen = new Map<
+    string,
+    { code: string | null; name: string | null; startDate: string | null }
+  >();
+  for (const { header } of grouped) {
+    if (header.circuitId && !circuitsSeen.has(header.circuitId)) {
+      circuitsSeen.set(header.circuitId, {
+        code: header.circuitCode,
+        name: header.circuitName,
+        startDate: header.circuitStartDate,
+      });
+    }
+  }
+  const baseRows: AvenantTableRow[] = [...circuitsSeen.entries()].map(
+    ([cid, c]) => ({
+      key: `base-${cid}`,
+      circuitKey: cid,
+      numero: "0",
+      isBase: true,
+      effectiveDate: c.startDate ?? "",
+      objet: "Composition initiale",
+      code: c.code,
+      circuitName: c.name,
+      circuitHref: `/circuits/${cid}`,
+      href: `/circuits/${cid}?tab=trajets`,
+    }),
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Avenants ({avenantRows.length})
+        </h3>
+        {newButton}
+      </div>
+
+      {avenantRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
           <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             <FileText className="size-6" />
@@ -153,112 +258,12 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
             Aucun avenant
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Les modifications tracées de cet usager apparaîtront ici.
+            Les avenants de cet usager et de ses circuits apparaîtront ici.
           </p>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Avenants ({grouped.length})
-        </h3>
-        {newButton}
-      </div>
-      {grouped.map(({ header, changes }) => (
-        <div
-          key={header.avenantId}
-          className="rounded-lg border border-border bg-card p-5 shadow-xs"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-foreground">
-                  {avenantLabel(header.circuitSequence, header.displayId)}
-                </span>
-                <AvenantStatusBadge
-                  id={header.avenantId}
-                  status={header.status}
-                  effectiveDate={header.effectiveDate}
-                  headId={headAvenantId}
-                  today={today}
-                />
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <CalendarClock className="h-3.5 w-3.5" />
-                  {formatAvenantDate(header.effectiveDate)}
-                  {header.endDate
-                    ? ` → ${formatAvenantDate(header.endDate)}`
-                    : ""}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground">{header.reason}</p>
-            </div>
-
-            {header.status !== "annule" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 cursor-pointer px-2 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="mr-1 h-3.5 w-3.5" />
-                    Annuler
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Annuler l&apos;
-                      {avenantLabel(
-                        header.circuitSequence,
-                        header.displayId,
-                      ).toLowerCase()}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      L&apos;avenant sera retiré de l&apos;historique actif. La
-                      réversion automatique des affectations n&apos;est pas
-                      faite : pour revenir en arrière, créez un avenant inverse.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="cursor-pointer">
-                      Retour
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() =>
-                        cancelMutation.mutate({ id: header.avenantId })
-                      }
-                      disabled={cancelMutation.isPending}
-                      className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Annuler l&apos;avenant
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
-
-          <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
-            {changes.map((c) => (
-              <div key={c.changeId} className="flex flex-col gap-1.5">
-                <Badge variant="outline" className="w-fit rounded-md text-xs">
-                  {AVENANT_TYPE_LABELS[c.type as AvenantChangeType] ?? c.type}
-                </Badge>
-                <AvenantChangeDiff
-                  type={c.type}
-                  previous={c.previousValue}
-                  next={c.newValue}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+      ) : (
+        <AvenantTable rows={[...avenantRows, ...baseRows]} />
+      )}
     </div>
   );
 }

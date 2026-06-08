@@ -37,10 +37,18 @@ import {
 } from "@/lib/validators/usager";
 import type { DayEntry } from "@/lib/types/day-entry";
 
+// "YYYY-MM-DD" → "JJ/MM/AAAA" (cohérent avec l'affichage des trajets).
+function formatDate(d: string | null | undefined): string {
+  if (!d) return "—";
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}
+
 interface UsagerCircuitRow {
   id: string;
   circuitId: string;
   usagerAddressId: string | null;
+  validFrom: string | null;
   arrivalNotification: boolean;
   authorizationAlone: boolean;
   daysAller: DayEntry[];
@@ -56,6 +64,8 @@ interface UsagerCircuitRow {
 interface UsagerInfo {
   id: string;
   transportType: string | null;
+  /** Date de début de transport (fiche usager) — début par défaut sur un circuit. */
+  transportStartDate: string | null;
 }
 
 interface TabCircuitsProps {
@@ -86,6 +96,11 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
         });
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
+        });
+        // Dissocier change usagerCount du circuit → rafraîchit sa fiche pour
+        // déverrouiller les dates (onglet Informations).
+        queryClient.invalidateQueries({
+          queryKey: trpc.circuits.getById.queryKey(),
         });
         toast.success("Circuit dissocié");
         setDeleteItem(null);
@@ -206,6 +221,7 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
                 <TableHead>Circuit</TableHead>
                 <TableHead>Établissement</TableHead>
                 <TableHead>Adresse</TableHead>
+                <TableHead>Début transport</TableHead>
                 <TableHead>Jours aller</TableHead>
                 <TableHead>Jours retour</TableHead>
                 <TableHead>Options</TableHead>
@@ -255,6 +271,18 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
                             ({item.addressCity})
                           </span>
                         )}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/60">&mdash;</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {/* Début effectif sur ce circuit : validFrom de la version
+                        si présent (cas avenant), sinon la date de début de
+                        transport de la fiche usager. */}
+                    {item.validFrom ?? usager.transportStartDate ? (
+                      <span className="text-sm tabular-nums">
+                        {formatDate(item.validFrom ?? usager.transportStartDate)}
                       </span>
                     ) : (
                       <span className="text-muted-foreground/60">&mdash;</span>

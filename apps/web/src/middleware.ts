@@ -36,6 +36,7 @@ export function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/circuits") ||
     request.nextUrl.pathname.startsWith("/trajets") ||
     request.nextUrl.pathname.startsWith("/planning") ||
+    request.nextUrl.pathname.startsWith("/preparation") ||
     request.nextUrl.pathname.startsWith("/vehicules") ||
     request.nextUrl.pathname.startsWith("/chauffeurs") ||
     request.nextUrl.pathname.startsWith("/facturation");

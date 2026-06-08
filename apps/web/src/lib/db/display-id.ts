@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
 import { db } from "@scomap/db";
 
-type DbOrTx = typeof db;
+// Accepte la base ou une transaction : on n'a besoin que de `.execute`.
+type DbOrTx = Pick<typeof db, "execute">;
 
 /**
  * Atomically returns the next per-tenant display id for a given entity.

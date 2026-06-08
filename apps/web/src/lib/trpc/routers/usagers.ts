@@ -19,7 +19,10 @@ import {
 const secondaryEtab = alias(etablissements, "secondary_etab");
 
 export const usagersRouter = createTRPCRouter({
-  list: tenantProcedure.query(async ({ ctx }) => {
+  // campaignId absent => production ; fourni => usagers de la préparation.
+  list: tenantProcedure
+    .input(z.object({ campaignId: z.string().uuid().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     return ctx.db
       .select({
         id: usagers.id,
@@ -43,6 +46,7 @@ export const usagersRouter = createTRPCRouter({
         transportParticularity: usagers.transportParticularity,
         specificity: usagers.specificity,
         notes: usagers.notes,
+        archivedAt: usagers.archivedAt,
         createdAt: usagers.createdAt,
         updatedAt: usagers.updatedAt,
       })
@@ -53,6 +57,9 @@ export const usagersRouter = createTRPCRouter({
         and(
           eq(usagers.tenantId, ctx.tenantId),
           isNull(usagers.deletedAt),
+          input?.campaignId
+            ? eq(usagers.preparationCampaignId, input.campaignId)
+            : isNull(usagers.preparationCampaignId),
         ),
       );
   }),
@@ -84,6 +91,7 @@ export const usagersRouter = createTRPCRouter({
           transportParticularity: usagers.transportParticularity,
           specificity: usagers.specificity,
           notes: usagers.notes,
+          archivedAt: usagers.archivedAt,
           createdAt: usagers.createdAt,
           updatedAt: usagers.updatedAt,
         })
@@ -317,6 +325,27 @@ export const usagersRouter = createTRPCRouter({
       const km = Math.round(outcome.result.distanceKm * 10) / 10;
 
       return { km };
+    }),
+
+  // Archivage / désarchivage (historisation, distinct de la suppression).
+  setArchived: tenantProcedure
+    .input(z.object({ id: z.string().uuid(), archived: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.db
+        .update(usagers)
+        .set({
+          archivedAt: input.archived ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(usagers.id, input.id),
+            eq(usagers.tenantId, ctx.tenantId),
+            isNull(usagers.deletedAt),
+          ),
+        )
+        .returning();
+      return result[0] ?? null;
     }),
 
   delete: tenantProcedure

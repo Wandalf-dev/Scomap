@@ -159,7 +159,8 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
   const [deleteArret, setDeleteArret] = useState<ArretRow | null>(null);
 
   const { data: arretsList, isLoading } = useQuery(
-    trpc.arrets.list.queryOptions({ trajetId }),
+    // Composition complète du trajet (y compris arrêts à venir d'un avenant).
+    trpc.arrets.list.queryOptions({ trajetId, all: true }),
   );
 
   const createMutation = useMutation(

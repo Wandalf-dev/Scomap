@@ -48,6 +48,8 @@ export const usagerCircuits = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+    preparationCampaignId: uuid("preparation_campaign_id"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [

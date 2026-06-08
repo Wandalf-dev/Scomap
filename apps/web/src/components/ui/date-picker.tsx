@@ -94,7 +94,7 @@ export function DatePicker({
         placeholder={placeholder}
         disabled={disabled}
         inputMode="numeric"
-        className={cn("pr-9", clearable && validDate && "pr-14")}
+        className={cn(clearable ? "pr-14" : "pr-9")}
       />
       <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
         {clearable && validDate && (
