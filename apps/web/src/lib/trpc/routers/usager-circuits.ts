@@ -229,6 +229,8 @@ export const usagerCircuitsRouter = createTRPCRouter({
           addressType: usagerAddresses.type,
           addressCity: usagerAddresses.city,
           addressAddress: usagerAddresses.address,
+          addressLatitude: usagerAddresses.latitude,
+          addressLongitude: usagerAddresses.longitude,
           addressCivility: usagerAddresses.civility,
           responsibleFirstName: usagerAddresses.responsibleFirstName,
           responsibleLastName: usagerAddresses.responsibleLastName,
@@ -617,6 +619,17 @@ export const usagerCircuitsRouter = createTRPCRouter({
           usagerCircuitId: created.id,
           usagerAddressId: input.usagerAddressId,
         });
+        // Marque l'affectation comme créée par cet avenant d'ajout : son annulation
+        // pourra la soft-delete (l'usager n'aurait jamais dû rejoindre le circuit).
+        await ctx.db
+          .update(usagerCircuits)
+          .set({ createdByAvenantId: avenantId })
+          .where(
+            and(
+              eq(usagerCircuits.id, created.id),
+              eq(usagerCircuits.tenantId, ctx.tenantId),
+            ),
+          );
       }
 
       if (created) {
@@ -816,5 +829,72 @@ export const usagerCircuitsRouter = createTRPCRouter({
       // automatique « inactif » quand le dernier usager est dissocié).
 
       return result[0] ?? null;
+    }),
+
+  // Supprime la « composition initiale » (« avenant 0 » synthétique) d'un circuit
+  // = dissocie TOUS ses usagers d'un coup. L'avenant 0 étant la base sur laquelle
+  // s'appuient les avenants datés, on ne peut le retirer que si AUCUN avenant réel
+  // n'existe encore (sinon l'historique daté des trajets serait corrompu) : il
+  // faut d'abord annuler ces avenants.
+  clearComposition: tenantProcedure
+    .input(z.object({ circuitId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const realAvenants = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(avenants)
+        .where(
+          and(
+            eq(avenants.circuitId, input.circuitId),
+            eq(avenants.tenantId, ctx.tenantId),
+            isNull(avenants.deletedAt),
+          ),
+        );
+      if ((realAvenants[0]?.count ?? 0) > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Impossible de supprimer la composition initiale : annulez d'abord les autres avenants du circuit.",
+        });
+      }
+
+      // Affectations OUVERTES du circuit (= sa composition courante). On NE
+      // touche PAS aux versions clôturées (validTo non nul) : ce sont l'historique
+      // daté (ex. clôtures de promotion de rentrée) à préserver. Cohérent avec
+      // usagerCount (qui ne compte que validTo IS NULL).
+      const assignments = await ctx.db
+        .select()
+        .from(usagerCircuits)
+        .where(
+          and(
+            eq(usagerCircuits.circuitId, input.circuitId),
+            eq(usagerCircuits.tenantId, ctx.tenantId),
+            isNull(usagerCircuits.validTo),
+            isNull(usagerCircuits.deletedAt),
+          ),
+        );
+
+      // Retire les arrêts de chaque usager, puis soft-delete les affectations.
+      for (const uc of assignments) {
+        if (uc.usagerAddressId) {
+          await removeUsagerArretsFromCircuit(
+            ctx,
+            uc.circuitId,
+            uc.usagerAddressId,
+          );
+        }
+      }
+      await ctx.db
+        .update(usagerCircuits)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(usagerCircuits.circuitId, input.circuitId),
+            eq(usagerCircuits.tenantId, ctx.tenantId),
+            isNull(usagerCircuits.validTo),
+            isNull(usagerCircuits.deletedAt),
+          ),
+        );
+
+      return { dissociated: assignments.length };
     }),
 });

@@ -232,6 +232,13 @@
       "when": 1771220000000,
       "tag": "0032_preparation_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1771230000000,
+      "tag": "0033_usager_circuit_avenant_link",
+      "breakpoints": true
     }
   ]
 }

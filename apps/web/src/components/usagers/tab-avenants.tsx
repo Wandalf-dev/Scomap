@@ -7,22 +7,12 @@ import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { FileText, X, Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import {
   AvenantTable,
   type AvenantTableRow,
 } from "@/components/avenants/avenant-table";
+import { CancelAvenantButton } from "@/components/avenants/avenant-row-actions";
 
 type ChangeRow = {
   changeId: string;
@@ -60,53 +50,6 @@ function buildObjet(changes: ChangeRow[], reason: string): string {
   return names.length > 0 ? `${names.join(", ")} : ${reason}` : reason;
 }
 
-function CancelAvenantButton({
-  label,
-  onConfirm,
-  pending,
-}: {
-  label: string;
-  onConfirm: () => void;
-  pending: boolean;
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 cursor-pointer text-muted-foreground hover:text-destructive"
-          aria-label="Annuler l'avenant"
-        >
-          <X className="size-4" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Annuler l&apos;avenant n°{label}</AlertDialogTitle>
-          <AlertDialogDescription>
-            L&apos;avenant est retiré de l&apos;historique actif et son
-            versioning de trajets annulé (les trajets recréés sont supprimés et
-            les anciens rouverts).
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel className="cursor-pointer">
-            Retour
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            disabled={pending}
-            className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            Annuler l&apos;avenant
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 interface TabAvenantsProps {
   usagerId: string;
 }
@@ -130,6 +73,10 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
         });
         queryClient.invalidateQueries({
           queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
+        });
+        // La composition du circuit change aussi (versions rouvertes/supprimées).
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagerCircuits.listByCircuit.queryKey(),
         });
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listByCircuit.queryKey(),
@@ -180,10 +127,11 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
   }
 
   const avenantRows: AvenantTableRow[] = grouped.map(({ header, changes }) => {
-    // « Propre » = l'usager est sujet d'au moins un changement ; sinon avenant du
-    // circuit (autre usager) → visible mais non annulable d'ici.
+    // « Propre » = l'usager est sujet d'au moins un changement (sinon avenant
+    // d'un autre usager du même circuit → badge « circuit »). Tous les avenants
+    // du circuit restent annulables depuis la fiche usager.
     const isOwn = changes.some((c) => c.usagerId === usagerId);
-    const cancellable = isOwn && header.status !== "annule";
+    const cancellable = header.status !== "annule";
     // N° = ID de l'objet avenant (displayId).
     const numero = String(header.displayId);
     return {

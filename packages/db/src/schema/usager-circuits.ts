@@ -42,6 +42,11 @@ export const usagerCircuits = pgTable(
     // valid_from null = depuis toujours ; valid_to null = version courante.
     validFrom: date("valid_from"),
     validTo: date("valid_to"),
+    // Avenant ayant créé cette version d'affectation (FK posée en SQL pour éviter
+    // un cycle d'import schéma usager_circuits <-> avenants). Null = association
+    // directe / composition de base. Utilisé pour réverser proprement le
+    // versioning d'affectation à l'annulation d'un avenant.
+    createdByAvenantId: uuid("created_by_avenant_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

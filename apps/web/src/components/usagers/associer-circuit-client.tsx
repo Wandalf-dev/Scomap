@@ -56,6 +56,7 @@ import {
 } from "@/lib/validators/usager";
 import { DayBadges } from "@/components/shared/day-badges";
 import { dateRangesOverlap } from "@/lib/utils/date-helpers";
+import type { PreviewPoint } from "./circuit-preview-map";
 
 // --- Schemas (réutilisés tels quels depuis l'ancienne modal) ---
 
@@ -181,8 +182,8 @@ function RelevanceTag({ score }: { score: number }) {
 
 // --- Map preview (dynamique, ssr:false) ---
 
-const TrajetMap = dynamic(
-  () => import("../trajets/trajet-map").then((mod) => mod.TrajetMap),
+const CircuitPreviewMap = dynamic(
+  () => import("./circuit-preview-map").then((mod) => mod.CircuitPreviewMap),
   {
     ssr: false,
     loading: () => <div className="h-[200px] w-full animate-pulse bg-muted/40" />,
@@ -472,14 +473,92 @@ function formatCircuitPeriode(
   return "Période non définie";
 }
 
+// Distance à vol d'oiseau (km) — sert uniquement à ordonner les points de l'aperçu.
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Ordre d'aperçu des waypoints (heuristique nearest-neighbor) : ramassage des
+ * usagers, du plus loin au plus proche de l'établissement, terminé par
+ * l'établissement (sens « aller » d'un transport scolaire). ⚠️ Estimation :
+ * l'ordre réel des arrêts d'un trajet est calculé ailleurs (trajet-sync).
+ */
+function orderRouteWaypoints(
+  points: PreviewPoint[],
+): { lat: number; lng: number }[] {
+  const geo = points.filter((p) => p.latitude != null && p.longitude != null);
+  const etab = geo.find((p) => p.kind === "etablissement");
+  const pickups = geo
+    .filter((p) => p.kind !== "etablissement")
+    .map((p) => ({ lat: p.latitude!, lng: p.longitude! }));
+  if (!etab) return pickups;
+  const etabLL = { lat: etab.latitude!, lng: etab.longitude! };
+  const chain: { lat: number; lng: number }[] = [];
+  let cursor = etabLL;
+  const rem = [...pickups];
+  while (rem.length) {
+    let bi = 0;
+    let bd = Infinity;
+    for (let i = 0; i < rem.length; i++) {
+      const d = haversineKm(cursor, rem[i]!);
+      if (d < bd) {
+        bd = d;
+        bi = i;
+      }
+    }
+    cursor = rem[bi]!;
+    chain.push(cursor);
+    rem.splice(bi, 1);
+  }
+  chain.reverse(); // établissement en dernier
+  return [...chain, etabLL];
+}
+
+function formatKm(km: number): string {
+  return `${km.toFixed(1).replace(".", ",")} km`;
+}
+function formatDuration(sec: number): string {
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+}
+
 function CircuitPreviewPanel({
   circuit,
   suggestion,
   isNew,
+  usagerId,
+  etablissementPoint,
+  selectedAddressPoint,
 }: {
   circuit: PreviewCircuit | null;
   suggestion?: CircuitSuggestion;
   isNew: boolean;
+  usagerId: string;
+  etablissementPoint: {
+    name: string;
+    latitude: number;
+    longitude: number;
+  } | null;
+  selectedAddressPoint: {
+    label: string;
+    latitude: number;
+    longitude: number;
+  } | null;
 }) {
   const trpc = useTRPC();
   const circuitId = circuit?.id ?? null;
@@ -503,56 +582,151 @@ function CircuitPreviewPanel({
   const trajet = circuitTrajets?.[0] ?? null;
   const trajetId = trajet?.id ?? null;
 
-  const { data: trajetDetail } = useQuery({
-    ...trpc.trajets.getById.queryOptions({ id: trajetId ?? "" }),
-    enabled: enabled && !!trajetId,
-    refetchOnMount: "always",
-  });
   const { data: arretsList } = useQuery({
     ...trpc.arrets.list.queryOptions({ trajetId: trajetId ?? "" }),
     enabled: enabled && !!trajetId,
     refetchOnMount: "always",
   });
-  const { data: basemap } = useQuery({
-    ...trpc.basemap.getStyle.queryOptions(),
+  // Fond de carte : toujours chargé (l'aperçu de points s'affiche aussi pour un
+  // nouveau circuit, sans trajet calculé).
+  const { data: basemap } = useQuery(trpc.basemap.getStyle.queryOptions());
+
+  // Usagers déjà sur le circuit (versions ouvertes) → points géoloc de l'aperçu.
+  const { data: circuitUsagers } = useQuery({
+    ...trpc.usagerCircuits.listByCircuit.queryOptions({
+      circuitId: circuitId ?? "",
+      openOnly: true,
+    }),
     enabled,
+    refetchOnMount: "always",
   });
 
   const days = trajet?.recurrence?.daysOfWeek ?? [];
 
+  // Points de l'aperçu temps réel : établissement de destination + usagers déjà
+  // sur le circuit (hors usager courant) + adresse choisie de l'usager courant.
+  const previewPoints: PreviewPoint[] = [
+    ...(etablissementPoint
+      ? [
+          {
+            id: "etab",
+            kind: "etablissement" as const,
+            label: `Établissement — ${etablissementPoint.name}`,
+            latitude: etablissementPoint.latitude,
+            longitude: etablissementPoint.longitude,
+          },
+        ]
+      : []),
+    ...(circuitUsagers ?? [])
+      .filter((u) => u.usagerId !== usagerId)
+      .filter((u) => u.addressLatitude != null && u.addressLongitude != null)
+      .map((u) => {
+        const addr = [u.addressAddress, u.addressCity]
+          .filter(Boolean)
+          .join(", ");
+        return {
+          id: u.id,
+          kind: "usager" as const,
+          label: `${u.usagerFirstName} ${u.usagerLastName}${addr ? ` — ${addr}` : ""}`,
+          latitude: u.addressLatitude,
+          longitude: u.addressLongitude,
+        };
+      }),
+    ...(selectedAddressPoint
+      ? [
+          {
+            id: "selected",
+            kind: "selected" as const,
+            label: selectedAddressPoint.label,
+            latitude: selectedAddressPoint.latitude,
+            longitude: selectedAddressPoint.longitude,
+          },
+        ]
+      : []),
+  ];
+
+  // Tracé d'aperçu : itinéraire à travers les points (ordre estimé). Calcul OSRM
+  // (par tenant) en lecture seule, mis en cache par React Query selon les points.
+  const routeWaypoints = orderRouteWaypoints(previewPoints);
+  const { data: previewRoute, isFetching: routeFetching } = useQuery({
+    ...trpc.routing.previewRoute.queryOptions({ points: routeWaypoints }),
+    enabled: routeWaypoints.length >= 2,
+  });
+  const routeGeometry =
+    previewRoute?.ok && previewRoute.geometry
+      ? (previewRoute.geometry as [number, number][])
+      : undefined;
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
-      {isNew ? (
+      {/* Aperçu temps réel des points (établissement + usagers du circuit +
+          adresse choisie). Indépendant d'un trajet calculé : on visualise la
+          géoloc dès la sélection. */}
+      {!isNew && !circuit ? (
         <div className="flex h-[200px] items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground">
-          Le tracé sera défini après la création du circuit.
+          Sélectionnez un circuit pour afficher l&apos;aperçu.
         </div>
-      ) : !circuit ? (
-        <div className="flex h-[200px] items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground">
-          Sélectionnez un circuit pour afficher son tracé.
-        </div>
-      ) : circuitTrajets === undefined || basemap === undefined ? (
-        <Skeleton className="h-[200px] w-full rounded-none" />
-      ) : !trajet ? (
-        <div className="flex h-[200px] items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground">
-          Aucun trajet pour ce circuit.
-        </div>
-      ) : arretsList === undefined ? (
+      ) : basemap === undefined ? (
         <Skeleton className="h-[200px] w-full rounded-none" />
       ) : (
-        <div className="h-[200px] w-full">
-          <TrajetMap
-            arrets={arretsList.map((a) => ({
-              id: a.id,
-              name: a.name,
-              latitude: a.latitude,
-              longitude: a.longitude,
-              orderIndex: a.orderIndex,
-              type: a.type,
-            }))}
-            routeGeometry={trajetDetail?.routeGeometry ?? undefined}
-            basemap={basemap}
-            className="h-[200px] w-full"
-          />
+        <CircuitPreviewMap
+          points={previewPoints}
+          routeGeometry={routeGeometry}
+          basemap={basemap}
+          className="h-[200px] w-full"
+        />
+      )}
+
+      {(isNew || circuit) && routeWaypoints.length >= 2 && (
+        <div className="flex items-center gap-2 border-t border-border px-4 py-2 text-xs">
+          <span className="inline-flex h-2.5 w-4 shrink-0 items-center" aria-hidden>
+            <span
+              className="h-[3px] w-full rounded-full"
+              style={{ background: "#7c3aed" }}
+            />
+          </span>
+          {previewRoute?.ok ? (
+            <span className="text-foreground">
+              Tracé estimé ·{" "}
+              <span className="font-medium tabular-nums">
+                {formatKm(previewRoute.distanceKm)}
+              </span>{" "}
+              ·{" "}
+              <span className="font-medium tabular-nums">
+                {formatDuration(previewRoute.durationSec)}
+              </span>
+            </span>
+          ) : routeFetching ? (
+            <span className="text-muted-foreground">Calcul du tracé…</span>
+          ) : (
+            <span className="text-muted-foreground">Tracé indisponible</span>
+          )}
+        </div>
+      )}
+
+      {(isNew || circuit) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="size-2.5 rounded-full"
+              style={{ background: "#2563eb" }}
+            />
+            Établissement
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="size-2.5 rounded-full"
+              style={{ background: "#059669" }}
+            />
+            Adresse choisie
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="size-2.5 rounded-full"
+              style={{ background: "#d97706" }}
+            />
+            Autres usagers
+          </span>
         </div>
       )}
 
@@ -1276,6 +1450,47 @@ export function AssocierCircuitClient({
     .filter(Boolean)
     .join(" · ");
 
+  // --- Points géoloc pour l'aperçu temps réel (carte de droite) ---
+  // Adresse choisie de l'usager courant (mise à jour à chaque clic sur une carte
+  // d'adresse, via watch).
+  const watchedAddressId = useCreateForm
+    ? createForm.watch("usagerAddressId")
+    : linkForm.watch("usagerAddressId");
+  const selAddr = (usagerAddresses ?? []).find((a) => a.id === watchedAddressId);
+  const selectedAddressPoint =
+    selAddr && selAddr.latitude != null && selAddr.longitude != null
+      ? {
+          label: `${usagerName || "Usager"}${
+            [selAddr.address, selAddr.city].filter(Boolean).length
+              ? ` — ${[selAddr.address, selAddr.city].filter(Boolean).join(", ")}`
+              : ""
+          }`,
+          latitude: selAddr.latitude,
+          longitude: selAddr.longitude,
+        }
+      : null;
+
+  // Établissement de destination : circuit choisi (existant/édition) ou
+  // établissement sélectionné (nouveau circuit).
+  const previewEtablissementId = isEdit
+    ? (allCircuits?.find((c) => c.id === editingItem?.circuitId)
+        ?.etablissementId ?? null)
+    : useCreateForm
+      ? createForm.watch("etablissementId") || null
+      : (allCircuits?.find((c) => c.id === selectedCircuitId)?.etablissementId ??
+        null);
+  const previewEtab = (etablissements ?? []).find(
+    (e) => e.id === previewEtablissementId,
+  );
+  const etablissementPoint =
+    previewEtab && previewEtab.latitude != null && previewEtab.longitude != null
+      ? {
+          name: previewEtab.name,
+          latitude: previewEtab.latitude,
+          longitude: previewEtab.longitude,
+        }
+      : null;
+
   return (
     // Pleine largeur, comme la fiche usager (EntityDetailLayout) → UI cohérente.
     // `w-full` (sans mx-auto) évite aussi le piège flexbox : mx-auto sur un
@@ -1515,6 +1730,9 @@ export function AssocierCircuitClient({
               circuit={selectedCircuit}
               suggestion={selectedSuggestion}
               isNew={useCreateForm}
+              usagerId={usagerId}
+              etablissementPoint={etablissementPoint}
+              selectedAddressPoint={selectedAddressPoint}
             />
           </div>
         </div>
