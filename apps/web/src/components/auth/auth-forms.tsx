@@ -4,6 +4,7 @@ import { useState, useActionState } from "react";
 import { login, signup } from "@/lib/auth/actions";
 import { SubmitButton } from "./submit-button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import type { AuthState } from "@/lib/auth/actions";
 
@@ -51,10 +52,9 @@ export function AuthForms() {
                   Mot de passe oublié ?
                 </button>
               </div>
-              <Input
+              <PasswordInput
                 id="login-password"
                 name="password"
-                type="password"
                 placeholder="••••••••"
                 required
               />
@@ -125,10 +125,9 @@ export function AuthForms() {
 
             <div className="grid gap-2">
               <Label htmlFor="signup-password">Mot de passe</Label>
-              <Input
+              <PasswordInput
                 id="signup-password"
                 name="password"
-                type="password"
                 placeholder="••••••••"
                 minLength={8}
                 required
