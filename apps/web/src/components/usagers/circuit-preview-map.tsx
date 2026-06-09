@@ -28,6 +28,37 @@ const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
   usager: { color: "#d97706", scale: 0.75 }, // orange
 };
 
+// Petit chevron blanc à liseré violet, dessiné en canvas, pour matérialiser le
+// SENS du tracé (placé le long de la ligne via une couche symbol). Pointe vers
+// la droite (est) : MapLibre le fait pivoter selon la direction de la ligne.
+function buildArrowImage(): ImageData | null {
+  if (typeof document === "undefined") return null;
+  const ratio = 2;
+  const s = 22;
+  const canvas = document.createElement("canvas");
+  canvas.width = s * ratio;
+  canvas.height = s * ratio;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.scale(ratio, ratio);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const chevron = () => {
+    ctx.beginPath();
+    ctx.moveTo(s * 0.4, s * 0.26);
+    ctx.lineTo(s * 0.68, s * 0.5);
+    ctx.lineTo(s * 0.4, s * 0.74);
+    ctx.stroke();
+  };
+  ctx.strokeStyle = "rgba(76,29,149,0.95)"; // liseré violet foncé (contraste)
+  ctx.lineWidth = 5;
+  chevron();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2.5;
+  chevron();
+  return ctx.getImageData(0, 0, s * ratio, s * ratio);
+}
+
 /**
  * Carte d'aperçu temps réel des points d'un circuit en cours d'association :
  * établissement de destination + usagers déjà sur le circuit + adresse choisie
@@ -140,6 +171,8 @@ export function CircuitPreviewMap({
     const map = mapRef.current;
     if (!map || !loaded) return;
     const SRC = "preview-route";
+    const ARROWS = "preview-route-arrows";
+    if (map.getLayer(ARROWS)) map.removeLayer(ARROWS);
     if (map.getLayer(SRC)) map.removeLayer(SRC);
     if (map.getSource(SRC)) map.removeSource(SRC);
     if (routeGeometry && routeGeometry.length >= 2) {
@@ -158,6 +191,31 @@ export function CircuitPreviewMap({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#7c3aed", "line-width": 3.5, "line-opacity": 0.85 },
       });
+      // Flèches de sens, le long du tracé (l'image n'est ajoutée qu'une fois ;
+      // elle survit aux re-rendus de couches mais pas à une remontée de carte).
+      if (!map.hasImage("route-arrow")) {
+        const arrow = buildArrowImage();
+        if (arrow) map.addImage("route-arrow", arrow, { pixelRatio: 2 });
+      }
+      if (map.hasImage("route-arrow")) {
+        map.addLayer({
+          id: ARROWS,
+          type: "symbol",
+          source: SRC,
+          layout: {
+            "symbol-placement": "line",
+            "symbol-spacing": 64,
+            "icon-image": "route-arrow",
+            "icon-size": 0.8,
+            "icon-rotation-alignment": "map",
+            // Ne pas redresser : les chevrons suivent le sens réel de la ligne
+            // (départ usagers → établissement).
+            "icon-keep-upright": false,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey, loaded]);
