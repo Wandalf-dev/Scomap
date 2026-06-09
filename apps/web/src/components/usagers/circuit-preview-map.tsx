@@ -35,10 +35,13 @@ const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
  */
 export function CircuitPreviewMap({
   points,
+  routeGeometry,
   basemap,
   className,
 }: {
   points: PreviewPoint[];
+  /** Tracé d'aperçu en `[lng, lat][]` (ordre GeoJSON). Dessiné sous les pins. */
+  routeGeometry?: [number, number][];
   basemap?: BasemapStyle;
   className?: string;
 }) {
@@ -59,6 +62,14 @@ export function CircuitPreviewMap({
     [geoPoints],
   );
   const basemapKey = useMemo(() => JSON.stringify(basemap ?? null), [basemap]);
+  // Signature peu coûteuse du tracé (longueur + extrémités) — évite de
+  // sérialiser ~1000 points à chaque rendu.
+  const routeKey = useMemo(() => {
+    if (!routeGeometry || routeGeometry.length < 2) return "none";
+    const a = routeGeometry[0]!;
+    const b = routeGeometry[routeGeometry.length - 1]!;
+    return `${routeGeometry.length}:${a[0]},${a[1]}:${b[0]},${b[1]}`;
+  }, [routeGeometry]);
 
   // Init : une seule carte par fond de carte (remontée seulement si le provider
   // du tenant change). Les marqueurs sont gérés par l'effet suivant.
@@ -122,6 +133,34 @@ export function CircuitPreviewMap({
       map.fitBounds(bounds, { padding: 44, maxZoom: 15, duration: 400 });
     }
   }, [pointsKey, loaded, geoPoints]);
+
+  // Tracé : couche GeoJSON sous les marqueurs (pins HTML toujours au-dessus du
+  // canvas). Recréée à chaque changement de géométrie ; retirée si plus de tracé.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const SRC = "preview-route";
+    if (map.getLayer(SRC)) map.removeLayer(SRC);
+    if (map.getSource(SRC)) map.removeSource(SRC);
+    if (routeGeometry && routeGeometry.length >= 2) {
+      map.addSource(SRC, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: routeGeometry },
+        },
+      });
+      map.addLayer({
+        id: SRC,
+        type: "line",
+        source: SRC,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#7c3aed", "line-width": 3.5, "line-opacity": 0.85 },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey, loaded]);
 
   return (
     <div className={`relative ${className ?? ""}`}>

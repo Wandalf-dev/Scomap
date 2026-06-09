@@ -14,6 +14,7 @@ import { userPreferencesRouter } from "./routers/user-preferences";
 import { tenantSettingsRouter } from "./routers/tenant-settings";
 import { basemapRouter } from "./routers/basemap";
 import { preparationRouter } from "./routers/preparation";
+import { routingRouter } from "./routers/routing";
 
 export const appRouter = createTRPCRouter({
   etablissements: etablissementsRouter,
@@ -31,6 +32,7 @@ export const appRouter = createTRPCRouter({
   tenantSettings: tenantSettingsRouter,
   basemap: basemapRouter,
   preparation: preparationRouter,
+  routing: routingRouter,
 });
 
 export const createCaller = createCallerFactory(appRouter);

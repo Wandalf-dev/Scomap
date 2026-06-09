@@ -473,6 +473,70 @@ function formatCircuitPeriode(
   return "Période non définie";
 }
 
+// Distance à vol d'oiseau (km) — sert uniquement à ordonner les points de l'aperçu.
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Ordre d'aperçu des waypoints (heuristique nearest-neighbor) : ramassage des
+ * usagers, du plus loin au plus proche de l'établissement, terminé par
+ * l'établissement (sens « aller » d'un transport scolaire). ⚠️ Estimation :
+ * l'ordre réel des arrêts d'un trajet est calculé ailleurs (trajet-sync).
+ */
+function orderRouteWaypoints(
+  points: PreviewPoint[],
+): { lat: number; lng: number }[] {
+  const geo = points.filter((p) => p.latitude != null && p.longitude != null);
+  const etab = geo.find((p) => p.kind === "etablissement");
+  const pickups = geo
+    .filter((p) => p.kind !== "etablissement")
+    .map((p) => ({ lat: p.latitude!, lng: p.longitude! }));
+  if (!etab) return pickups;
+  const etabLL = { lat: etab.latitude!, lng: etab.longitude! };
+  const chain: { lat: number; lng: number }[] = [];
+  let cursor = etabLL;
+  const rem = [...pickups];
+  while (rem.length) {
+    let bi = 0;
+    let bd = Infinity;
+    for (let i = 0; i < rem.length; i++) {
+      const d = haversineKm(cursor, rem[i]!);
+      if (d < bd) {
+        bd = d;
+        bi = i;
+      }
+    }
+    cursor = rem[bi]!;
+    chain.push(cursor);
+    rem.splice(bi, 1);
+  }
+  chain.reverse(); // établissement en dernier
+  return [...chain, etabLL];
+}
+
+function formatKm(km: number): string {
+  return `${km.toFixed(1).replace(".", ",")} km`;
+}
+function formatDuration(sec: number): string {
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+}
+
 function CircuitPreviewPanel({
   circuit,
   suggestion,
@@ -581,6 +645,18 @@ function CircuitPreviewPanel({
       : []),
   ];
 
+  // Tracé d'aperçu : itinéraire à travers les points (ordre estimé). Calcul OSRM
+  // (par tenant) en lecture seule, mis en cache par React Query selon les points.
+  const routeWaypoints = orderRouteWaypoints(previewPoints);
+  const { data: previewRoute, isFetching: routeFetching } = useQuery({
+    ...trpc.routing.previewRoute.queryOptions({ points: routeWaypoints }),
+    enabled: routeWaypoints.length >= 2,
+  });
+  const routeGeometry =
+    previewRoute?.ok && previewRoute.geometry
+      ? (previewRoute.geometry as [number, number][])
+      : undefined;
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
       {/* Aperçu temps réel des points (établissement + usagers du circuit +
@@ -595,9 +671,37 @@ function CircuitPreviewPanel({
       ) : (
         <CircuitPreviewMap
           points={previewPoints}
+          routeGeometry={routeGeometry}
           basemap={basemap}
           className="h-[200px] w-full"
         />
+      )}
+
+      {(isNew || circuit) && routeWaypoints.length >= 2 && (
+        <div className="flex items-center gap-2 border-t border-border px-4 py-2 text-xs">
+          <span className="inline-flex h-2.5 w-4 shrink-0 items-center" aria-hidden>
+            <span
+              className="h-[3px] w-full rounded-full"
+              style={{ background: "#7c3aed" }}
+            />
+          </span>
+          {previewRoute?.ok ? (
+            <span className="text-foreground">
+              Tracé estimé ·{" "}
+              <span className="font-medium tabular-nums">
+                {formatKm(previewRoute.distanceKm)}
+              </span>{" "}
+              ·{" "}
+              <span className="font-medium tabular-nums">
+                {formatDuration(previewRoute.durationSec)}
+              </span>
+            </span>
+          ) : routeFetching ? (
+            <span className="text-muted-foreground">Calcul du tracé…</span>
+          ) : (
+            <span className="text-muted-foreground">Tracé indisponible</span>
+          )}
+        </div>
       )}
 
       {(isNew || circuit) && (
