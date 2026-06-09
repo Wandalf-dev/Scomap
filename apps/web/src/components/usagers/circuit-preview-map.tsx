@@ -28,6 +28,52 @@ const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
   usager: { color: "#d97706", scale: 0.75 }, // orange
 };
 
+// Distance haversine en mètres entre deux [lng, lat].
+function distMeters(a: [number, number], b: [number, number]): number {
+  const R = 6371000;
+  const dLat = ((b[1] - a[1]) * Math.PI) / 180;
+  const dLng = ((b[0] - a[0]) * Math.PI) / 180;
+  const la1 = (a[1] * Math.PI) / 180;
+  const la2 = (b[1] * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// Point le plus proche d'une coordonnée sur une polyligne (projection planaire
+// locale, suffisante sur de courtes distances). Sert à tracer le « dernier
+// mètre » entre un pin (coordonnée exacte) et la route (rabattue par le moteur).
+function nearestOnLine(
+  p: [number, number],
+  line: [number, number][],
+): [number, number] {
+  const kx = Math.cos((p[1] * Math.PI) / 180);
+  const px = p[0] * kx;
+  const py = p[1];
+  let best: [number, number] = line[0]!;
+  let bestD2 = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1]!;
+    const b = line[i]!;
+    const ax = a[0] * kx;
+    const ay = a[1];
+    const dx = b[0] * kx - ax;
+    const dy = b[1] - ay;
+    const len2 = dx * dx + dy * dy || 1e-12;
+    let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx;
+    const cy = ay + t * dy;
+    const d2 = (px - cx) ** 2 + (py - cy) ** 2;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+    }
+  }
+  return best;
+}
+
 /**
  * Carte d'aperçu temps réel des points d'un circuit en cours d'association :
  * établissement de destination + usagers déjà sur le circuit + adresse choisie
@@ -161,6 +207,53 @@ export function CircuitPreviewMap({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey, loaded]);
+
+  // Connecteurs « derniers mètres » : pointillé entre chaque pin (coordonnée
+  // exacte) et le point le plus proche du tracé (rabattu sur la route). Affiché
+  // seulement au-delà de 20 m, donc visible surtout pour l'établissement/adresses
+  // en retrait — invisible pour les points déjà sur la voie.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const SRC = "preview-connectors";
+    if (map.getLayer(SRC)) map.removeLayer(SRC);
+    if (map.getSource(SRC)) map.removeSource(SRC);
+    if (!routeGeometry || routeGeometry.length < 2 || geoPoints.length === 0)
+      return;
+    const features = geoPoints
+      .map((p) => {
+        const marker: [number, number] = [p.longitude!, p.latitude!];
+        const onRoute = nearestOnLine(marker, routeGeometry);
+        if (distMeters(marker, onRoute) <= 20) return null;
+        return {
+          type: "Feature" as const,
+          properties: {},
+          geometry: {
+            type: "LineString" as const,
+            coordinates: [marker, onRoute],
+          },
+        };
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
+    if (features.length === 0) return;
+    map.addSource(SRC, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features },
+    });
+    map.addLayer({
+      id: SRC,
+      type: "line",
+      source: SRC,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": "#7c3aed",
+        "line-width": 2,
+        "line-opacity": 0.55,
+        "line-dasharray": [1.5, 1.5],
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey, pointsKey, loaded]);
 
   return (
     <div className={`relative ${className ?? ""}`}>
