@@ -28,9 +28,9 @@ const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
   usager: { color: "#d97706", scale: 0.75 }, // orange
 };
 
-// Petit chevron blanc à liseré violet, dessiné en canvas, pour matérialiser le
-// SENS du tracé (placé le long de la ligne via une couche symbol). Pointe vers
-// la droite (est) : MapLibre le fait pivoter selon la direction de la ligne.
+// Chevron blanc à liseré violet (canvas), pointant vers le HAUT (nord). Il sera
+// tourné par `icon-rotate` selon le cap de chaque flèche → pointe dans le sens
+// de circulation.
 function buildArrowImage(): ImageData | null {
   if (typeof document === "undefined") return null;
   const ratio = 2;
@@ -45,9 +45,9 @@ function buildArrowImage(): ImageData | null {
   ctx.lineJoin = "round";
   const chevron = () => {
     ctx.beginPath();
-    ctx.moveTo(s * 0.4, s * 0.26);
-    ctx.lineTo(s * 0.68, s * 0.5);
-    ctx.lineTo(s * 0.4, s * 0.74);
+    ctx.moveTo(s * 0.26, s * 0.62);
+    ctx.lineTo(s * 0.5, s * 0.36);
+    ctx.lineTo(s * 0.74, s * 0.62);
     ctx.stroke();
   };
   ctx.strokeStyle = "rgba(76,29,149,0.95)"; // liseré violet foncé (contraste)
@@ -57,6 +57,71 @@ function buildArrowImage(): ImageData | null {
   ctx.lineWidth = 2.5;
   chevron();
   return ctx.getImageData(0, 0, s * ratio, s * ratio);
+}
+
+// Distance haversine (m) entre deux [lng, lat].
+function distMeters(a: [number, number], b: [number, number]): number {
+  const R = 6371000;
+  const toR = (x: number) => (x * Math.PI) / 180;
+  const dLat = toR(b[1] - a[1]);
+  const dLng = toR(b[0] - a[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toR(a[1])) * Math.cos(toR(b[1])) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// Cap compas (deg, 0 = nord, sens horaire) de a vers b.
+function bearingDeg(a: [number, number], b: [number, number]): number {
+  const toR = (x: number) => (x * Math.PI) / 180;
+  const toD = (x: number) => (x * 180) / Math.PI;
+  const dLng = toR(b[0] - a[0]);
+  const y = Math.sin(dLng) * Math.cos(toR(b[1]));
+  const x =
+    Math.cos(toR(a[1])) * Math.sin(toR(b[1])) -
+    Math.sin(toR(a[1])) * Math.cos(toR(b[1])) * Math.cos(dLng);
+  return (toD(Math.atan2(y, x)) + 360) % 360;
+}
+
+/**
+ * Flèches de sens à positions géographiques FIXES le long du tracé (≈ 1 / 1,2 km,
+ * de 1 à 6), chacune avec son cap. Positions stables → contrairement à
+ * `symbol-placement: line`, elles ne se recalculent pas au zoom (plus de flèches
+ * qui se multiplient / disparaissent).
+ */
+function buildArrowFeatures(line: [number, number][]) {
+  if (!line || line.length < 2) return [];
+  const seg: number[] = [];
+  let total = 0;
+  for (let i = 1; i < line.length; i++) {
+    const d = distMeters(line[i - 1]!, line[i]!);
+    seg.push(d);
+    total += d;
+  }
+  if (total < 1) return [];
+  const n = Math.max(1, Math.min(6, Math.round(total / 1200)));
+  const feats = [];
+  for (let k = 1; k <= n; k++) {
+    const target = (total * k) / (n + 1);
+    let acc = 0;
+    let idx = 0;
+    while (idx < seg.length - 1 && acc + seg[idx]! < target) {
+      acc += seg[idx]!;
+      idx++;
+    }
+    const a = line[idx]!;
+    const b = line[idx + 1] ?? a;
+    const t = seg[idx] ? Math.max(0, Math.min(1, (target - acc) / seg[idx]!)) : 0;
+    feats.push({
+      type: "Feature" as const,
+      properties: { bearing: bearingDeg(a, b) },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])],
+      },
+    });
+  }
+  return feats;
 }
 
 /**
@@ -172,7 +237,9 @@ export function CircuitPreviewMap({
     if (!map || !loaded) return;
     const SRC = "preview-route";
     const ARROWS = "preview-route-arrows";
+    const ARROWS_SRC = "preview-route-arrows-src";
     if (map.getLayer(ARROWS)) map.removeLayer(ARROWS);
+    if (map.getSource(ARROWS_SRC)) map.removeSource(ARROWS_SRC);
     if (map.getLayer(SRC)) map.removeLayer(SRC);
     if (map.getSource(SRC)) map.removeSource(SRC);
     if (routeGeometry && routeGeometry.length >= 2) {
@@ -191,26 +258,28 @@ export function CircuitPreviewMap({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#7c3aed", "line-width": 3.5, "line-opacity": 0.85 },
       });
-      // Flèches de sens, le long du tracé (l'image n'est ajoutée qu'une fois ;
-      // elle survit aux re-rendus de couches mais pas à une remontée de carte).
+      // Flèches de sens : points FIXES (positions géo stables au zoom), chacun
+      // tourné selon son cap. L'image n'est ajoutée qu'une fois (survit aux
+      // re-rendus de couches, pas à une remontée de carte).
       if (!map.hasImage("route-arrow")) {
         const arrow = buildArrowImage();
         if (arrow) map.addImage("route-arrow", arrow, { pixelRatio: 2 });
       }
-      if (map.hasImage("route-arrow")) {
+      const arrowFeatures = buildArrowFeatures(routeGeometry);
+      if (map.hasImage("route-arrow") && arrowFeatures.length > 0) {
+        map.addSource(ARROWS_SRC, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: arrowFeatures },
+        });
         map.addLayer({
           id: ARROWS,
           type: "symbol",
-          source: SRC,
+          source: ARROWS_SRC,
           layout: {
-            "symbol-placement": "line",
-            "symbol-spacing": 64,
             "icon-image": "route-arrow",
-            "icon-size": 0.8,
+            "icon-size": 0.85,
+            "icon-rotate": ["get", "bearing"],
             "icon-rotation-alignment": "map",
-            // Ne pas redresser : les chevrons suivent le sens réel de la ligne
-            // (départ usagers → établissement).
-            "icon-keep-upright": false,
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
           },
