@@ -23,9 +23,9 @@ const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 // plus lisible qu'un gros disque centré. L'adresse choisie est légèrement plus
 // grande pour ressortir. Cohérent avec components/shared/point-map.tsx.
 const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
-  etablissement: { color: "#2563eb", scale: 0.85 },
-  selected: { color: "#4f46e5", scale: 1 },
-  usager: { color: "#d97706", scale: 0.75 },
+  etablissement: { color: "#2563eb", scale: 0.85 }, // bleu
+  selected: { color: "#059669", scale: 1 }, // vert émeraude (bien distinct du bleu)
+  usager: { color: "#d97706", scale: 0.75 }, // orange
 };
 
 /**

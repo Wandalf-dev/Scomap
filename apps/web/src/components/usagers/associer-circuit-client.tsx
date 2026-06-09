@@ -612,7 +612,7 @@ function CircuitPreviewPanel({
           <span className="inline-flex items-center gap-1.5">
             <span
               className="size-2.5 rounded-full"
-              style={{ background: "#4f46e5" }}
+              style={{ background: "#059669" }}
             />
             Adresse choisie
           </span>
