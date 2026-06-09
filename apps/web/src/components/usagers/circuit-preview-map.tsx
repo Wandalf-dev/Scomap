@@ -18,15 +18,14 @@ export interface PreviewPoint {
 
 const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
-// Styles de marqueur par catégorie : établissement (bleu, destination), adresse
-// choisie de l'usager courant (indigo, mise en avant), autres usagers (ambre).
-const MARKER: Record<
-  PreviewPointKind,
-  { bg: string; size: number; zIndex: string }
-> = {
-  etablissement: { bg: "#2563eb", size: 28, zIndex: "2" },
-  selected: { bg: "#4f46e5", size: 30, zIndex: "3" },
-  usager: { bg: "#d97706", size: 20, zIndex: "1" },
+// Couleur + taille du pin par catégorie. On utilise l'épingle MapLibre par
+// défaut (teardrop) : sa POINTE est ancrée précisément sur la coordonnée — bien
+// plus lisible qu'un gros disque centré. L'adresse choisie est légèrement plus
+// grande pour ressortir. Cohérent avec components/shared/point-map.tsx.
+const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
+  etablissement: { color: "#2563eb", scale: 0.85 },
+  selected: { color: "#4f46e5", scale: 1 },
+  usager: { color: "#d97706", scale: 0.75 },
 };
 
 /**
@@ -106,15 +105,9 @@ export function CircuitPreviewMap({
     const bounds = new maplibregl.LngLatBounds();
     for (const p of geoPoints) {
       const s = MARKER[p.kind];
-      const el = document.createElement("div");
-      el.style.cssText = `
-        width:${s.size}px;height:${s.size}px;border-radius:50%;
-        background:${s.bg};border:2px solid white;
-        box-shadow:0 2px 4px rgba(0,0,0,.3);z-index:${s.zIndex};cursor:pointer;
-      `;
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ color: s.color, scale: s.scale })
         .setLngLat([p.longitude!, p.latitude!])
-        .setPopup(new maplibregl.Popup({ offset: 18 }).setText(p.label))
+        .setPopup(new maplibregl.Popup({ offset: 24 }).setText(p.label))
         .addTo(map);
       markersRef.current.push(marker);
       bounds.extend([p.longitude!, p.latitude!]);
