@@ -251,6 +251,49 @@ export const usagersRouter = createTRPCRouter({
       return result[0] ?? null;
     }),
 
+  // Modification groupée des dates de transport (début et/ou fin) sur une
+  // sélection d'usagers. Un champ absent (`undefined`) n'est pas touché ;
+  // fourni à `null` il est vidé, fourni daté il est défini.
+  updateTransportDatesMany: tenantProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().uuid()).min(1),
+        transportStartDate: z.string().nullable().optional(),
+        transportEndDate: z.string().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Rien de coché côté UI → no-op (le dialog l'empêche déjà).
+      if (
+        input.transportStartDate === undefined &&
+        input.transportEndDate === undefined
+      ) {
+        return { updated: 0 };
+      }
+
+      const patch: Partial<typeof usagers.$inferInsert> = {
+        updatedAt: new Date(),
+      };
+      if (input.transportStartDate !== undefined)
+        patch.transportStartDate = input.transportStartDate;
+      if (input.transportEndDate !== undefined)
+        patch.transportEndDate = input.transportEndDate;
+
+      const result = await ctx.db
+        .update(usagers)
+        .set(patch)
+        .where(
+          and(
+            eq(usagers.tenantId, ctx.tenantId),
+            inArray(usagers.id, input.ids),
+            isNull(usagers.deletedAt),
+          ),
+        )
+        .returning({ id: usagers.id });
+
+      return { updated: result.length };
+    }),
+
   // Calcule la distance routière entre l'adresse principale (position 1) de
   // l'usager et son établissement principal. Renvoie les km sans persister :
   // le formulaire de la fiche se charge de l'enregistrement.

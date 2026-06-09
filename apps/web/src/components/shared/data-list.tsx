@@ -222,14 +222,17 @@ function InlineColumnFilter({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className={`flex h-7 w-full items-center justify-between gap-1 rounded-[0.3rem] border bg-transparent pl-2.5 pr-7 text-left text-xs font-normal ${
+              className={`flex h-7 w-full cursor-pointer items-center justify-between gap-1 rounded-[0.3rem] border bg-input-bg pl-2.5 text-left text-xs font-normal transition-colors ${
+                active ? "pr-7" : "pr-2.5"
+              } ${
                 active
                   ? "border-primary/50 text-foreground"
-                  : "border-input text-muted-foreground"
+                  : "border-input text-muted-foreground hover:border-foreground/30 hover:text-foreground"
               }`}
             >
               <span className="truncate">{summary}</span>
-              <CalendarIcon className="size-3.5 shrink-0 opacity-60" />
+              {/* Icône calendrier seulement quand inactif : sinon elle laisse la place à la croix */}
+              {!active && <CalendarIcon className="size-3.5 shrink-0 opacity-60" />}
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 space-y-3 p-3" align="start">
@@ -312,7 +315,9 @@ function InlineColumnFilter({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        className={`h-7 w-full pr-7 text-xs font-normal ${active ? "border-primary/50" : ""}`}
+        // pl-2/pr-6 (au lieu du px-3 + pr-7 de base) : sur une colonne étroite,
+        // le padding par défaut mangeait toute la zone de texte → saisie invisible.
+        className={`h-7 w-full pl-2 pr-6 text-xs font-normal ${active ? "border-primary/50" : ""}`}
       />
       <button
         type="button"
@@ -1071,7 +1076,9 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         style={hasFixedWidths ? { width: columnWidths[col.key] } : undefined}
                         onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
                       >
-                        <div className="flex flex-col gap-1.5 py-1 pr-1.5">
+                        <div
+                          className={`flex flex-col gap-1.5 py-1 pr-1.5 ${fc ? "min-w-[6.5rem]" : ""}`}
+                        >
                           <span className="flex shrink-0 items-center gap-1">
                             {col.header}
                             {col.sortable && (

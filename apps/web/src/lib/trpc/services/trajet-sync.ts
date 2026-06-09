@@ -1,4 +1,4 @@
-import { eq, and, isNull, inArray, or, lte, gte, sql } from "drizzle-orm";
+import { eq, and, isNull, inArray, or, lte, gte } from "drizzle-orm";
 import {
   circuits,
   etablissements,
@@ -167,9 +167,20 @@ export async function addUsagerArret(
   const a = addr[0];
   if (!a) return;
 
-  // Get max orderIndex on this trajet
-  const maxResult = await ctx.db
-    .select({ maxIdx: sql<number>`coalesce(max(${arrets.orderIndex}), 0)` })
+  // Placement par direction (même règle que l'ajout manuel dans arrets.ts, et que
+  // calculateTimes qui ancre l'école en bout de liste) :
+  // - "aller" : l'école est la destination (dernier arrêt) → on insère l'usager
+  //   juste AVANT elle (en décalant l'école et les arrêts suivants).
+  // - "retour" : l'école est l'origine (premier arrêt) → on ajoute à la fin.
+  const trajetRow = await ctx.db
+    .select({ direction: trajets.direction })
+    .from(trajets)
+    .where(and(eq(trajets.id, trajetId), eq(trajets.tenantId, ctx.tenantId)))
+    .limit(1);
+  const direction = trajetRow[0]?.direction;
+
+  const existingArrets = await ctx.db
+    .select({ id: arrets.id, orderIndex: arrets.orderIndex, type: arrets.type })
     .from(arrets)
     .where(
       and(
@@ -179,7 +190,19 @@ export async function addUsagerArret(
       ),
     );
 
-  const maxIdx = maxResult[0]?.maxIdx ?? 0;
+  const maxIdx = existingArrets.reduce((m, x) => Math.max(m, x.orderIndex), -1);
+  const ecole = existingArrets.find((x) => x.type === "etablissement");
+  const insertPos = direction === "aller" && ecole ? ecole.orderIndex : maxIdx + 1;
+
+  // Fait de la place : décale d'un cran tout arrêt situé à/après le point d'insertion.
+  for (const x of existingArrets) {
+    if (x.orderIndex >= insertPos) {
+      await ctx.db
+        .update(arrets)
+        .set({ orderIndex: x.orderIndex + 1, updatedAt: new Date() })
+        .where(and(eq(arrets.id, x.id), eq(arrets.tenantId, ctx.tenantId)));
+    }
+  }
 
   await ctx.db.insert(arrets).values({
     tenantId: ctx.tenantId,
@@ -190,7 +213,7 @@ export async function addUsagerArret(
     address: [a.address, a.postalCode, a.city].filter(Boolean).join(", "),
     latitude: a.latitude ?? null,
     longitude: a.longitude ?? null,
-    orderIndex: maxIdx + 1,
+    orderIndex: insertPos,
     validFrom,
   });
 }

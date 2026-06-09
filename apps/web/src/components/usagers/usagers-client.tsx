@@ -6,13 +6,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
-import { Pencil, Trash2, ExternalLink, Archive, ArchiveRestore, Copy } from "lucide-react";
+import { Pencil, Trash2, ExternalLink, Archive, ArchiveRestore, Copy, CalendarClock } from "lucide-react";
 import { UsersIcon } from "@/components/ui/users-icon";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { UsagerFormDialog } from "./usager-form-dialog";
+import { BulkTransportDatesDialog } from "./bulk-transport-dates-dialog";
 import { UsagerStatusBadge } from "./usager-status-badge";
 import {
   USAGER_STATUSES,
@@ -132,6 +133,8 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingItem, setEditingItem] = useState<UsagerRow | null>(null);
   const [deleteItem, setDeleteItem] = useState<UsagerRow | null>(null);
+  // Sélection en cours d'édition groupée des dates de transport (null = dialog fermé).
+  const [bulkDatesIds, setBulkDatesIds] = useState<string[] | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -246,6 +249,23 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
     }),
   );
 
+  const updateDatesManyMutation = useMutation(
+    trpc.usagers.updateTransportDatesMany.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagers.list.queryKey(),
+        });
+        toast.success(
+          `Dates mises à jour pour ${data.updated} usager${data.updated > 1 ? "s" : ""}`,
+        );
+        setBulkDatesIds(null);
+      },
+      onError: () => {
+        toast.error("Erreur lors de la mise à jour des dates");
+      },
+    }),
+  );
+
   const archiveMutation = useMutation(
     trpc.usagers.setArchived.mutationOptions({
       onSuccess: (_data, variables) => {
@@ -341,6 +361,12 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
                     router.push("/preparation");
                   }
                 },
+              },
+              {
+                label: "Modifier les dates de transport",
+                icon: CalendarClock,
+                separator: true,
+                onClick: (ids: string[]) => setBulkDatesIds(ids),
               },
             ]
       }
@@ -746,6 +772,17 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         entityName="l'usager"
         entityLabel={deleteItem ? `${deleteItem.firstName} ${deleteItem.lastName}` : ""}
         isPending={deleteMutation.isPending}
+      />
+
+      <BulkTransportDatesDialog
+        open={bulkDatesIds !== null}
+        onOpenChange={(open) => !open && setBulkDatesIds(null)}
+        count={bulkDatesIds?.length ?? 0}
+        isPending={updateDatesManyMutation.isPending}
+        onSubmit={(values) =>
+          bulkDatesIds &&
+          updateDatesManyMutation.mutate({ ids: bulkDatesIds, ...values })
+        }
       />
     </DataList>
     </div>
