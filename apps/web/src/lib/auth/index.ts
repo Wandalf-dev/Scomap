@@ -6,6 +6,11 @@ import { users, tenants } from "@scomap/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getTenantSlug } from "../tenant";
 
+// Hash bcrypt (cost 12) d'une valeur factice : comparé quand l'email n'existe
+// pas, pour que le temps de réponse ne révèle pas l'existence du compte.
+const DUMMY_HASH =
+  "$2b$12$XyfTot6daCHosRDk1qa8CubGvQYg1OJ63HCOP35qJbyzTrlaPxenS";
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -49,12 +54,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .limit(1);
 
         if (user.length === 0) {
+          await compare(password, DUMMY_HASH); // égalise le timing
           return null;
         }
 
         const foundUser = user[0];
 
         if (!foundUser.passwordHash) {
+          await compare(password, DUMMY_HASH); // égalise le timing
           return null;
         }
 
@@ -69,6 +76,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: foundUser.email,
           name: foundUser.name,
           tenantId: foundUser.tenantId,
+          tenantSlug: tenant[0].slug,
           role: foundUser.role,
         };
       },
@@ -79,6 +87,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.tenantId = (user as { tenantId: string }).tenantId;
+        token.tenantSlug = (user as { tenantSlug: string }).tenantSlug;
         token.role = (user as { role: string }).role;
       }
       return token;
@@ -87,6 +96,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.tenantId = token.tenantId as string;
+        session.user.tenantSlug = token.tenantSlug as string;
         session.user.role = token.role as string;
       }
       return session;
@@ -98,5 +108,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
+    // JWT stateless = non révocable avant expiration : fenêtre volontairement
+    // plus courte que les 30 jours par défaut d'Auth.js.
+    maxAge: 7 * 24 * 60 * 60, // 7 jours
   },
 });

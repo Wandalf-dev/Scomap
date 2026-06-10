@@ -12,6 +12,7 @@ import {
 } from "@scomap/db/schema";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "../init";
+import { assertTenantOwned } from "../ownership";
 import { nextDisplayId } from "@/lib/db/display-id";
 import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
 import { avenantCreateSchema } from "@/lib/validators/avenant";
@@ -641,8 +642,18 @@ export const avenantsRouter = createTRPCRouter({
         })
         .from(avenantChanges)
         .innerJoin(avenants, eq(avenantChanges.avenantId, avenants.id))
-        .innerJoin(usagers, eq(avenantChanges.usagerId, usagers.id))
-        .leftJoin(circuits, eq(avenants.circuitId, circuits.id))
+        // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+        .innerJoin(
+          usagers,
+          and(
+            eq(avenantChanges.usagerId, usagers.id),
+            eq(usagers.tenantId, ctx.tenantId),
+          ),
+        )
+        .leftJoin(
+          circuits,
+          and(eq(avenants.circuitId, circuits.id), eq(circuits.tenantId, ctx.tenantId)),
+        )
         .where(
           and(
             eq(avenants.tenantId, ctx.tenantId),
@@ -694,7 +705,13 @@ export const avenantsRouter = createTRPCRouter({
           usagerLastName: usagers.lastName,
         })
         .from(avenantChanges)
-        .innerJoin(usagers, eq(avenantChanges.usagerId, usagers.id))
+        .innerJoin(
+          usagers,
+          and(
+            eq(avenantChanges.usagerId, usagers.id),
+            eq(usagers.tenantId, ctx.tenantId),
+          ),
+        )
         .where(
           and(
             inArray(
@@ -733,6 +750,18 @@ export const avenantsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(avenantCreateSchema)
     .mutation(async ({ ctx, input }) => {
+      // Anti-IDOR : le circuit et chaque usager référencés doivent appartenir
+      // au tenant (sinon l'avenant persiste des FKs étrangères que les
+      // jointures de lecture exposeraient).
+      await Promise.all([
+        input.circuitId
+          ? assertTenantOwned(ctx.db, circuits, input.circuitId, ctx.tenantId, "Circuit")
+          : null,
+        ...input.changes.map((change) =>
+          assertTenantOwned(ctx.db, usagers, change.usagerId, ctx.tenantId, "Usager"),
+        ),
+      ]);
+
       // Garde dates : la date d'effet doit respecter les bornes du circuit et
       // des usagers (début/fin de transport) — sinon on créerait une version
       // d'affectation hors période.

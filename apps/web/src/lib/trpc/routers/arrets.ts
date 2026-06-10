@@ -9,7 +9,23 @@ import {
 } from "@scomap/db/schema";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "../init";
+import { assertTenantOwned } from "../ownership";
 import { arretSchema } from "@/lib/validators/trajet";
+
+// Anti-IDOR : les FKs optionnelles d'un arrêt doivent appartenir au tenant
+async function assertArretRefsOwned(
+  ctx: { db: typeof import("@scomap/db").db; tenantId: string },
+  data: { usagerAddressId?: string | null; etablissementId?: string | null },
+) {
+  await Promise.all([
+    data.usagerAddressId
+      ? assertTenantOwned(ctx.db, usagerAddresses, data.usagerAddressId, ctx.tenantId, "Adresse")
+      : null,
+    data.etablissementId
+      ? assertTenantOwned(ctx.db, etablissements, data.etablissementId, ctx.tenantId, "Etablissement")
+      : null,
+  ]);
+}
 
 export const arretsRouter = createTRPCRouter({
   list: tenantProcedure
@@ -71,14 +87,28 @@ export const arretsRouter = createTRPCRouter({
           etablissementCity: etablissements.city,
         })
         .from(arrets)
+        // Re-filtre tenant sur les jointures : un id étranger injecté ne doit
+        // jamais résoudre les données d'un autre tenant
         .leftJoin(
           usagerAddresses,
-          eq(arrets.usagerAddressId, usagerAddresses.id),
+          and(
+            eq(arrets.usagerAddressId, usagerAddresses.id),
+            eq(usagerAddresses.tenantId, ctx.tenantId),
+          ),
         )
-        .leftJoin(usagers, eq(usagerAddresses.usagerId, usagers.id))
+        .leftJoin(
+          usagers,
+          and(
+            eq(usagerAddresses.usagerId, usagers.id),
+            eq(usagers.tenantId, ctx.tenantId),
+          ),
+        )
         .leftJoin(
           etablissements,
-          eq(arrets.etablissementId, etablissements.id),
+          and(
+            eq(arrets.etablissementId, etablissements.id),
+            eq(etablissements.tenantId, ctx.tenantId),
+          ),
         )
         .where(
           and(
@@ -138,9 +168,18 @@ export const arretsRouter = createTRPCRouter({
         .from(arrets)
         .leftJoin(
           usagerAddresses,
-          eq(arrets.usagerAddressId, usagerAddresses.id),
+          and(
+            eq(arrets.usagerAddressId, usagerAddresses.id),
+            eq(usagerAddresses.tenantId, ctx.tenantId),
+          ),
         )
-        .leftJoin(usagers, eq(usagerAddresses.usagerId, usagers.id))
+        .leftJoin(
+          usagers,
+          and(
+            eq(usagerAddresses.usagerId, usagers.id),
+            eq(usagers.tenantId, ctx.tenantId),
+          ),
+        )
         .where(
           and(
             eq(arrets.trajetId, input.trajetId),
@@ -176,6 +215,8 @@ export const arretsRouter = createTRPCRouter({
       if (trajet.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
+
+      await assertArretRefsOwned(ctx, input.data);
 
       // Existing stops to compute the insertion position.
       const existing = await ctx.db
@@ -320,6 +361,8 @@ export const arretsRouter = createTRPCRouter({
       if (trajet.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
+
+      await assertArretRefsOwned(ctx, input.data);
 
       const result = await ctx.db
         .update(arrets)

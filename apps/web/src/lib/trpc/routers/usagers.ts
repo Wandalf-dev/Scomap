@@ -8,6 +8,7 @@ import {
   tenantSettings,
 } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
+import { assertTenantOwned } from "../ownership";
 import { usagerSchema, usagerDetailSchema } from "@/lib/validators/usager";
 import { alias } from "drizzle-orm/pg-core";
 import { nextDisplayId } from "@/lib/db/display-id";
@@ -17,6 +18,21 @@ import {
 } from "../services/routing/resolve";
 
 const secondaryEtab = alias(etablissements, "secondary_etab");
+
+// Anti-IDOR : les établissements référencés doivent appartenir au tenant
+async function assertEtabRefsOwned(
+  ctx: { db: typeof import("@scomap/db").db; tenantId: string },
+  data: { etablissementId?: string | null; secondaryEtablissementId?: string | null },
+) {
+  await Promise.all([
+    data.etablissementId
+      ? assertTenantOwned(ctx.db, etablissements, data.etablissementId, ctx.tenantId, "Etablissement")
+      : null,
+    data.secondaryEtablissementId
+      ? assertTenantOwned(ctx.db, etablissements, data.secondaryEtablissementId, ctx.tenantId, "Etablissement")
+      : null,
+  ]);
+}
 
 export const usagersRouter = createTRPCRouter({
   // campaignId absent => production ; fourni => usagers de la préparation.
@@ -51,8 +67,21 @@ export const usagersRouter = createTRPCRouter({
         updatedAt: usagers.updatedAt,
       })
       .from(usagers)
-      .leftJoin(etablissements, eq(usagers.etablissementId, etablissements.id))
-      .leftJoin(secondaryEtab, eq(usagers.secondaryEtablissementId, secondaryEtab.id))
+      // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+      .leftJoin(
+        etablissements,
+        and(
+          eq(usagers.etablissementId, etablissements.id),
+          eq(etablissements.tenantId, ctx.tenantId),
+        ),
+      )
+      .leftJoin(
+        secondaryEtab,
+        and(
+          eq(usagers.secondaryEtablissementId, secondaryEtab.id),
+          eq(secondaryEtab.tenantId, ctx.tenantId),
+        ),
+      )
       .where(
         and(
           eq(usagers.tenantId, ctx.tenantId),
@@ -96,8 +125,20 @@ export const usagersRouter = createTRPCRouter({
           updatedAt: usagers.updatedAt,
         })
         .from(usagers)
-        .leftJoin(etablissements, eq(usagers.etablissementId, etablissements.id))
-        .leftJoin(secondaryEtab, eq(usagers.secondaryEtablissementId, secondaryEtab.id))
+        .leftJoin(
+          etablissements,
+          and(
+            eq(usagers.etablissementId, etablissements.id),
+            eq(etablissements.tenantId, ctx.tenantId),
+          ),
+        )
+        .leftJoin(
+          secondaryEtab,
+          and(
+            eq(usagers.secondaryEtablissementId, secondaryEtab.id),
+            eq(secondaryEtab.tenantId, ctx.tenantId),
+          ),
+        )
         .where(
           and(
             eq(usagers.id, input.id),
@@ -113,6 +154,8 @@ export const usagersRouter = createTRPCRouter({
   create: tenantProcedure
     .input(usagerSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertEtabRefsOwned(ctx, input);
+
       // Récupérer les dates d'année scolaire pour pré-remplir
       const settings = await ctx.db
         .select({
@@ -146,6 +189,7 @@ export const usagersRouter = createTRPCRouter({
   createFull: tenantProcedure
     .input(usagerDetailSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertEtabRefsOwned(ctx, input);
       const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "usagers");
       const result = await ctx.db
         .insert(usagers)
@@ -187,6 +231,7 @@ export const usagersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertEtabRefsOwned(ctx, input.data);
       const result = await ctx.db
         .update(usagers)
         .set({
@@ -217,6 +262,7 @@ export const usagersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertEtabRefsOwned(ctx, input.data);
       const result = await ctx.db
         .update(usagers)
         .set({

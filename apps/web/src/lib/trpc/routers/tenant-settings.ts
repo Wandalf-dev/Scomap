@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { tenantSettings } from "@scomap/db/schema";
-import { createTRPCRouter, tenantProcedure } from "../init";
+import { createTRPCRouter, tenantProcedure, adminProcedure } from "../init";
 import {
   upsertProviderKey,
   getProviderKeyStatus,
@@ -62,7 +62,7 @@ export const tenantSettingsRouter = createTRPCRouter({
     return { ...DEFAULTS, ...(result[0] ?? {}), keyStatus };
   }),
 
-  update: tenantProcedure
+  update: adminProcedure
     .input(tenantSettingsSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db
@@ -104,7 +104,7 @@ export const tenantSettingsRouter = createTRPCRouter({
     }),
 
   /** Enregistre (chiffrée) la clé d'API d'un provider. Écriture seule : jamais relue. */
-  setProviderKey: tenantProcedure
+  setProviderKey: adminProcedure
     .input(setProviderKeySchema)
     .mutation(async ({ ctx, input }) => {
       await upsertProviderKey(

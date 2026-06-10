@@ -36,5 +36,17 @@ const hasTenant = t.middleware(({ ctx, next }) => {
   });
 });
 
+// Mutations sensibles (paramètres du tenant, clés d'API…) : admin uniquement
+const isAdmin = t.middleware(({ ctx, next }) => {
+  if (ctx.session?.user?.role !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Réservé aux administrateurs",
+    });
+  }
+  return next();
+});
+
 export const protectedProcedure = baseProcedure.use(isAuthed);
 export const tenantProcedure = baseProcedure.use(isAuthed).use(hasTenant);
+export const adminProcedure = tenantProcedure.use(isAdmin);

@@ -81,7 +81,7 @@ export const avenantCreateSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable()
     .optional(),
-  reason: z.string().min(1, "Motif requis"),
+  reason: z.string().min(1, "Motif requis").max(1000),
   changes: z.array(avenantChangeInputSchema).min(1, "Au moins un changement"),
 });
 

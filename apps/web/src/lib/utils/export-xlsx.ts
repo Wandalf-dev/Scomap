@@ -14,6 +14,18 @@ interface ExportOptions<TRow> {
   rows: TRow[];
 }
 
+// Anti formula-injection : une valeur saisie par un utilisateur commençant par
+// = + - @ (ou tab/CR) serait interprétée comme formule par Excel/LibreOffice à
+// l'ouverture de l'export. Le préfixe apostrophe force le mode texte.
+function sanitizeCell(
+  raw: string | number | Date | null,
+): string | number | Date | null {
+  if (typeof raw === "string" && /^[=+\-@\t\r]/.test(raw)) {
+    return `'${raw}`;
+  }
+  return raw;
+}
+
 /**
  * Generates an XLSX file from a column set + row set and triggers a download.
  * Run in the browser only.
@@ -47,7 +59,7 @@ export async function exportToXlsx<TRow>({
     const values: Record<string, string | number | Date | null> = {};
     for (const col of columns) {
       const raw = col.value(row);
-      values[col.header] = raw === undefined ? null : raw;
+      values[col.header] = raw === undefined ? null : sanitizeCell(raw);
     }
     sheet.addRow(values);
   }

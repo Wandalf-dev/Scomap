@@ -24,7 +24,7 @@ export type RecurrenceRule = z.infer<typeof recurrenceRuleSchema>;
 
 // Schema pour la creation rapide (dialog de la liste)
 export const trajetSchema = z.object({
-  name: z.string().min(1, "Nom requis"),
+  name: z.string().min(1, "Nom requis").max(255),
   circuitId: z.string().uuid("Circuit requis"),
   direction: directionEnum,
 });
@@ -33,16 +33,16 @@ export type TrajetFormValues = z.infer<typeof trajetSchema>;
 
 // Schema complet pour la fiche detail / creation
 export const trajetDetailSchema = z.object({
-  name: z.string().min(1, "Nom requis"),
+  name: z.string().min(1, "Nom requis").max(255),
   circuitId: z.string().uuid("Circuit requis"),
   direction: directionEnum,
   chauffeurId: z.string().uuid().nullable().optional(),
   vehiculeId: z.string().uuid().nullable().optional(),
-  departureTime: z.string().optional(),
+  departureTime: z.string().max(16).optional(),
   recurrence: recurrenceRuleSchema.nullable().optional(),
-  startDate: z.string().nullable().optional(),
-  endDate: z.string().nullable().optional(),
-  notes: z.string().optional(),
+  startDate: z.string().max(32).nullable().optional(),
+  endDate: z.string().max(32).nullable().optional(),
+  notes: z.string().max(5000).optional(),
   peages: z.boolean().optional(),
   kmACharge: z.number().min(0).nullable().optional(),
 });
@@ -53,9 +53,9 @@ export type TrajetDetailFormValues = z.infer<typeof trajetDetailSchema>;
 export const occurrenceOverrideSchema = z.object({
   chauffeurId: z.string().uuid().nullable().optional(),
   vehiculeId: z.string().uuid().nullable().optional(),
-  departureTime: z.string().nullable().optional(),
+  departureTime: z.string().max(16).nullable().optional(),
   status: occurrenceStatusEnum.optional(),
-  notes: z.string().nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
 });
 
 export type OccurrenceOverrideFormValues = z.infer<typeof occurrenceOverrideSchema>;
@@ -65,12 +65,12 @@ export const arretSchema = z.object({
   type: z.enum(["usager", "etablissement"]),
   usagerAddressId: z.string().uuid().nullable().optional(),
   etablissementId: z.string().uuid().nullable().optional(),
-  name: z.string().min(1, "Nom requis"),
-  address: z.string().optional(),
+  name: z.string().min(1, "Nom requis").max(255),
+  address: z.string().max(500).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   orderIndex: z.number().min(0),
-  arrivalTime: z.string().optional(),
+  arrivalTime: z.string().max(16).optional(),
   waitTime: z.number().min(0).optional(),
   distanceKm: z.number().min(0).nullable().optional(),
   durationSeconds: z.number().min(0).nullable().optional(),

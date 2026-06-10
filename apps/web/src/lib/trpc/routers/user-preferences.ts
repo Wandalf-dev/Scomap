@@ -11,7 +11,11 @@ const preferencesSchema = z.object({
       side: z.enum(["left", "right"]),
     })
     .optional(),
-  radius: z.string().optional(),
+  // Injecté dans document.style.setProperty("--radius", …) : format strict
+  radius: z
+    .string()
+    .regex(/^\d+(\.\d+)?rem$/)
+    .optional(),
 });
 
 export type UserPreferences = z.infer<typeof preferencesSchema>;

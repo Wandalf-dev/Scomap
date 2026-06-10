@@ -10,6 +10,7 @@ import {
   avenants,
 } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
+import { assertTenantOwned } from "../ownership";
 import {
   circuitSchema,
   circuitDetailSchema,
@@ -50,7 +51,14 @@ export const circuitsRouter = createTRPCRouter({
         updatedAt: circuits.updatedAt,
       })
       .from(circuits)
-      .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
+      // Re-filtre tenant sur la jointure (anti-IDOR via FK injectée)
+      .leftJoin(
+        etablissements,
+        and(
+          eq(circuits.etablissementId, etablissements.id),
+          eq(etablissements.tenantId, ctx.tenantId),
+        ),
+      )
       .where(
         and(
           eq(circuits.tenantId, ctx.tenantId),
@@ -91,7 +99,13 @@ export const circuitsRouter = createTRPCRouter({
           updatedAt: circuits.updatedAt,
         })
         .from(circuits)
-        .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
+        .leftJoin(
+          etablissements,
+          and(
+            eq(circuits.etablissementId, etablissements.id),
+            eq(etablissements.tenantId, ctx.tenantId),
+          ),
+        )
         .where(
           and(
             eq(circuits.id, input.id),
@@ -109,6 +123,7 @@ export const circuitsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(circuitSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, etablissements, input.etablissementId, ctx.tenantId, "Etablissement");
       const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "circuits");
       const result = await ctx.db
         .insert(circuits)
@@ -126,6 +141,7 @@ export const circuitsRouter = createTRPCRouter({
   createFull: tenantProcedure
     .input(circuitDetailSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, etablissements, input.etablissementId, ctx.tenantId, "Etablissement");
       const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "circuits");
       const result = await ctx.db
         .insert(circuits)
@@ -156,6 +172,7 @@ export const circuitsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, etablissements, input.data.etablissementId, ctx.tenantId, "Etablissement");
       const result = await ctx.db
         .update(circuits)
         .set({
@@ -183,6 +200,8 @@ export const circuitsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, etablissements, input.data.etablissementId, ctx.tenantId, "Etablissement");
+
       // État avant modification : l'établissement (pour détecter un changement
       // de destination qui invalide géométries/horaires) ET les dates de
       // validité (pour le verrou ci-dessous).

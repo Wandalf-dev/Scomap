@@ -101,9 +101,9 @@ export function isReimbursementTransport(transportType: string | null | undefine
 
 // Schéma pour la création rapide (dialog de la liste)
 export const usagerSchema = z.object({
-  firstName: z.string().min(1, "Prénom requis"),
-  lastName: z.string().min(1, "Nom requis"),
-  birthDate: z.string().optional(),
+  firstName: z.string().min(1, "Prénom requis").max(100),
+  lastName: z.string().min(1, "Nom requis").max(100),
+  birthDate: z.string().max(32).optional(),
   gender: z.enum(["M", "F"]).optional().or(z.literal("")),
   etablissementId: z.string().uuid().optional().or(z.literal("")),
 });
@@ -112,23 +112,23 @@ export type UsagerFormValues = z.infer<typeof usagerSchema>;
 
 // Schéma complet pour la fiche détail
 export const usagerDetailSchema = z.object({
-  code: z.string().optional(),
-  firstName: z.string().min(1, "Prénom requis"),
-  lastName: z.string().min(1, "Nom requis"),
-  birthDate: z.string().optional(),
+  code: z.string().max(50).optional(),
+  firstName: z.string().min(1, "Prénom requis").max(100),
+  lastName: z.string().min(1, "Nom requis").max(100),
+  birthDate: z.string().max(32).optional(),
   gender: z.enum(["M", "F"]).optional().or(z.literal("")),
   status: z.enum(USAGER_STATUSES).optional(),
   regime: z.enum(USAGER_REGIMES).optional().or(z.literal("")),
   etablissementId: z.string().uuid().optional().or(z.literal("")),
   secondaryEtablissementId: z.string().uuid().optional().or(z.literal("")),
-  classe: z.string().optional().or(z.literal("")),
+  classe: z.string().max(20).optional().or(z.literal("")),
   transportType: z.enum(USAGER_TRANSPORT_TYPES).optional().or(z.literal("")),
   distanceKm: z.number().nonnegative().nullable().optional(),
-  transportStartDate: z.string().min(1, "Date de début de transport requise"),
-  transportEndDate: z.string().nullable().optional(),
-  transportParticularity: z.string().optional(),
-  specificity: z.string().optional(),
-  notes: z.string().optional(),
+  transportStartDate: z.string().min(1, "Date de début de transport requise").max(32),
+  transportEndDate: z.string().max(32).nullable().optional(),
+  transportParticularity: z.string().max(5000).optional(),
+  specificity: z.string().max(5000).optional(),
+  notes: z.string().max(5000).optional(),
 });
 
 export type UsagerDetailFormValues = z.infer<typeof usagerDetailSchema>;

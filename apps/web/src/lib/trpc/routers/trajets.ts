@@ -12,6 +12,7 @@ import {
   avenants,
 } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure } from "../init";
+import { assertTenantOwned } from "../ownership";
 import {
   trajetSchema,
   trajetDetailSchema,
@@ -80,10 +81,23 @@ export const trajetsRouter = createTRPCRouter({
           arretsUntimed: sql<number>`(select count(*) from ${arrets} a where a.trajet_id = ${trajets.id} and a.deleted_at is null and a.arrival_time is null and (a.valid_from is null or a.valid_from <= ${today}) and (a.valid_to is null or a.valid_to >= ${today}))::int`,
         })
         .from(trajets)
-        .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))
-        .leftJoin(vehicules, eq(trajets.vehiculeId, vehicules.id))
-        .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
-        .leftJoin(avenants, eq(trajets.createdByAvenantId, avenants.id))
+        // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+        .leftJoin(
+          chauffeurs,
+          and(eq(trajets.chauffeurId, chauffeurs.id), eq(chauffeurs.tenantId, ctx.tenantId)),
+        )
+        .leftJoin(
+          vehicules,
+          and(eq(trajets.vehiculeId, vehicules.id), eq(vehicules.tenantId, ctx.tenantId)),
+        )
+        .leftJoin(
+          circuits,
+          and(eq(trajets.circuitId, circuits.id), eq(circuits.tenantId, ctx.tenantId)),
+        )
+        .leftJoin(
+          avenants,
+          and(eq(trajets.createdByAvenantId, avenants.id), eq(avenants.tenantId, ctx.tenantId)),
+        )
         .where(
           and(
             eq(trajets.circuitId, input.circuitId),
@@ -153,10 +167,26 @@ export const trajetsRouter = createTRPCRouter({
         createdAt: trajets.createdAt,
       })
       .from(trajets)
-      .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
-      .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
-      .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))
-      .leftJoin(vehicules, eq(trajets.vehiculeId, vehicules.id))
+      // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+      .leftJoin(
+        circuits,
+        and(eq(trajets.circuitId, circuits.id), eq(circuits.tenantId, ctx.tenantId)),
+      )
+      .leftJoin(
+        etablissements,
+        and(
+          eq(circuits.etablissementId, etablissements.id),
+          eq(etablissements.tenantId, ctx.tenantId),
+        ),
+      )
+      .leftJoin(
+        chauffeurs,
+        and(eq(trajets.chauffeurId, chauffeurs.id), eq(chauffeurs.tenantId, ctx.tenantId)),
+      )
+      .leftJoin(
+        vehicules,
+        and(eq(trajets.vehiculeId, vehicules.id), eq(vehicules.tenantId, ctx.tenantId)),
+      )
       .where(
         and(
           eq(trajets.tenantId, ctx.tenantId),
@@ -216,10 +246,26 @@ export const trajetsRouter = createTRPCRouter({
           updatedAt: trajets.updatedAt,
         })
         .from(trajets)
-        .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
-        .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
-        .leftJoin(chauffeurs, eq(trajets.chauffeurId, chauffeurs.id))
-        .leftJoin(vehicules, eq(trajets.vehiculeId, vehicules.id))
+        // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+        .leftJoin(
+          circuits,
+          and(eq(trajets.circuitId, circuits.id), eq(circuits.tenantId, ctx.tenantId)),
+        )
+        .leftJoin(
+          etablissements,
+          and(
+            eq(circuits.etablissementId, etablissements.id),
+            eq(etablissements.tenantId, ctx.tenantId),
+          ),
+        )
+        .leftJoin(
+          chauffeurs,
+          and(eq(trajets.chauffeurId, chauffeurs.id), eq(chauffeurs.tenantId, ctx.tenantId)),
+        )
+        .leftJoin(
+          vehicules,
+          and(eq(trajets.vehiculeId, vehicules.id), eq(vehicules.tenantId, ctx.tenantId)),
+        )
         .where(
           and(
             eq(trajets.id, input.id),
@@ -264,6 +310,7 @@ export const trajetsRouter = createTRPCRouter({
   create: tenantProcedure
     .input(trajetSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertCircuitOwned(ctx, input.circuitId);
       const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "trajets");
       const result = await ctx.db
         .insert(trajets)
@@ -287,6 +334,7 @@ export const trajetsRouter = createTRPCRouter({
   createFull: tenantProcedure
     .input(trajetDetailSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertCircuitOwned(ctx, input.circuitId);
       const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "trajets");
       const result = await ctx.db
         .insert(trajets)
@@ -322,6 +370,7 @@ export const trajetsRouter = createTRPCRouter({
   update: tenantProcedure
     .input(z.object({ id: z.string().uuid(), data: trajetSchema }))
     .mutation(async ({ ctx, input }) => {
+      await assertCircuitOwned(ctx, input.data.circuitId);
       const result = await ctx.db
         .update(trajets)
         .set({
@@ -345,6 +394,15 @@ export const trajetsRouter = createTRPCRouter({
   updateDetail: tenantProcedure
     .input(z.object({ id: z.string().uuid(), data: trajetDetailSchema }))
     .mutation(async ({ ctx, input }) => {
+      await Promise.all([
+        assertCircuitOwned(ctx, input.data.circuitId),
+        input.data.chauffeurId
+          ? assertTenantOwned(ctx.db, chauffeurs, input.data.chauffeurId, ctx.tenantId, "Chauffeur")
+          : null,
+        input.data.vehiculeId
+          ? assertTenantOwned(ctx.db, vehicules, input.data.vehiculeId, ctx.tenantId, "Vehicule")
+          : null,
+      ]);
       const result = await ctx.db
         .update(trajets)
         .set({
@@ -823,19 +881,29 @@ export const trajetsRouter = createTRPCRouter({
         })
         .from(trajetOccurrences)
         .innerJoin(trajets, eq(trajetOccurrences.trajetId, trajets.id))
-        .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
+        // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+        .leftJoin(
+          circuits,
+          and(eq(trajets.circuitId, circuits.id), eq(circuits.tenantId, ctx.tenantId)),
+        )
         .leftJoin(
           chauffeurs,
-          eq(
-            sql`COALESCE(${trajetOccurrences.chauffeurId}, ${trajets.chauffeurId})`,
-            chauffeurs.id,
+          and(
+            eq(
+              sql`COALESCE(${trajetOccurrences.chauffeurId}, ${trajets.chauffeurId})`,
+              chauffeurs.id,
+            ),
+            eq(chauffeurs.tenantId, ctx.tenantId),
           ),
         )
         .leftJoin(
           vehicules,
-          eq(
-            sql`COALESCE(${trajetOccurrences.vehiculeId}, ${trajets.vehiculeId})`,
-            vehicules.id,
+          and(
+            eq(
+              sql`COALESCE(${trajetOccurrences.vehiculeId}, ${trajets.vehiculeId})`,
+              vehicules.id,
+            ),
+            eq(vehicules.tenantId, ctx.tenantId),
           ),
         )
         .where(and(...conditions))
@@ -850,6 +918,14 @@ export const trajetsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await Promise.all([
+        input.data.chauffeurId
+          ? assertTenantOwned(ctx.db, chauffeurs, input.data.chauffeurId, ctx.tenantId, "Chauffeur")
+          : null,
+        input.data.vehiculeId
+          ? assertTenantOwned(ctx.db, vehicules, input.data.vehiculeId, ctx.tenantId, "Vehicule")
+          : null,
+      ]);
       const result = await ctx.db
         .update(trajetOccurrences)
         .set({
@@ -892,13 +968,23 @@ export const trajetsRouter = createTRPCRouter({
     }),
 });
 
+// Garde anti-IDOR : vérifie qu'un circuitId fourni en input appartient bien au tenant
+async function assertCircuitOwned(
+  ctx: { db: typeof import("@scomap/db").db; tenantId: string },
+  circuitId: string,
+) {
+  await assertTenantOwned(ctx.db, circuits, circuitId, ctx.tenantId, "Circuit");
+}
+
 // Helper: auto-create an "etablissement" stop when creating a trajet
 async function autoCreateEtablissementArret(
   ctx: { db: typeof import("@scomap/db").db; tenantId: string },
   trajetId: string,
   circuitId: string,
 ) {
-  // Fetch the circuit's etablissement
+  // Fetch the circuit's etablissement — filtre tenant sur le circuit ET la
+  // jointure : sans lui, un circuitId d'un autre tenant exfiltrerait
+  // l'adresse de son établissement (IDOR cross-tenant)
   const circuit = await ctx.db
     .select({
       etablissementId: circuits.etablissementId,
@@ -910,8 +996,14 @@ async function autoCreateEtablissementArret(
       etablissementLongitude: etablissements.longitude,
     })
     .from(circuits)
-    .leftJoin(etablissements, eq(circuits.etablissementId, etablissements.id))
-    .where(eq(circuits.id, circuitId))
+    .leftJoin(
+      etablissements,
+      and(
+        eq(circuits.etablissementId, etablissements.id),
+        eq(etablissements.tenantId, ctx.tenantId),
+      ),
+    )
+    .where(and(eq(circuits.id, circuitId), eq(circuits.tenantId, ctx.tenantId)))
     .limit(1);
 
   const c = circuit[0];

@@ -1,11 +1,16 @@
 /**
  * Chiffrement symétrique des secrets par tenant (clés d'API providers).
  *
- * AES-256-GCM. La clé maître est dérivée d'`AUTH_SECRET` via HKDF-SHA256
- * (aucune nouvelle variable d'environnement à gérer). Le `salt`/`info` de
- * domaine isolent cet usage des autres dérivations éventuelles.
+ * AES-256-GCM. La clé maître est dérivée de `PROVIDER_KEYS_SECRET` (ou
+ * `AUTH_SECRET` en repli) via HKDF-SHA256. Le `salt`/`info` de domaine
+ * isolent cet usage des autres dérivations éventuelles.
  *
- * ⚠️ Server-only : importe `node:crypto` + `AUTH_SECRET`. Ne jamais importer
+ * En production, définir `PROVIDER_KEYS_SECRET` distinct d'`AUTH_SECRET` :
+ * sinon un seul secret protège à la fois les sessions ET le chiffrement des
+ * clés, et toute rotation de l'un invalide l'autre. ⚠️ Faire tourner ce
+ * secret rend les clés déjà chiffrées illisibles (à re-saisir).
+ *
+ * ⚠️ Server-only : importe `node:crypto` + secrets d'env. Ne jamais importer
  * ce module côté client (le bundle casserait de toute façon sur `node:crypto`).
  */
 
@@ -21,12 +26,13 @@ const KEY_LEN = 32; // 256 bits
 const IV_LEN = 12; // 96 bits (recommandé pour GCM)
 const VERSION = "v1";
 
-/** Clé maître dérivée d'AUTH_SECRET via HKDF-SHA256 (info de domaine). */
+/** Clé maître dérivée via HKDF-SHA256 (info de domaine). */
 function masterKey(): Buffer {
-  const secret = process.env.AUTH_SECRET;
+  const secret =
+    process.env.PROVIDER_KEYS_SECRET ?? process.env.AUTH_SECRET;
   if (!secret) {
     throw new Error(
-      "AUTH_SECRET manquant (racine de chiffrement des clés provider).",
+      "PROVIDER_KEYS_SECRET ou AUTH_SECRET manquant (racine de chiffrement des clés provider).",
     );
   }
   return Buffer.from(

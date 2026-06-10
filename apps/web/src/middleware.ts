@@ -18,7 +18,10 @@ export function middleware(request: NextRequest) {
   }
 
   // Set tenant header on the REQUEST so server components can read it via headers()
+  // Toujours supprimer la valeur entrante : ce header est dérivé du Host par le
+  // middleware, jamais fourni par le client (sinon spoofable sur le domaine apex)
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-tenant-slug");
   if (subdomain) {
     requestHeaders.set("x-tenant-slug", subdomain);
   }

@@ -8,7 +8,11 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import type { AuthState } from "@/lib/auth/actions";
 
-export function AuthForms() {
+interface AuthFormsProps {
+  signupEnabled: boolean;
+}
+
+export function AuthForms({ signupEnabled }: AuthFormsProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [loginState, loginAction] = useActionState<AuthState, FormData>(login, null);
   const [signupState, signupAction] = useActionState<AuthState, FormData>(signup, null);
@@ -63,15 +67,17 @@ export function AuthForms() {
             <SubmitButton>Se connecter</SubmitButton>
           </form>
 
-          <div className="text-center text-base">
-            <span className="text-muted-foreground">Pas encore de compte ? </span>
-            <button
-              onClick={() => setMode("signup")}
-              className="cursor-pointer text-primary hover:underline"
-            >
-              Créer un compte
-            </button>
-          </div>
+          {signupEnabled && (
+            <div className="text-center text-base">
+              <span className="text-muted-foreground">Pas encore de compte ? </span>
+              <button
+                onClick={() => setMode("signup")}
+                className="cursor-pointer text-primary hover:underline"
+              >
+                Créer un compte
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div key="signup" className="animate-fade-in space-y-8">
@@ -129,10 +135,10 @@ export function AuthForms() {
                 id="signup-password"
                 name="password"
                 placeholder="••••••••"
-                minLength={8}
+                minLength={12}
                 required
               />
-              <p className="text-sm text-muted-foreground">Minimum 8 caractères</p>
+              <p className="text-sm text-muted-foreground">Minimum 12 caractères</p>
             </div>
 
             <SubmitButton>Créer mon compte</SubmitButton>
