@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   EllipsisVertical,
   LogOut,
   CircleUser,
 } from "lucide-react";
-import Link from "next/link";
 
 import {
   DropdownMenu,
@@ -100,7 +100,7 @@ export function NavUser({ user, signOutAction }: NavUserProps) {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild className="cursor-pointer">
-                <Link href="/dashboard">
+                <Link href="/compte">
                   <CircleUser />
                   Mon compte
                 </Link>

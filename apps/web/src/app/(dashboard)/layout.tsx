@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
-import { getTenantSlug } from "@/lib/tenant";
+import { getValidatedSession } from "@/lib/auth/validated-session";
 import { SidebarConfigProvider } from "@/contexts/sidebar-context";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 
@@ -9,18 +9,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
+  // Même validation que le contexte tRPC : une session d'un autre
+  // sous-domaine, un ancien JWT sans tenantSlug ou un compte supprimé est
+  // purgé au lieu de laisser les pages crasher en UNAUTHORIZED au prefetch.
+  const session = await getValidatedSession();
 
   if (!session) {
-    redirect("/");
-  }
-
-  // Même contrôle que le contexte tRPC : une session d'un autre sous-domaine
-  // (ou un ancien JWT sans tenantSlug) est purgée au lieu de laisser les
-  // pages crasher en UNAUTHORIZED au prefetch.
-  const hostSlug = await getTenantSlug();
-  if (!session.user.tenantSlug || session.user.tenantSlug !== hostSlug) {
-    redirect("/auth/reset");
+    const raw = await auth();
+    redirect(raw ? "/auth/reset" : "/");
   }
 
   const user = {
@@ -32,6 +28,7 @@ export default async function DashboardLayout({
     <SidebarConfigProvider>
       <DashboardShell
         user={user}
+        isAdmin={session.user.role === "admin"}
         signOutAction={async () => {
           "use server";
           await signOut({ redirectTo: "/" });

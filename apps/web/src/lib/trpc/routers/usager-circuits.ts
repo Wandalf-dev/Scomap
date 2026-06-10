@@ -559,17 +559,25 @@ export const usagerCircuitsRouter = createTRPCRouter({
         });
       }
 
-      // Read days from the address
+      // Read days from the address — qui doit appartenir à CET usager, sinon
+      // on affecterait le circuit via l'adresse d'un autre usager
       const addr = await ctx.db
         .select({ daysAller: usagerAddresses.daysAller, daysRetour: usagerAddresses.daysRetour })
         .from(usagerAddresses)
         .where(
           and(
             eq(usagerAddresses.id, input.usagerAddressId),
+            eq(usagerAddresses.usagerId, input.usagerId),
             eq(usagerAddresses.tenantId, ctx.tenantId),
           ),
         )
         .limit(1);
+      if (!addr[0]) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "L'adresse sélectionnée n'appartient pas à cet usager.",
+        });
+      }
       const addrDaysAller = normalizeDays(addr[0]?.daysAller);
       const addrDaysRetour = normalizeDays(addr[0]?.daysRetour);
 
@@ -709,10 +717,18 @@ export const usagerCircuitsRouter = createTRPCRouter({
           .where(
             and(
               eq(usagerAddresses.id, newAddressId),
+              // L'adresse doit appartenir à l'usager de l'affectation
+              eq(usagerAddresses.usagerId, old.usagerId),
               eq(usagerAddresses.tenantId, ctx.tenantId),
             ),
           )
           .limit(1);
+        if (!addr[0]) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "L'adresse sélectionnée n'appartient pas à cet usager.",
+          });
+        }
         addrDaysAller = normalizeDays(addr[0]?.daysAller);
         addrDaysRetour = normalizeDays(addr[0]?.daysRetour);
       }

@@ -14,12 +14,14 @@ interface DashboardShellProps {
     name: string;
     email: string;
   };
+  isAdmin: boolean;
   signOutAction: () => void;
   children: React.ReactNode;
 }
 
 export function DashboardShell({
   user,
+  isAdmin,
   signOutAction,
   children,
 }: DashboardShellProps) {
@@ -42,6 +44,7 @@ export function DashboardShell({
         <>
           <AppSidebar
             user={user}
+            isAdmin={isAdmin}
             signOutAction={signOutAction}
             variant={config.variant}
             collapsible={config.collapsible}
@@ -74,6 +77,7 @@ export function DashboardShell({
           </SidebarInset>
           <AppSidebar
             user={user}
+            isAdmin={isAdmin}
             signOutAction={signOutAction}
             variant={config.variant}
             collapsible={config.collapsible}

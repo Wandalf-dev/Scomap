@@ -10,6 +10,7 @@ import { arretsRouter } from "./routers/arrets";
 import { trajetsRouter } from "./routers/trajets";
 import { usagerCircuitsRouter } from "./routers/usager-circuits";
 import { avenantsRouter } from "./routers/avenants";
+import { usersRouter } from "./routers/users";
 import { userPreferencesRouter } from "./routers/user-preferences";
 import { tenantSettingsRouter } from "./routers/tenant-settings";
 import { basemapRouter } from "./routers/basemap";
@@ -28,6 +29,7 @@ export const appRouter = createTRPCRouter({
   trajets: trajetsRouter,
   usagerCircuits: usagerCircuitsRouter,
   avenants: avenantsRouter,
+  users: usersRouter,
   userPreferences: userPreferencesRouter,
   tenantSettings: tenantSettingsRouter,
   basemap: basemapRouter,

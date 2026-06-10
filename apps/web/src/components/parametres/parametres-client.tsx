@@ -130,7 +130,11 @@ const BASEMAP_PROVIDERS: {
   },
 ];
 
-export function ParametresClient() {
+interface ParametresClientProps {
+  isAdmin: boolean;
+}
+
+export function ParametresClient({ isAdmin }: ParametresClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
@@ -249,8 +253,18 @@ export function ParametresClient() {
         </p>
       </div>
 
+      {!isAdmin && (
+        <div className="rounded-[0.3rem] border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          Lecture seule — la modification de ces paramètres est réservée aux
+          administrateurs.
+        </div>
+      )}
+
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          {/* Le serveur refuse déjà les écritures non-admin (adminProcedure) :
+              le fieldset aligne simplement l'UI sur cette règle */}
+          <fieldset disabled={!isAdmin} className="space-y-6">
           {/* Année scolaire */}
           <Card>
             <CardHeader>
@@ -498,15 +512,18 @@ export function ParametresClient() {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="cursor-pointer"
-            >
-              {isSaving ? "Enregistrement..." : "Enregistrer"}
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="cursor-pointer"
+              >
+                {isSaving ? "Enregistrement..." : "Enregistrer"}
+              </Button>
+            </div>
+          )}
+          </fieldset>
         </form>
       </Form>
     </div>

@@ -25,8 +25,16 @@ import { TruckIcon } from "@/components/ui/truck-icon";
 import { UserIcon } from "@/components/ui/user-icon";
 import { DocumentCurrencyEuroIcon } from "@/components/ui/document-currency-euro-icon";
 import { Cog6ToothIcon } from "@/components/ui/cog6-tooth-icon";
+import { UserCogIcon } from "@/components/ui/user-cog-icon";
 
-const data = {
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  adminOnly?: boolean;
+}
+
+const data: { navGroups: { label: string; items: NavItem[] }[] } = {
   navGroups: [
     {
       label: "Navigation",
@@ -51,6 +59,8 @@ const data = {
     {
       label: "Configuration",
       items: [
+        // adminOnly : la gestion des comptes est réservée aux administrateurs
+        { title: "Utilisateurs", url: "/utilisateurs", icon: UserCogIcon, adminOnly: true },
         { title: "Paramètres", url: "/parametres", icon: Cog6ToothIcon },
       ],
     },
@@ -62,10 +72,11 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     name: string;
     email: string;
   };
+  isAdmin: boolean;
   signOutAction: () => void;
 }
 
-export function AppSidebar({ user, signOutAction, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, isAdmin, signOutAction, ...props }: AppSidebarProps) {
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -96,7 +107,7 @@ export function AppSidebar({ user, signOutAction, ...props }: AppSidebarProps) {
           <NavMain
             key={group.label}
             label={group.label}
-            items={group.items}
+            items={group.items.filter((item) => !item.adminOnly || isAdmin)}
           />
         ))}
       </SidebarContent>
