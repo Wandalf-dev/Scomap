@@ -10,14 +10,14 @@ import type { BasemapStyle } from "@/lib/maps/basemap-types";
 
 const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
-// Délai au-delà duquel un style/des tuiles qui ne répondent pas sont
-// considérés en échec (réseau coupé, provider down).
+// Delay after which an unresponsive style/tiles are considered failed
+// (network down, provider unavailable).
 const LOAD_TIMEOUT_MS = 15000;
 
 interface PointMapProps {
   latitude: number;
   longitude: number;
-  /** Texte du popup (au clic sur l'épingle). */
+  /** Popup text (on click of the pin). */
   label?: string;
   basemap?: BasemapStyle;
   zoom?: number;
@@ -25,8 +25,8 @@ interface PointMapProps {
 }
 
 /**
- * Carte centrée sur un point unique, avec une épingle MapLibre (teardrop) qui
- * pointe précisément sur la position — pour vérifier une adresse géolocalisée.
+ * Map centered on a single point, with a MapLibre pin (teardrop) pointing
+ * precisely at the position — to verify a geocoded address.
  */
 export function PointMap({
   latitude,
@@ -41,7 +41,7 @@ export function PointMap({
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
-  // Incrémenté par « Réessayer » pour relancer l'init complète de la carte.
+  // Incremented by "Réessayer" to restart the full map initialization.
   const [attempt, setAttempt] = useState(0);
   const basemapKey = JSON.stringify(basemap ?? null);
 
@@ -68,8 +68,8 @@ export function PointMap({
       if (!loaded) setStatus("error");
     }, LOAD_TIMEOUT_MS);
 
-    // Erreur fatale uniquement avant le premier rendu (style indisponible) ;
-    // les erreurs de tuiles isolées après le `load` sont ignorées.
+    // Fatal error only before the first render (style unavailable);
+    // isolated tile errors after `load` are ignored.
     map.on("error", () => {
       if (!loaded) {
         clearTimeout(timeout);

@@ -16,8 +16,8 @@ const ROWS: { key: RowParity; label: string; title: string }[] = [
 ];
 
 /**
- * Grille de jours en LECTURE SEULE, format tableau : en-tête L M Me J V S D
- * + lignes P (paires) / I (impaires) avec coches. (Affichage récap circuit.)
+ * READ-ONLY day grid, table format: header L M Me J V S D
+ * + rows P (even weeks) / I (odd weeks) with checkmarks. (Circuit recap display.)
  */
 export function DayChecksTable({ days }: { days: DayEntry[] }) {
   return (

@@ -19,9 +19,9 @@ import { UsagerStatusBadge } from "./usager-status-badge";
 interface UsagerDetailClientProps {
   id: string;
   initialTab?: string;
-  /** Destination du bouton « Retour » (et après suppression). Défaut : liste prod. */
+  /** Destination of the "Retour" button (and after deletion). Default: production list. */
   backHref?: string;
-  /** Fiche affichée dans le contexte d'une préparation de rentrée. */
+  /** Detail page shown in the context of a school year preparation. */
   isPreparation?: boolean;
 }
 
@@ -140,7 +140,7 @@ export function UsagerDetailClient({
           label: "Circuits",
           content: usager ? <TabCircuits usagerId={usager.id} usager={usager} /> : null,
         },
-        // Pas d'avenants en préparation de rentrée : on ne modifie pas l'année à venir via avenant.
+        // No avenants in school year preparation: the upcoming year is not modified via avenant.
         ...(isPreparation
           ? []
           : [

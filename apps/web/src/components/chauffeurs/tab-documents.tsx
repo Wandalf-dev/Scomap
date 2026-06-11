@@ -65,7 +65,7 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
           queryKey: trpc.chauffeurs.getById.queryKey({ id: chauffeur.id }),
         });
         toast.success("Documents enregistrés");
-        // Repasse le formulaire en pristine après sauvegarde.
+        // Resets the form to pristine state after saving.
         form.reset(variables.data);
       },
       onError: (err) => {
@@ -78,8 +78,8 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
     mutation.mutate({ id: chauffeur.id, data: values });
   }
 
-  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
-  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  // Syncs the dirty state with the layout context (stable `setDirty`
+  // dependency only, see tab-identite for usagers).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {
@@ -107,7 +107,7 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-6"
       >
-        {/* Permis de conduire */}
+        {/* Driver's license */}
         <Card>
           <CardHeader>
             <CardTitle>Permis de conduire</CardTitle>
@@ -142,7 +142,7 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
           </CardContent>
         </Card>
 
-        {/* Certificat médical */}
+        {/* Medical certificate */}
         <Card>
           <CardHeader>
             <CardTitle>Certificat médical</CardTitle>

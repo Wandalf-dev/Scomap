@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { X, Trash2 } from "lucide-react";
 
-/** Bouton « annuler » d'un avenant réel (X) avec confirmation. Présentation
- *  pure : la mutation est portée par le parent via `onConfirm`. */
+/** "Cancel" button for a real avenant (X) with confirmation. Pure presentation:
+ *  the mutation is owned by the parent via `onConfirm`. */
 export function CancelAvenantButton({
   label,
   onConfirm,
@@ -63,9 +63,9 @@ export function CancelAvenantButton({
   );
 }
 
-/** Bouton « supprimer la composition initiale » (avenant 0). Désactivé tant que
- *  des avenants réels existent (ils s'appuient sur cette base). Confirmé sinon :
- *  l'action dissocie tous les usagers du circuit. */
+/** "Delete initial composition" button (avenant 0). Disabled while real avenants
+ *  exist (they depend on this base). Confirmed otherwise: the action dissociates
+ *  all usagers from the circuit. */
 export function DeleteCompositionButton({
   onConfirm,
   pending,

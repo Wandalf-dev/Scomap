@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Statuts métier (repris de Transcolaire, codes 0→5).
+// Business statuses (from Transcolaire, codes 0→5).
 export const USAGER_STATUSES = [
   "non_controle",
   "controle",
@@ -31,10 +31,10 @@ export const USAGER_REGIME_LABELS: Record<typeof USAGER_REGIMES[number], string>
   externe: "Externe",
 };
 
-// 3 catégories de transport (inspirées de Transcolaire bd1.D1TYPETRAN).
-// - taxi_collectif_individuel : transport assuré par l'opérateur → CIRCUIT
-// - transport_famille         : la famille conduit → remboursement kilométrique (à venir)
-// - transport_commun          : bus / train / tramway → remboursement abonnement (à venir)
+// 3 transport categories (inspired by Transcolaire bd1.D1TYPETRAN).
+// - taxi_collectif_individuel : transport operated by the carrier → CIRCUIT
+// - transport_famille         : family-driven → mileage reimbursement (coming soon)
+// - transport_commun          : bus / train / tram → pass reimbursement (coming soon)
 export const USAGER_TRANSPORT_TYPES = [
   "taxi_collectif_individuel",
   "transport_famille",
@@ -99,7 +99,7 @@ export function isReimbursementTransport(transportType: string | null | undefine
   return REIMBURSEMENT_TRANSPORT_TYPES.has(transportType);
 }
 
-// Schéma pour la création rapide (dialog de la liste)
+// Schema for quick creation (list dialog)
 export const usagerSchema = z.object({
   firstName: z.string().min(1, "Prénom requis").max(100),
   lastName: z.string().min(1, "Nom requis").max(100),
@@ -110,7 +110,7 @@ export const usagerSchema = z.object({
 
 export type UsagerFormValues = z.infer<typeof usagerSchema>;
 
-// Schéma complet pour la fiche détail
+// Full schema for the detail page
 export const usagerDetailSchema = z.object({
   code: z.string().max(50).optional(),
   firstName: z.string().min(1, "Prénom requis").max(100),

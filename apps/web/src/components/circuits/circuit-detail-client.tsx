@@ -19,9 +19,9 @@ import { TabAvenantsCircuit } from "./tab-avenants";
 interface CircuitDetailClientProps {
   id: string;
   initialTab?: string;
-  /** Destination du bouton « Retour » (et après suppression). Défaut : liste prod. */
+  /** Destination of the "Back" button (and after deletion). Default: production list. */
   backHref?: string;
-  /** Fiche affichée dans le contexte d'une préparation de rentrée. */
+  /** Detail page displayed in the context of a new-year preparation. */
   isPreparation?: boolean;
 }
 

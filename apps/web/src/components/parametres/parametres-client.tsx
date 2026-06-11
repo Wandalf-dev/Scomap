@@ -149,7 +149,7 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
     trpc.tenantSettings.get.queryOptions(),
   );
 
-  // Clés API saisies (écriture seule : jamais relues depuis le serveur).
+  // API keys entered by the user (write-only: never read back from the server).
   const [routingApiKey, setRoutingApiKey] = useState("");
   const [basemapApiKey, setBasemapApiKey] = useState("");
 
@@ -281,10 +281,10 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          {/* Le serveur refuse déjà les écritures non-admin (adminProcedure) :
-              le fieldset aligne simplement l'UI sur cette règle */}
+          {/* The server already rejects non-admin writes (adminProcedure):
+              the fieldset simply aligns the UI with this rule */}
           <fieldset disabled={!isAdmin} className="space-y-6">
-          {/* Type d'organisation */}
+          {/* Organisation type */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -322,7 +322,7 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
             </CardContent>
           </Card>
 
-          {/* Année scolaire */}
+          {/* School year */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -371,7 +371,7 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
             </CardContent>
           </Card>
 
-          {/* Moteur de calcul d'itinéraire */}
+          {/* Route calculation engine */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -456,7 +456,7 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
             </CardContent>
           </Card>
 
-          {/* Fond de carte */}
+          {/* Basemap */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 /**
- * Orchestrateur de routing par tenant : lit le provider configuré, déchiffre
- * sa clé une seule fois, puis calcule des segments avec repli sur OSRM.
+ * Per-tenant routing orchestrator: reads the configured provider, decrypts
+ * its key once, then computes segments with OSRM fallback.
  *
  * ⚠️ Server-only.
  */
@@ -24,13 +24,13 @@ export interface RoutingConfig {
 
 export interface SegmentOutcome {
   result: RouteResult | null;
-  /** Provider réellement utilisé (peut différer en cas de repli OSRM). */
+  /** Provider actually used (may differ when falling back to OSRM). */
   providerUsed: RoutingProviderId;
 }
 
 /**
- * Résout l'adaptateur et la clé pour un tenant. À appeler UNE fois avant une
- * boucle de segments (la clé n'est déchiffrée qu'ici).
+ * Resolves the adapter and key for a tenant. Call ONCE before a segment loop
+ * (the key is only decrypted here).
  */
 export async function resolveRoutingConfig(
   db: Database,
@@ -52,9 +52,9 @@ export async function resolveRoutingConfig(
 }
 
 /**
- * Calcule un segment avec le provider du tenant, et repli sur OSRM si le
- * provider principal échoue. Renvoie `providerUsed` pour éviter le faux
- * positif « je crois utiliser Google ».
+ * Computes a segment with the tenant's provider, falling back to OSRM if the
+ * primary provider fails. Returns `providerUsed` to avoid the false positive
+ * "I think I'm using Google".
  */
 export async function computeSegmentForTenant(
   from: LatLng,

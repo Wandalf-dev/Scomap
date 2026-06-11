@@ -67,7 +67,7 @@ interface CircuitData {
   startDate: string | null;
   endDate: string | null;
   etablissementId: string;
-  /** Usagers affectés (versions ouvertes). > 0 ⇒ dates de validité figées. */
+  /** Assigned usagers (open versions). > 0 ⇒ validity dates are locked. */
   usagerCount: number;
 }
 
@@ -108,7 +108,7 @@ export function TabInformations({ circuit }: TabInformationsProps) {
           queryKey: trpc.circuits.list.queryKey(),
         });
         toast.success("Circuit enregistré");
-        // Reset pour repasser le formulaire à l'état « propre » (isDirty=false).
+        // Reset to return the form to "clean" state (isDirty=false).
         form.reset(variables.data);
         if (exitAfterSaveRef.current) {
           router.push("/circuits");
@@ -126,12 +126,12 @@ export function TabInformations({ circuit }: TabInformationsProps) {
     mutation.mutate({ id: circuit.id, data: values });
   }
 
-  // Dès qu'un circuit a des usagers affectés, ses dates de validité sont figées
-  // (cohérence avec les périodes de transport des usagers — garde aussi côté
-  // serveur dans updateDetail). Pour les changer : retirer les usagers d'abord.
+  // As soon as a circuit has assigned usagers, its validity dates are locked
+  // (consistency with usager transport periods — also enforced server-side in
+  // updateDetail). To change them: remove all usagers first.
   const datesLocked = circuit.usagerCount > 0;
 
-  // Synchronise l'état « modifié » avec le bandeau (avertissement au retour).
+  // Syncs the "modified" state with the unsaved-changes banner (back warning).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {
@@ -183,7 +183,7 @@ export function TabInformations({ circuit }: TabInformationsProps) {
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-6"
         >
-          {/* Identification + Période côte à côte */}
+          {/* Identification + Period side by side */}
           <div className="grid grid-cols-2 gap-6">
             <section className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-xs">
               <SectionHeader icon={Tag}>Identification</SectionHeader>

@@ -14,9 +14,9 @@ interface ExportOptions<TRow> {
   rows: TRow[];
 }
 
-// Anti formula-injection : une valeur saisie par un utilisateur commençant par
-// = + - @ (ou tab/CR) serait interprétée comme formule par Excel/LibreOffice à
-// l'ouverture de l'export. Le préfixe apostrophe force le mode texte.
+// Anti formula-injection: a user-entered value starting with
+// = + - @ (or tab/CR) would be interpreted as a formula by Excel/LibreOffice
+// when the export is opened. The apostrophe prefix forces text mode.
 function sanitizeCell(
   raw: string | number | Date | null,
 ): string | number | Date | null {

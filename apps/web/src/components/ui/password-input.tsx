@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils";
 type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, "type">;
 
 /**
- * Champ mot de passe avec bouton œil pour afficher/masquer la saisie. Composition
- * autour de `Input` (ui shadcn non modifié). Le bouton est `type="button"` pour
- * ne pas soumettre le formulaire ; padding droit (`pr-9`) pour ne pas masquer le texte.
+ * Password field with an eye button to show/hide the value. Composes around
+ * `Input` (unmodified shadcn ui). The button is `type="button"` to avoid
+ * submitting the form; right padding (`pr-9`) prevents the text from being hidden.
  */
 export function PasswordInput({ className, ...props }: PasswordInputProps) {
   const [visible, setVisible] = useState(false);

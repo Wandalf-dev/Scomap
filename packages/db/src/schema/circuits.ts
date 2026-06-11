@@ -19,23 +19,23 @@ export const circuits = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    // N° lisible séquentiel par tenant (distinct de l'UUID).
+    // Sequential human-readable number per tenant (distinct from the UUID).
     displayId: integer("display_id").notNull(),
     etablissementId: uuid("etablissement_id")
       .notNull()
       .references(() => etablissements.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
-  // Code optionnel (référence client), partagé par les trajets du circuit.
+  // Optional code (client reference), shared by the circuit's trajets.
   code: varchar("code", { length: 50 }),
   description: text("description"),
-  // Statut de contrôle/validation (façon usager) — distinct de l'archivage.
+  // Control/validation status (same model as usager) — distinct from archiving.
   status: varchar("status", { length: 20 }).notNull().default("non_controle"),
-  // Archivage (cycle de vie) : null = courant, daté = archivé/historisé.
+  // Archiving (lifecycle): null = current, dated = archived/historised.
   archivedAt: timestamp("archived_at", { withTimezone: true }),
-  // Préparation de rentrée : null = production, sinon copie liée à une campagne.
-  // FK posée en SQL (évite un cycle d'import schéma).
+  // Back-to-school preparation: null = production, otherwise a draft copy linked to a campaign.
+  // FK defined in SQL (avoids a schema import cycle).
   preparationCampaignId: uuid("preparation_campaign_id"),
-  // Traçabilité copie → entité prod d'origine (FK en SQL).
+  // Traceability: copy → original production entity (FK in SQL).
   sourceId: uuid("source_id"),
   operatingDays: jsonb("operating_days").$type<
     number[] | { day: number; parity: "all" | "even" | "odd" }[]

@@ -47,8 +47,8 @@ export function UsagerCreateClient() {
     },
   });
 
-  // Pré-remplit les dates de transport quand les paramètres (année scolaire)
-  // arrivent, sans écraser une saisie en cours (on ne touche qu'aux dates vides).
+  // Pre-fills transport dates when settings (school year) arrive, without
+  // overwriting an in-progress entry (only empty dates are touched).
   useEffect(() => {
     if (!settings) return;
     form.reset({
@@ -82,7 +82,7 @@ export function UsagerCreateClient() {
 
   return (
     <div className="space-y-6">
-      {/* Header — même bandeau que la fiche usager */}
+      {/* Header — same banner as the usager detail page */}
       <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:-mx-6 lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <Button

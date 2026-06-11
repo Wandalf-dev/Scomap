@@ -38,14 +38,14 @@ export const usagerCircuits = pgTable(
     >(),
     arrivalNotification: boolean("arrival_notification").notNull().default(false),
     authorizationAlone: boolean("authorization_alone").notNull().default(false),
-    // Plage de validité (résolution par date des avenants).
-    // valid_from null = depuis toujours ; valid_to null = version courante.
+    // Validity range (resolved by avenant date).
+    // valid_from null = since forever; valid_to null = current version.
     validFrom: date("valid_from"),
     validTo: date("valid_to"),
-    // Avenant ayant créé cette version d'affectation (FK posée en SQL pour éviter
-    // un cycle d'import schéma usager_circuits <-> avenants). Null = association
-    // directe / composition de base. Utilisé pour réverser proprement le
-    // versioning d'affectation à l'annulation d'un avenant.
+    // Avenant that created this assignment version (FK defined in SQL to avoid
+    // a schema import cycle usager_circuits <-> avenants). Null = direct
+    // association / base composition. Used to cleanly revert assignment
+    // versioning when an avenant is cancelled.
     createdByAvenantId: uuid("created_by_avenant_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -53,18 +53,18 @@ export const usagerCircuits = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+    // Back-to-school preparation: null = production, otherwise a draft copy linked to a campaign.
     preparationCampaignId: uuid("preparation_campaign_id"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    // Une seule version OUVERTE (valid_to null) par couple usager/circuit.
+    // Only one OPEN version (valid_to null) per usager/circuit pair.
     uniqueIndex("usager_circuits_open_version_idx")
       .on(table.usagerId, table.circuitId)
       .where(sql`${table.validTo} is null and ${table.deletedAt} is null`),
-    // Un seul circuit ACTIF par couple usager/adresse (version ouverte).
-    // Un changement passe par un avenant ; l'association d'une adresse libre
-    // reste directe. usager_address_id null (adresse supprimée) exclu.
+    // Only one ACTIVE circuit per usager/address pair (open version).
+    // Changes go through an avenant; free-address association remains direct.
+    // usager_address_id null (deleted address) excluded.
     uniqueIndex("usager_circuits_open_address_idx")
       .on(table.usagerId, table.usagerAddressId)
       .where(

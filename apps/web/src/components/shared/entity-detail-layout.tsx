@@ -45,8 +45,8 @@ interface Tab {
   content: React.ReactNode;
 }
 
-/** Entrée du menu « ⋯ » (ex. Archiver), affichée au-dessus de Supprimer.
- *  L'icône accepte aussi bien les icônes lucide que nos icônes animées. */
+/** Entry in the "⋯" menu (e.g. Archive), displayed above Delete.
+ *  The icon accepts both lucide icons and our custom animated icons. */
 export interface DetailMenuAction {
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -59,9 +59,9 @@ interface AnimatedIconHandle {
   stopAnimation: () => void;
 }
 
-/** Item de menu dont l'icône animée se déclenche au survol/focus de toute la
- *  ligne (et non de l'icône seule). Les icônes lucide ignorent simplement le
- *  ref (les appels start/stopAnimation sont alors des no-op). */
+/** Menu item whose animated icon triggers on hover/focus of the entire row
+ *  (not just the icon itself). Lucide icons simply ignore the ref
+ *  (start/stopAnimation calls are then no-ops). */
 function MenuActionItem({
   icon: Icon,
   label,
@@ -113,11 +113,11 @@ interface EntityDetailLayoutProps {
   deleteEntityName: string;
   deleteLabel: string;
   tabs: Tab[];
-  /** Onglet initial (ex. depuis ?tab=...). Ignoré s'il ne correspond à aucun onglet. */
+  /** Initial tab (e.g. from ?tab=...). Ignored if it doesn't match any tab. */
   defaultTab?: string;
-  /** Actions supplémentaires dans le bandeau (ex. Archiver), avant Supprimer. */
+  /** Additional actions in the header band (e.g. Archive), before Delete. */
   headerExtra?: React.ReactNode;
-  /** Actions placées dans le menu « ⋯ », au-dessus de Supprimer. */
+  /** Actions placed in the "⋯" menu, above Delete. */
   menuActions?: DetailMenuAction[];
 }
 
@@ -134,7 +134,7 @@ interface UnsavedChangesDialogProps {
   onConfirm: () => void;
 }
 
-/** Dialog de confirmation partagé (bouton Retour + changement d'onglet). */
+/** Shared confirmation dialog (Back button + tab change). */
 function UnsavedChangesDialog({
   open,
   onOpenChange,
@@ -236,11 +236,11 @@ function EntityDetailLayoutInner({
       ? defaultTab
       : tabs[0]?.value;
   const [activeTab, setActiveTab] = useState(activeDefault);
-  // Onglet demandé en attente de confirmation (formulaire dirty)
+  // Tab requested while awaiting confirmation (dirty form)
   const [pendingTab, setPendingTab] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Change d'onglet et réécrit ?tab= dans l'URL (en préservant les autres params, ex. ?back=)
+  // Changes the tab and rewrites ?tab= in the URL (preserving other params, e.g. ?back=)
   const applyTabChange = useCallback(
     (value: string) => {
       setActiveTab(value);
@@ -295,9 +295,9 @@ function EntityDetailLayoutInner({
 
   return (
     <div className="space-y-6">
-      {/* Header — bandeau collant qui respire, divider pleine largeur */}
+      {/* Header — sticky band with breathing room, full-width divider */}
       <div className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:-mx-6 lg:px-6">
-        {/* Identité */}
+        {/* Identity */}
         <div className="flex min-w-0 items-center gap-3">
           <BackButton backHref={backHref} />
           <div className="h-6 w-px shrink-0 bg-border/70" aria-hidden />
@@ -307,9 +307,9 @@ function EntityDetailLayoutInner({
           {badges}
         </div>
 
-        {/* Actions — Enregistrer (portal) à gauche du cluster ; Supprimer
-            isolé dans un menu « ⋯ » à l'extrême droite pour éviter le
-            missclick destructif à côté de la sauvegarde. */}
+        {/* Actions — Save (portal) to the left of the cluster; Delete
+            isolated in a "⋯" menu at the far right to avoid a destructive
+            missclick next to the save button. */}
         <div className="flex shrink-0 items-center gap-2">
           {headerExtra}
           <HeaderActionsSlot />
@@ -376,8 +376,8 @@ function EntityDetailLayoutInner({
         </div>
       </div>
 
-      {/* Tabs — contrôle segmenté soigné. Avec un seul onglet (fiche mono-vue),
-          la barre est masquée : le contenu s'affiche directement. */}
+      {/* Tabs — neat segmented control. With a single tab (single-view sheet),
+          the tab bar is hidden and the content renders directly. */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {tabs.length > 1 && (
           <TabsList className="h-9 gap-1 rounded-lg border border-border bg-muted/60 p-1">

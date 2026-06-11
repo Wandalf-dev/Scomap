@@ -52,7 +52,7 @@ export function PreparationClient() {
     trpc.preparation.getCurrentCampaign.queryOptions(),
   );
 
-  // Formulaire de démarrage.
+  // Start form state.
   const [label, setLabel] = useState("");
   const [schoolYearLabel, setSchoolYearLabel] = useState("");
   const [start, setStart] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export function PreparationClient() {
     return <div className="p-6 text-sm text-muted-foreground">Chargement…</div>;
   }
 
-  // ── Aucune campagne : écran de démarrage ──────────────────────────────
+  // ── No campaign: start screen ──────────────────────────────────────────
   if (!campaign) {
     return (
       <div className="mx-auto max-w-xl space-y-6 py-6">
@@ -182,7 +182,7 @@ export function PreparationClient() {
     );
   }
 
-  // ── Campagne en cours : tableau de bord ───────────────────────────────
+  // ── Active campaign: dashboard ────────────────────────────────────────
   return (
     <div className="space-y-6 py-2">
       <div className="flex flex-wrap items-center justify-between gap-3">

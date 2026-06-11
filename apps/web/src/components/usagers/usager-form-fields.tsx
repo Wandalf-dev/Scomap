@@ -90,8 +90,8 @@ function SectionHeader({
   );
 }
 
-/** Bouton « ouvrir la fiche établissement » (nouvel onglet), à droite d'un
- *  sélecteur. Masqué si aucun établissement n'est choisi. */
+/** Button to open the établissement detail page (new tab), to the right of a
+ *  selector. Hidden if no établissement is selected. */
 function EtabLinkButton({
   etablissementId,
 }: {
@@ -129,7 +129,7 @@ type EtabOption = {
   longitude?: number | null;
 };
 
-/** Adresse formatée d'un établissement sur une ligne, ou null si vide. */
+/** Formatted address of an établissement on one line, or null if empty. */
 function formatEtabAddress(etab: EtabOption | undefined): string | null {
   if (!etab) return null;
   const line = [etab.address, [etab.postalCode, etab.city].filter(Boolean).join(" ")]
@@ -143,22 +143,22 @@ interface UsagerFormFieldsProps {
   formId: string;
   onSubmit: (values: UsagerDetailFormValues) => void;
   etablissements?: EtabOption[];
-  /** Affiché en badge dans la card Identité (édition uniquement). */
+  /** Shown as a badge in the Identité card (edit mode only). */
   displayId?: number;
-  /** Champs critiques verrouillés (édition après affectation à un circuit). */
+  /** Critical fields locked (edit mode after assignment to a circuit). */
   affectationLocked?: boolean;
-  /** Lien du cadenas FieldLock (création d'avenant). */
+  /** Link for the FieldLock padlock (avenant creation). */
   avenantHref?: string;
-  /** Si fourni, affiche le bouton de calcul de distance routière. */
+  /** If provided, shows the road distance computation button. */
   onComputeDistance?: () => void;
   computingDistance?: boolean;
 }
 
 /**
- * Corps de formulaire usager (Identité, Scolarité, Transport, Observations),
- * partagé entre la création (`UsagerCreateClient`) et la fiche (`TabIdentite`)
- * pour garantir un design identique. Le parent fournit le `form`, la soumission
- * et les boutons d'action ; ce composant ne rend que les champs.
+ * Usager form body (Identité, Scolarité, Transport, Observations),
+ * shared between creation (`UsagerCreateClient`) and the detail page (`TabIdentite`)
+ * to guarantee a consistent design. The parent provides the `form`, the submit handler
+ * and action buttons; this component only renders the fields.
  */
 export function UsagerFormFields({
   form,
@@ -176,7 +176,7 @@ export function UsagerFormFields({
   return (
     <Form {...form}>
       <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Identité + Scolarité côte à côte */}
+        {/* Identité + Scolarité side by side */}
         <div className="grid grid-cols-2 gap-6">
           {/* Identité */}
           <section className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-xs">
@@ -310,7 +310,7 @@ export function UsagerFormFields({
                       <Select
                         onValueChange={(val) => {
                           field.onChange(val);
-                          // Reset classe quand on change d'établissement
+                          // Reset classe when the établissement changes
                           const newEtab = etablissements?.find((e) => e.id === val);
                           const newType = newEtab?.type as keyof typeof CLASSES_BY_TYPE | undefined;
                           const currentClasse = form.getValues("classe");

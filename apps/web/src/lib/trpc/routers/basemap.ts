@@ -6,9 +6,9 @@ import { getProviderKeyStatus } from "../services/provider-keys";
 
 export const basemapRouter = createTRPCRouter({
   /**
-   * Renvoie la spécification de fond de carte du tenant (style URL ou style
-   * raster inline). Replie sur OpenFreeMap si MapTiler est choisi sans clé,
-   * pour éviter une carte cassée.
+   * Returns the tenant's basemap specification (style URL or inline raster style).
+   * Falls back to OpenFreeMap if MapTiler is selected without a key,
+   * to avoid a broken map.
    */
   getStyle: tenantProcedure.query(async ({ ctx }) => {
     const row = await ctx.db

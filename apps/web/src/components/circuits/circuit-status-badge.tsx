@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { CIRCUIT_STATUS_LABELS } from "@/lib/validators/circuit";
 
-// Couleurs sémantiques par statut (style contour), alignées sur le badge usager.
+// Semantic colors per status (outline style), aligned with the usager badge.
 const STATUS_STYLES: Record<string, { dot: string; className: string }> = {
   non_controle: {
     dot: "bg-slate-400",

@@ -1,17 +1,17 @@
 /**
- * Chiffrement symétrique des secrets par tenant (clés d'API providers).
+ * Symmetric encryption of per-tenant secrets (provider API keys).
  *
- * AES-256-GCM. La clé maître est dérivée de `PROVIDER_KEYS_SECRET` (ou
- * `AUTH_SECRET` en repli) via HKDF-SHA256. Le `salt`/`info` de domaine
- * isolent cet usage des autres dérivations éventuelles.
+ * AES-256-GCM. The master key is derived from `PROVIDER_KEYS_SECRET` (or
+ * `AUTH_SECRET` as fallback) via HKDF-SHA256. The domain `salt`/`info`
+ * isolates this usage from any other derivations.
  *
- * En production, définir `PROVIDER_KEYS_SECRET` distinct d'`AUTH_SECRET` :
- * sinon un seul secret protège à la fois les sessions ET le chiffrement des
- * clés, et toute rotation de l'un invalide l'autre. ⚠️ Faire tourner ce
- * secret rend les clés déjà chiffrées illisibles (à re-saisir).
+ * In production, set `PROVIDER_KEYS_SECRET` distinct from `AUTH_SECRET`:
+ * otherwise a single secret protects both sessions AND key encryption,
+ * and rotating one invalidates the other. ⚠️ Rotating this secret makes
+ * already-encrypted keys unreadable (they must be re-entered).
  *
- * ⚠️ Server-only : importe `node:crypto` + secrets d'env. Ne jamais importer
- * ce module côté client (le bundle casserait de toute façon sur `node:crypto`).
+ * ⚠️ Server-only: imports `node:crypto` + env secrets. Never import this
+ * module on the client side (the bundle would break on `node:crypto` anyway).
  */
 
 import {
@@ -23,10 +23,10 @@ import {
 
 const ALG = "aes-256-gcm";
 const KEY_LEN = 32; // 256 bits
-const IV_LEN = 12; // 96 bits (recommandé pour GCM)
+const IV_LEN = 12; // 96 bits (recommended for GCM)
 const VERSION = "v1";
 
-/** Clé maître dérivée via HKDF-SHA256 (info de domaine). */
+/** Master key derived via HKDF-SHA256 (domain info). */
 function masterKey(): Buffer {
   const secret =
     process.env.PROVIDER_KEYS_SECRET ?? process.env.AUTH_SECRET;
@@ -46,7 +46,7 @@ function masterKey(): Buffer {
   );
 }
 
-/** Chiffre un secret -> "v1:<iv_b64>:<tag_b64>:<ciphertext_b64>". */
+/** Encrypts a secret -> "v1:<iv_b64>:<tag_b64>:<ciphertext_b64>". */
 export function encryptSecret(plaintext: string): string {
   const iv = randomBytes(IV_LEN);
   const cipher = createCipheriv(ALG, masterKey(), iv);
@@ -58,7 +58,7 @@ export function encryptSecret(plaintext: string): string {
   return `${VERSION}:${iv.toString("base64")}:${tag.toString("base64")}:${data.toString("base64")}`;
 }
 
-/** Déchiffre un secret. Throw si format/tag invalide (ex. rotation d'AUTH_SECRET). */
+/** Decrypts a secret. Throws if format/tag is invalid (e.g. AUTH_SECRET rotation). */
 export function decryptSecret(stored: string): string {
   const [v, ivB64, tagB64, dataB64] = stored.split(":");
   if (v !== VERSION || !ivB64 || !tagB64 || !dataB64) {
@@ -72,6 +72,6 @@ export function decryptSecret(stored: string): string {
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([
     decipher.update(Buffer.from(dataB64, "base64")),
-    decipher.final(), // throw si le tag d'authentification est invalide
+    decipher.final(), // throws if the authentication tag is invalid
   ]).toString("utf8");
 }

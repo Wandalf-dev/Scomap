@@ -14,9 +14,9 @@ export interface AddressSuggestion {
 export function useAddressAutocomplete(query: string) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  /** Erreur réseau / service indisponible lors de la dernière recherche. */
+  /** Network error / service unavailable during the last search. */
   const [error, setError] = useState(false);
-  /** Recherche aboutie (≥ 3 caractères) mais aucune adresse trouvée. */
+  /** Search completed (≥ 3 characters) but no address found. */
   const [noResults, setNoResults] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,8 +86,8 @@ export function useAddressAutocomplete(query: string) {
         setSuggestions([]);
         setError(true);
       } finally {
-        // Une requête annulée signifie qu'une plus récente est en cours :
-        // on ne coupe pas l'indicateur de chargement dans ce cas.
+        // An aborted request means a more recent one is in flight:
+        // do not turn off the loading indicator in that case.
         if (!controller.signal.aborted) setIsLoading(false);
       }
     }, 300);

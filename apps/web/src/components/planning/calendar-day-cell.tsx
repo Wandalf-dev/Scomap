@@ -10,8 +10,8 @@ import { isToday } from "@/lib/utils/date-helpers";
 import { OccurrenceCard } from "./occurrence-card";
 import { hasOverride, resolvedDepartureTime, type OccurrenceItem } from "./types";
 
-// Limite d'occurrences visibles par cellule en vue mois (densité) ;
-// en vue semaine tout est affiché.
+// Max occurrences visible per cell in month view (density);
+// in week view all are displayed.
 const MONTH_VIEW_LIMIT = 3;
 
 interface CalendarDayCellProps {
@@ -120,7 +120,7 @@ export function CalendarDayCell({
                   renderCard(
                     occ,
                     (o) => {
-                      // Ferme le popover avant d'ouvrir le sheet de détail
+                      // Close the popover before opening the detail sheet
                       setOverflowOpen(false);
                       onOccurrenceClick(o);
                     },

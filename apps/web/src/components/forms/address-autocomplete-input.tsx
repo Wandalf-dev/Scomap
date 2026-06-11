@@ -24,8 +24,8 @@ export function AddressAutocompleteInput({
   disabled,
 }: AddressAutocompleteInputProps) {
   const [open, setOpen] = useState(false);
-  // Dernière suggestion choisie : si le texte diverge ensuite, la lat/lng en
-  // base ne correspond plus à l'adresse affichée → avertissement.
+  // Last chosen suggestion: if the text diverges afterwards, the lat/lng in
+  // the DB no longer matches the displayed address → show a warning.
   const [lastSelected, setLastSelected] = useState<AddressSuggestion | null>(
     null,
   );
@@ -50,8 +50,8 @@ export function AddressAutocompleteInput({
     clear();
   }
 
-  // Selon le formulaire, le parent remet le champ à `address` ou à `label`
-  // après sélection : on compare aux deux.
+  // Depending on the form, the parent resets the field to `address` or `label`
+  // after selection: compare against both.
   const gpsUnverified =
     lastSelected != null &&
     value !== lastSelected.address &&

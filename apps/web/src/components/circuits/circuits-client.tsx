@@ -84,7 +84,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
-  // Mode préparation : la liste est scopée à une campagne (sinon production).
+  // Preparation mode: the list is scoped to a campaign (otherwise production).
   const isPrepa = !!campaignId;
   const detailBase = isPrepa ? "/preparation/circuits" : "/circuits";
 
@@ -93,7 +93,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingItem, setEditingItem] = useState<CircuitRow | null>(null);
   const [deleteItem, setDeleteItem] = useState<CircuitRow | null>(null);
-  // Dialog « Modifier les dates » (action groupée).
+  // "Modify dates" dialog (bulk action).
   const [datesDialogOpen, setDatesDialogOpen] = useState(false);
   const [datesIds, setDatesIds] = useState<string[]>([]);
   const [datesStart, setDatesStart] = useState<string | null>(null);
@@ -103,8 +103,8 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
     trpc.circuits.list.queryOptions(campaignId ? { campaignId } : undefined),
   );
 
-  // Campagne de préparation en cours (pour l'action « Copier en préparation »
-  // depuis la production).
+  // Current preparation campaign (for the "Copy to preparation" action
+  // from production).
   const { data: currentCampaign } = useQuery({
     ...trpc.preparation.getCurrentCampaign.queryOptions(),
     enabled: !isPrepa,
@@ -229,7 +229,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
             ? `${data.skipped} circuit${data.skipped > 1 ? "s" : ""} ignoré${data.skipped > 1 ? "s" : ""} : dates figées car ${data.skipped > 1 ? "ils ont" : "il a"} des usagers.`
             : undefined;
         if (data.updated === 0 && data.skipped > 0) {
-          // Tous les circuits sélectionnés sont verrouillés : aucune mise à jour.
+          // All selected circuits are locked: no update performed.
           toast.warning("Aucune date modifiée", { description: skippedNote });
         } else {
           toast.success(
@@ -505,11 +505,11 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
           if (!haystack.includes(filters.etablissement.toLowerCase())) return false;
         }
         if (filters.periode) {
-          // Plage "from|to" (ISO, bornes optionnelles). On garde les circuits
-          // dont la période CHEVAUCHE l'intervalle saisi. Bornes nulles =
-          // ouvertes. Comparaison lexicographique ISO = ordre chronologique.
+          // Range "from|to" (ISO, optional bounds). Keep circuits whose period
+          // OVERLAPS the entered interval. Null bounds = open.
+          // Lexicographic ISO comparison = chronological order.
           const [from = "", to = ""] = filters.periode.split("|");
-          // chevauchement : circuit.start <= to ET circuit.end >= from
+          // overlap: circuit.start <= to AND circuit.end >= from
           if (to && row.startDate && row.startDate > to) return false;
           if (from && row.endDate && row.endDate < from) return false;
         }

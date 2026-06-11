@@ -90,7 +90,7 @@ export function CompteClient() {
 
   return (
     <div className="space-y-6">
-      {/* En-tête héro : identité d'un coup d'œil */}
+      {/* Hero header: identity at a glance */}
       <div className="flex flex-col gap-4 rounded-[0.5rem] border border-border bg-card p-6 sm:flex-row sm:items-center">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-foreground">
           {initial}
@@ -312,7 +312,7 @@ function ApparenceTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Thème */}
+        {/* Theme */}
         <div className="space-y-2">
           <Label>Thème</Label>
           <div className="grid grid-cols-3 gap-3 sm:max-w-md">
@@ -341,7 +341,7 @@ function ApparenceTab() {
 
         <Separator />
 
-        {/* Rayon des coins */}
+        {/* Corner radius */}
         <div className="space-y-2">
           <Label>Arrondi des coins</Label>
           <div className="flex flex-wrap gap-2">

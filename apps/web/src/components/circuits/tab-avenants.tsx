@@ -24,7 +24,7 @@ type CircuitChange = {
   usagerLastName: string;
 };
 
-/** « Nom Prénom, … : motif » — façon objet d'avenant Transcolaire. */
+/** "Nom Prénom, … : motif" — Transcolaire-style avenant subject. */
 function buildObjet(changes: CircuitChange[], reason: string): string {
   const names = [
     ...new Set(
@@ -46,8 +46,8 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
     trpc.circuits.getById.queryOptions({ id: circuitId }),
   );
 
-  // Invalidations communes aux deux actions (annulation d'avenant / suppression
-  // de la composition) : avenants, affectations, trajets et arrêts du circuit.
+  // Invalidations shared by both actions (avenant cancellation / composition
+  // deletion): avenants, affectations, trajets and arrêts of the circuit.
   function invalidateAll() {
     queryClient.invalidateQueries({
       queryKey: trpc.avenants.listByCircuit.queryKey({ circuitId }),
@@ -103,7 +103,7 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
   const avenantRows: AvenantTableRow[] = (avenants ?? []).map((a) => ({
     key: a.id,
     circuitKey: circuitId,
-    // N° = ID de l'objet avenant (displayId), pas la séquence par circuit.
+    // N° = avenant object ID (displayId), not the per-circuit sequence.
     numero: String(a.displayId),
     isBase: false,
     effectiveDate: a.effectiveDate,
@@ -121,10 +121,10 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
       ) : undefined,
   }));
 
-  // Ligne N°0 = composition initiale du circuit (« avenant 0 » synthétique, non
-  // stocké). Elle ne se justifie que si le circuit a des usagers : une fois la
-  // composition supprimée (tous dissociés), la ligne disparaît. Sa suppression
-  // reste interdite tant que des avenants réels s'appuient dessus.
+  // Row N°0 = initial circuit composition (synthetic "avenant 0", not stored).
+  // It only appears if the circuit has usagers: once the composition is deleted
+  // (all dissociated), the row disappears. Deletion is blocked while real
+  // avenants depend on it.
   const hasUsagers = (circuit?.usagerCount ?? 0) > 0;
   const baseRow: AvenantTableRow | null = hasUsagers
     ? {
@@ -149,7 +149,7 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
 
   const rows = baseRow ? [...avenantRows, baseRow] : avenantRows;
 
-  // Ni avenant ni composition (ex. composition initiale supprimée → circuit vidé).
+  // Neither avenant nor composition (e.g. initial composition deleted → circuit emptied).
   if (rows.length === 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -159,7 +159,7 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
     );
   }
 
-  // Seule la composition initiale (aucun avenant réel).
+  // Only the initial composition (no real avenants).
   if (avenantRows.length === 0) {
     return (
       <div className="space-y-4">

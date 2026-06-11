@@ -1,9 +1,9 @@
 /**
- * Décodeur Google Encoded Polyline, précision 5 (facteur 1e5).
- * Sortie en `[lng, lat]` (ordre GeoJSON/MapLibre).
+ * Google Encoded Polyline decoder, precision 5 (factor 1e5).
+ * Output in `[lng, lat]` (GeoJSON/MapLibre order).
  *
- * ⚠️ Précision 5 uniquement (Google Routes API). NE PAS utiliser pour des
- * géométries OSRM en polyline6 (facteur 1e6).
+ * ⚠️ Precision 5 only (Google Routes API). DO NOT use for
+ * OSRM polyline6 geometries (factor 1e6).
  */
 export function decodePolyline5(str: string): [number, number][] {
   let index = 0;

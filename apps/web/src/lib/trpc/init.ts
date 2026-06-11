@@ -36,7 +36,7 @@ const hasTenant = t.middleware(({ ctx, next }) => {
   });
 });
 
-// Mutations sensibles (paramètres du tenant, clés d'API…) : admin uniquement
+// Sensitive mutations (tenant settings, API keys…): admin only
 const isAdmin = t.middleware(({ ctx, next }) => {
   if (ctx.session?.user?.role !== "admin") {
     throw new TRPCError({

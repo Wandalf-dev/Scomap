@@ -104,13 +104,13 @@ export function isToday(date: Date): boolean {
 }
 
 /**
- * Deux périodes [aStart, aEnd] et [bStart, bEnd] se chevauchent-elles ?
- * Une borne `null`/`undefined` = période ouverte de ce côté (aucune contrainte).
- * Les dates sont attendues au format ISO « YYYY-MM-DD » (comparables
- * lexicographiquement, donc pas besoin de parser en Date).
+ * Do the two periods [aStart, aEnd] and [bStart, bEnd] overlap?
+ * A `null`/`undefined` bound = open-ended period on that side (no constraint).
+ * Dates are expected in ISO "YYYY-MM-DD" format (lexicographically comparable,
+ * so no need to parse them as Date objects).
  *
- * Sert notamment à n'autoriser l'affectation d'un usager à un circuit que si
- * leurs périodes de validité se recouvrent.
+ * Used in particular to allow assigning a usager to a circuit only when their
+ * validity periods overlap.
  */
 export function dateRangesOverlap(
   aStart: string | null | undefined,
@@ -118,8 +118,8 @@ export function dateRangesOverlap(
   bStart: string | null | undefined,
   bEnd: string | null | undefined,
 ): boolean {
-  // Pas de chevauchement si A se termine avant le début de B,
-  // ou si A commence après la fin de B.
+  // No overlap if A ends before B starts,
+  // or if A starts after B ends.
   if (aEnd && bStart && aEnd < bStart) return false;
   if (aStart && bEnd && aStart > bEnd) return false;
   return true;

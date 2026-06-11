@@ -21,7 +21,7 @@ function genericLabel(type: string, snap: Snap): string {
   return "";
 }
 
-/** Affiche le delta « avant → après » d'un changement d'avenant. */
+/** Displays the "before → after" delta of an avenant change. */
 export function AvenantChangeDiff({
   type,
   previous,
@@ -31,8 +31,8 @@ export function AvenantChangeDiff({
   previous: Snap;
   next: Snap;
 }) {
-  // Ajout d'usager : il n'y a pas d'« avant » (l'usager n'était pas sur le
-  // circuit) → on affiche la cible, pas un delta.
+  // Usager addition: there is no "before" state (the usager was not on the
+  // circuit) → display the target, not a delta.
   if (type === "ajout") {
     const circuitName = String(next?.circuitName ?? "");
     return (

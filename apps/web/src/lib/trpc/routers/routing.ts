@@ -9,12 +9,11 @@ const pointSchema = z.object({ lat: z.number(), lng: z.number() });
 
 export const routingRouter = createTRPCRouter({
   /**
-   * Itinéraire d'APERÇU à travers des waypoints déjà ORDONNÉS (l'appelant fournit
-   * l'ordre). Lecture seule : ne persiste rien — à la différence de
-   * `trajets.calculateRoute` qui écrit sur les arrêts/trajet. Réutilise le moteur
-   * de routing du tenant (repli OSRM) et stitche/simplifie la géométrie comme
-   * calculateRoute. Renvoie `ok:false` (sans géométrie partielle trompeuse) si un
-   * segment échoue.
+   * PREVIEW route through already-ORDERED waypoints (the caller provides the
+   * order). Read-only: persists nothing — unlike `trajets.calculateRoute` which
+   * writes to arrêts/trajet. Reuses the tenant's routing engine (OSRM fallback)
+   * and stitches/simplifies the geometry like calculateRoute. Returns `ok:false`
+   * (without a misleading partial geometry) if a segment fails.
    */
   previewRoute: tenantProcedure
     .input(
@@ -30,7 +29,7 @@ export const routingRouter = createTRPCRouter({
       let totalDurationSec = 0;
       const coords: [number, number][] = [];
 
-      // Séquentiel (limites de débit des APIs), comme trajets.calculateRoute.
+      // Sequential (API rate limits), like trajets.calculateRoute.
       for (let i = 1; i < input.points.length; i++) {
         const prev = input.points[i - 1]!;
         const curr = input.points[i]!;
@@ -52,13 +51,13 @@ export const routingRouter = createTRPCRouter({
         totalDistanceKm += distanceKm;
         totalDurationSec += durationSec;
         if (geometry.length > 0) {
-          // Évite de dupliquer le point de jonction entre segments.
+          // Avoid duplicating the junction point between segments.
           const startIdx = coords.length > 0 ? 1 : 0;
           for (let j = startIdx; j < geometry.length; j++) coords.push(geometry[j]!);
         }
       }
 
-      // Simplifie à ~1000 points pour l'affichage (idem calculateRoute).
+      // Simplify to ~1000 points for display (same as calculateRoute).
       let simplified = coords;
       if (coords.length > 1000) {
         const step = Math.ceil(coords.length / 1000);

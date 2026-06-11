@@ -1,9 +1,9 @@
 /**
- * Accès aux clés d'API des providers, chiffrées par tenant.
+ * Access to provider API keys, encrypted per tenant.
  *
- * ⚠️ Server-only : déchiffre des secrets. Ne jamais importer côté client.
- * Règle dure : ces helpers ne renvoient JAMAIS de `ciphertext` ni de clé en
- * clair vers l'UI (sauf `getProviderKeyStatus` qui ne sort que `lastFour`).
+ * ⚠️ Server-only: decrypts secrets. Never import client-side.
+ * Hard rule: these helpers NEVER return `ciphertext` or a plain-text key
+ * to the UI (except `getProviderKeyStatus` which only exposes `lastFour`).
  */
 
 import { and, eq } from "drizzle-orm";
@@ -13,7 +13,7 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto/secret-box";
 
 export type ProviderCategory = "routing" | "basemap";
 
-/** Crée ou met à jour la clé chiffrée d'un provider pour un tenant. */
+/** Creates or updates the encrypted key of a provider for a tenant. */
 export async function upsertProviderKey(
   db: Database,
   tenantId: string,
@@ -37,9 +37,9 @@ export async function upsertProviderKey(
 }
 
 /**
- * Renvoie la clé déchiffrée, ou `undefined` si absente OU si le déchiffrement
- * échoue (ex. rotation d'AUTH_SECRET). Dans ce cas le provider tombe en
- * « clé absente » plutôt que de crasher.
+ * Returns the decrypted key, or `undefined` if absent OR if decryption
+ * fails (e.g. AUTH_SECRET rotation). In that case the provider falls back to
+ * "key absent" rather than crashing.
  */
 export async function getDecryptedKey(
   db: Database,
@@ -66,7 +66,7 @@ export async function getDecryptedKey(
   }
 }
 
-/** Pour l'UI : présence + 4 derniers caractères de chaque clé. Jamais la clé. */
+/** For the UI: presence + last 4 characters of each key. Never the key itself. */
 export async function getProviderKeyStatus(
   db: Database,
   tenantId: string,

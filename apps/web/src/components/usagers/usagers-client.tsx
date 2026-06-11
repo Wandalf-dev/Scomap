@@ -1,132 +1,33 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
-import { useQueryClient } from "@tanstack/react-query";
-import { useTRPC } from "@/lib/trpc/client";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "@/components/ui/sonner";
-import { toastTrpcError } from "@/lib/utils/trpc-errors";
+import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2, ExternalLink, Archive, ArchiveRestore, Copy, CalendarClock } from "lucide-react";
+import { useTRPC } from "@/lib/trpc/client";
+import { toast } from "@/components/ui/sonner";
 import { UsersIcon } from "@/components/ui/users-icon";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataList } from "@/components/shared/data-list";
-import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
-import { UsagerFormDialog } from "./usager-form-dialog";
-import { BulkTransportDatesDialog } from "./bulk-transport-dates-dialog";
-import { UsagerStatusBadge } from "./usager-status-badge";
+import { USAGER_LIST_COLUMNS } from "./list/usager-list-columns";
 import {
-  USAGER_STATUSES,
-  USAGER_STATUS_LABELS,
-  USAGER_REGIMES,
-  USAGER_REGIME_LABELS,
-  USAGER_TRANSPORT_TYPES,
-  USAGER_TRANSPORT_TYPE_LABELS,
-  CLASSES_BY_TYPE,
-  type UsagerFormValues,
-} from "@/lib/validators/usager";
-
-const CLASSE_LABEL_MAP: Record<string, string> = (() => {
-  const map: Record<string, string> = {};
-  for (const list of Object.values(CLASSES_BY_TYPE)) {
-    for (const c of list) map[c.value] = c.label;
-  }
-  return map;
-})();
-
-// Barre d'accent à gauche de ligne selon le type de transport (repris de Transcolaire).
-const TRANSPORT_ACCENT: Record<string, string> = {
-  taxi_collectif_individuel: "bg-blue-500",
-  transport_famille: "bg-orange-500",
-  transport_commun: "bg-yellow-400",
-};
-
-interface UsagerRow {
-  id: string;
-  displayId: number;
-  code: string | null;
-  firstName: string;
-  lastName: string;
-  birthDate: string | null;
-  gender: string | null;
-  status: string;
-  regime: string | null;
-  etablissementId: string | null;
-  etablissementName: string | null;
-  etablissementCity: string | null;
-  secondaryEtablissementId: string | null;
-  secondaryEtablissementName: string | null;
-  classe: string | null;
-  transportType: string | null;
-  transportStartDate: string | null;
-  transportEndDate: string | null;
-  transportParticularity: string | null;
-  specificity: string | null;
-  notes: string | null;
-  archivedAt: Date | null;
-}
-
-type UsagerFilters = {
-  displayId: string;
-  code: string;
-  lastName: string;
-  firstName: string;
-  birthDate: string;
-  gender: string;
-  status: string;
-  regime: string;
-  classe: string;
-  transportType: string;
-  etablissementName: string;
-  etablissementCity: string;
-  secondaryEtablissementName: string;
-  transportStartDate: string;
-  transportEndDate: string;
-  transportParticularity: string;
-  specificity: string;
-  notes: string;
-};
-
-const EMPTY_FILTERS: UsagerFilters = {
-  displayId: "",
-  code: "",
-  lastName: "",
-  firstName: "",
-  birthDate: "",
-  gender: "all",
-  status: "all",
-  regime: "all",
-  classe: "all",
-  transportType: "all",
-  etablissementName: "all",
-  etablissementCity: "",
-  secondaryEtablissementName: "all",
-  transportStartDate: "",
-  transportEndDate: "",
-  transportParticularity: "",
-  specificity: "",
-  notes: "",
-};
-
-type SortColumn = "lastName" | "firstName" | "birthDate" | "etablissementName" | "etablissementCity";
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return null;
-  try {
-    return new Date(dateStr).toLocaleDateString("fr-FR");
-  } catch {
-    return dateStr;
-  }
-}
+  useUsagerFilterOptions,
+  buildUsagerFilterConfigs,
+  usagerFilterFn,
+  usagerSortFn,
+} from "./list/usager-list-filters";
+import { useUsagerListMutations } from "./list/use-usager-list-mutations";
+import { UsagerListDialogs } from "./list/usager-list-dialogs";
+import { UsagerArchiveTabs } from "./list/usager-archive-tabs";
+import { EMPTY_FILTERS, TRANSPORT_ACCENT } from "./list/usager-list-model";
+import type { UsagerFormValues } from "@/lib/validators/usager";
+import type { UsagerRow, UsagerFilters, SortColumn } from "./list/usager-list-model";
 
 export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const router = useRouter();
   const isPrepa = !!campaignId;
-  // En préparation, les fiches s'ouvrent sur des routes dédiées (retour +
-  // sidebar cohérents avec l'onglet Préparation).
+  // In preparation mode, detail pages open on dedicated routes (back button +
+  // sidebar consistent with the Préparation tab).
   const detailBase = isPrepa ? "/preparation/usagers" : "/usagers";
 
   const [activeTab, setActiveTab] = useState<"current" | "archived">("current");
@@ -134,7 +35,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingItem, setEditingItem] = useState<UsagerRow | null>(null);
   const [deleteItem, setDeleteItem] = useState<UsagerRow | null>(null);
-  // Sélection en cours d'édition groupée des dates de transport (null = dialog fermé).
+  // Selection being bulk-edited for transport dates (null = dialog closed).
   const [bulkDatesIds, setBulkDatesIds] = useState<string[] | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -148,138 +49,31 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
     enabled: !isPrepa,
   });
 
-  const copyToPrepaMutation = useMutation(
-    trpc.preparation.copyUsagers.mutationOptions({
-      onSuccess: (data) => {
-        toast.success(
-          `${data.copied} usager${data.copied > 1 ? "s" : ""} copié${data.copied > 1 ? "s" : ""} en préparation`,
-        );
-      },
-      onError: (err) => toastTrpcError(err, "Erreur lors de la copie en préparation"),
-    }),
-  );
+  const {
+    copyToPrepaMutation,
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    deleteManyMutation,
+    updateDatesManyMutation,
+    archiveMutation,
+  } = useUsagerListMutations({
+    onCreateSuccess: () => setFormOpen(false),
+    onUpdateSuccess: () => {
+      setFormOpen(false);
+      setEditingItem(null);
+    },
+    onDeleteSuccess: () => setDeleteItem(null),
+    onUpdateDatesSuccess: () => setBulkDatesIds(null),
+  });
 
   const currentUsagers = usagersList?.filter((u) => !u.archivedAt) ?? [];
   const archivedUsagers = usagersList?.filter((u) => !!u.archivedAt) ?? [];
   const displayedUsagers =
     activeTab === "current" ? currentUsagers : archivedUsagers;
 
-  const etablissementOptions = useMemo(() => {
-    if (!usagersList) return [];
-    const names = new Set<string>();
-    usagersList.forEach((u) => {
-      if (u.etablissementName) names.add(u.etablissementName);
-    });
-    return Array.from(names).sort().map((name) => ({ value: name, label: name }));
-  }, [usagersList]);
-
-  const secondaryEtablissementOptions = useMemo(() => {
-    if (!usagersList) return [];
-    const names = new Set<string>();
-    usagersList.forEach((u) => {
-      if (u.secondaryEtablissementName) names.add(u.secondaryEtablissementName);
-    });
-    return Array.from(names).sort().map((name) => ({ value: name, label: name }));
-  }, [usagersList]);
-
-  const classeOptions = useMemo(() => {
-    const keys = new Set<string>();
-    for (const list of Object.values(CLASSES_BY_TYPE)) {
-      for (const c of list) keys.add(c.value);
-    }
-    return Array.from(keys).map((k) => ({ value: k, label: CLASSE_LABEL_MAP[k] ?? k }));
-  }, []);
-
-  const createMutation = useMutation(
-    trpc.usagers.create.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagers.list.queryKey(),
-        });
-        toast.success("Usager créé avec succès");
-        setFormOpen(false);
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la création");
-      },
-    }),
-  );
-
-  const updateMutation = useMutation(
-    trpc.usagers.update.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagers.list.queryKey(),
-        });
-        toast.success("Usager modifié avec succès");
-        setFormOpen(false);
-        setEditingItem(null);
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la modification");
-      },
-    }),
-  );
-
-  const deleteMutation = useMutation(
-    trpc.usagers.delete.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagers.list.queryKey(),
-        });
-        toast.success("Usager supprimé");
-        setDeleteItem(null);
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la suppression");
-      },
-    }),
-  );
-
-  const deleteManyMutation = useMutation(
-    trpc.usagers.deleteMany.mutationOptions({
-      onSuccess: (data) => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagers.list.queryKey(),
-        });
-        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la suppression");
-      },
-    }),
-  );
-
-  const updateDatesManyMutation = useMutation(
-    trpc.usagers.updateTransportDatesMany.mutationOptions({
-      onSuccess: (data) => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagers.list.queryKey(),
-        });
-        toast.success(
-          `Dates mises à jour pour ${data.updated} usager${data.updated > 1 ? "s" : ""}`,
-        );
-        setBulkDatesIds(null);
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la mise à jour des dates");
-      },
-    }),
-  );
-
-  const archiveMutation = useMutation(
-    trpc.usagers.setArchived.mutationOptions({
-      onSuccess: (_data, variables) => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.usagers.list.queryKey(),
-        });
-        toast.success(variables.archived ? "Usager archivé" : "Usager désarchivé");
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de l'archivage");
-      },
-    }),
-  );
+  const { etablissementOptions, secondaryEtablissementOptions, classeOptions } =
+    useUsagerFilterOptions(usagersList);
 
   function handleSort(column: string) {
     const col = column as SortColumn;
@@ -311,498 +105,143 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
   return (
     <div className="space-y-4">
       {!isPrepa && (
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as "current" | "archived")}
-        >
-          <TabsList>
-            <TabsTrigger value="current" className="cursor-pointer">
-              Courants
-              {!isLoading && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
-                  {currentUsagers.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="archived" className="cursor-pointer">
-              Archivés
-              {!isLoading && archivedUsagers.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
-                  {archivedUsagers.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <UsagerArchiveTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isLoading={isLoading}
+          currentCount={currentUsagers.length}
+          archivedCount={archivedUsagers.length}
+        />
       )}
 
       <DataList<UsagerRow, UsagerFilters>
         data={displayedUsagers}
         isLoading={isLoading}
         error={error}
-      onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
-      isBulkDeleting={deleteManyMutation.isPending}
-      bulkActions={
-        isPrepa
-          ? undefined
-          : [
-              {
-                label: "Copier en préparation",
-                icon: Copy,
-                onClick: (ids: string[]) => {
-                  if (currentCampaign) {
-                    copyToPrepaMutation.mutate({
-                      campaignId: currentCampaign.id,
-                      usagerIds: ids,
-                    });
-                  } else {
-                    toast.info(
-                      "Aucune préparation en cours — démarrez-en une d'abord.",
-                    );
-                    router.push("/preparation");
-                  }
+        onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
+        isBulkDeleting={deleteManyMutation.isPending}
+        bulkActions={
+          isPrepa
+            ? undefined
+            : [
+                {
+                  label: "Copier en préparation",
+                  icon: Copy,
+                  onClick: (ids: string[]) => {
+                    if (currentCampaign) {
+                      copyToPrepaMutation.mutate({
+                        campaignId: currentCampaign.id,
+                        usagerIds: ids,
+                      });
+                    } else {
+                      toast.info(
+                        "Aucune préparation en cours — démarrez-en une d'abord.",
+                      );
+                      router.push("/preparation");
+                    }
+                  },
                 },
-              },
-              {
-                label: "Modifier les dates de transport",
-                icon: CalendarClock,
-                separator: true,
-                onClick: (ids: string[]) => setBulkDatesIds(ids),
-              },
-            ]
-      }
-      rowAccent={(row) => TRANSPORT_ACCENT[row.transportType ?? ""] ?? null}
-      title="Usagers"
-      description="Gérez les élèves transportés"
-      emptyIcon={UsersIcon}
-      emptyTitle={
-        activeTab === "archived" ? "Aucun usager archivé" : "Aucun usager"
-      }
-      emptyDescription={
-        activeTab === "archived"
-          ? "Les usagers archivés apparaîtront ici."
-          : "Commencez par ajouter votre premier usager."
-      }
-      addButtonLabel={
-        isPrepa || activeTab === "archived" ? undefined : "Ajouter un usager"
-      }
-      addHref={isPrepa || activeTab === "archived" ? undefined : "/usagers/new"}
-      storageKey="usagers"
-      defaultVisibleColumns={[
-        "displayId",
-        "lastName",
-        "firstName",
-        "birthDate",
-        "etablissementName",
-        "etablissementCity",
-      ]}
-      columns={[
-        {
-          key: "displayId",
-          header: "ID",
-          sortable: true,
-          className: "w-16",
-          render: (row) => (
-            <span className="text-muted-foreground tabular-nums">#{row.displayId}</span>
-          ),
-        },
-        {
-          key: "code",
-          header: "Code",
-          sortable: true,
-          render: (row) =>
-            row.code ? (
-              <span className="text-muted-foreground tabular-nums">{row.code}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "lastName",
-          header: "Nom",
-          sortable: true,
-          render: (row) => (
-            <span className="font-medium text-foreground">{row.lastName}</span>
-          ),
-        },
-        {
-          key: "firstName",
-          header: "Prénom",
-          sortable: true,
-          render: (row) => (
-            <span className="text-foreground">{row.firstName}</span>
-          ),
-        },
-        {
-          key: "birthDate",
-          header: "Date de naissance",
-          sortable: true,
-          exportValue: (row) => formatDate(row.birthDate),
-          render: (row) =>
-            formatDate(row.birthDate) ? (
-              <span className="text-muted-foreground">{formatDate(row.birthDate)}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "gender",
-          header: "Genre",
-          sortable: true,
-          render: (row) =>
-            row.gender ? (
-              <span className="text-muted-foreground">{row.gender === "M" ? "M" : "F"}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "status",
-          header: "Statut",
-          sortable: true,
-          exportValue: (row) =>
-            USAGER_STATUS_LABELS[row.status as keyof typeof USAGER_STATUS_LABELS] ?? row.status,
-          render: (row) => <UsagerStatusBadge status={row.status} />,
-        },
-        {
-          key: "regime",
-          header: "Régime",
-          sortable: true,
-          exportValue: (row) =>
-            row.regime
-              ? USAGER_REGIME_LABELS[row.regime as keyof typeof USAGER_REGIME_LABELS] ?? row.regime
-              : null,
-          render: (row) =>
-            row.regime ? (
-              <span className="text-muted-foreground">
-                {USAGER_REGIME_LABELS[row.regime as keyof typeof USAGER_REGIME_LABELS] ?? row.regime}
-              </span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "classe",
-          header: "Classe",
-          sortable: true,
-          exportValue: (row) =>
-            row.classe ? CLASSE_LABEL_MAP[row.classe] ?? row.classe : null,
-          render: (row) =>
-            row.classe ? (
-              <span className="text-muted-foreground">
-                {CLASSE_LABEL_MAP[row.classe] ?? row.classe}
-              </span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "transportType",
-          header: "Type de transport",
-          sortable: true,
-          exportValue: (row) =>
-            row.transportType
-              ? USAGER_TRANSPORT_TYPE_LABELS[
-                  row.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS
-                ] ?? row.transportType
-              : null,
-          render: (row) =>
-            row.transportType ? (
-              <span className="text-muted-foreground">
-                {USAGER_TRANSPORT_TYPE_LABELS[row.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS] ?? row.transportType}
-              </span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "etablissementName",
-          header: "Établissement",
-          sortable: true,
-          render: (row) =>
-            row.etablissementName ? (
-              <span className="text-muted-foreground">{row.etablissementName}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "etablissementCity",
-          header: "Ville",
-          sortable: true,
-          render: (row) =>
-            row.etablissementCity ? (
-              <span className="text-muted-foreground">{row.etablissementCity}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "secondaryEtablissementName",
-          header: "Établissement secondaire",
-          sortable: true,
-          render: (row) =>
-            row.secondaryEtablissementName ? (
-              <span className="text-muted-foreground">{row.secondaryEtablissementName}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "transportStartDate",
-          header: "Début transport",
-          sortable: true,
-          exportValue: (row) => formatDate(row.transportStartDate),
-          render: (row) =>
-            formatDate(row.transportStartDate) ? (
-              <span className="text-muted-foreground">{formatDate(row.transportStartDate)}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "transportEndDate",
-          header: "Fin transport",
-          sortable: true,
-          exportValue: (row) => formatDate(row.transportEndDate),
-          render: (row) =>
-            formatDate(row.transportEndDate) ? (
-              <span className="text-muted-foreground">{formatDate(row.transportEndDate)}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "transportParticularity",
-          header: "Particularité transport",
-          render: (row) =>
-            row.transportParticularity ? (
-              <span className="text-muted-foreground">{row.transportParticularity}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "specificity",
-          header: "Spécificité",
-          render: (row) =>
-            row.specificity ? (
-              <span className="text-muted-foreground">{row.specificity}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-        {
-          key: "notes",
-          header: "Notes",
-          render: (row) =>
-            row.notes ? (
-              <span className="text-muted-foreground">{row.notes}</span>
-            ) : (
-              <span className="text-muted-foreground/60">&mdash;</span>
-            ),
-        },
-      ]}
-      getRowId={(row) => row.id}
-      onRowClick={(row) => router.push(`${detailBase}/${row.id}`)}
-      sortColumn={sortColumn}
-      sortDirection={sortDirection}
-      onSort={handleSort}
-      sortFn={(a, b, column, direction) => {
-        const aRaw = a[column as keyof UsagerRow];
-        const bRaw = b[column as keyof UsagerRow];
-        let cmp: number;
-        if (typeof aRaw === "number" && typeof bRaw === "number") {
-          cmp = aRaw - bRaw;
-        } else {
-          const aVal = (aRaw ?? "") as string;
-          const bVal = (bRaw ?? "") as string;
-          cmp = aVal.localeCompare(bVal, "fr", { sensitivity: "base" });
+                {
+                  label: "Modifier les dates de transport",
+                  icon: CalendarClock,
+                  separator: true,
+                  onClick: (ids: string[]) => setBulkDatesIds(ids),
+                },
+              ]
         }
-        return direction === "asc" ? cmp : -cmp;
-      }}
-      filters={[
-        { key: "displayId", label: "ID", type: "text", placeholder: "#…" },
-        { key: "code", label: "Code", type: "text" },
-        { key: "lastName", label: "Nom", type: "text" },
-        { key: "firstName", label: "Prénom", type: "text" },
-        { key: "birthDate", label: "Date de naissance", type: "text", placeholder: "Année ou date…" },
-        {
-          key: "gender",
-          label: "Genre",
-          type: "select",
-          className: "h-8 w-32 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Tous" },
-            { value: "M", label: "Masculin" },
-            { value: "F", label: "Féminin" },
-          ],
-        },
-        {
-          key: "status",
-          label: "Statut",
-          type: "select",
-          className: "h-8 w-40 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Tous" },
-            ...USAGER_STATUSES.map((s) => ({ value: s, label: USAGER_STATUS_LABELS[s] })),
-          ],
-        },
-        {
-          key: "regime",
-          label: "Régime",
-          type: "select",
-          className: "h-8 w-40 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Tous" },
-            ...USAGER_REGIMES.map((r) => ({ value: r, label: USAGER_REGIME_LABELS[r] })),
-          ],
-        },
-        {
-          key: "classe",
-          label: "Classe",
-          type: "select",
-          className: "h-8 w-32 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Toutes" },
-            ...classeOptions,
-          ],
-        },
-        {
-          key: "transportType",
-          label: "Type de transport",
-          type: "select",
-          className: "h-8 w-56 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Tous" },
-            ...USAGER_TRANSPORT_TYPES.map((t) => ({ value: t, label: USAGER_TRANSPORT_TYPE_LABELS[t] })),
-          ],
-        },
-        {
-          key: "etablissementName",
-          label: "Établissement",
-          type: "select",
-          className: "h-8 w-56 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Tous" },
-            ...etablissementOptions,
-          ],
-        },
-        { key: "etablissementCity", label: "Ville", type: "text" },
-        {
-          key: "secondaryEtablissementName",
-          label: "Établissement secondaire",
-          type: "select",
-          className: "h-8 w-56 cursor-pointer text-sm",
-          options: [
-            { value: "all", label: "Tous" },
-            ...secondaryEtablissementOptions,
-          ],
-        },
-        { key: "transportStartDate", label: "Début transport", type: "text", placeholder: "Année ou date…" },
-        { key: "transportEndDate", label: "Fin transport", type: "text", placeholder: "Année ou date…" },
-        { key: "transportParticularity", label: "Particularité transport", type: "text" },
-        { key: "specificity", label: "Spécificité", type: "text" },
-        { key: "notes", label: "Notes", type: "text" },
-      ]}
-      emptyFilters={EMPTY_FILTERS}
-      filterFn={(row, filters) => {
-        if (filters.displayId && !String(row.displayId).includes(filters.displayId.replace(/^#/, ""))) return false;
-        if (filters.code && !row.code?.toLowerCase().includes(filters.code.toLowerCase())) return false;
-        if (filters.lastName && !row.lastName.toLowerCase().includes(filters.lastName.toLowerCase())) return false;
-        if (filters.firstName && !row.firstName.toLowerCase().includes(filters.firstName.toLowerCase())) return false;
-        if (filters.birthDate && !(row.birthDate ?? "").includes(filters.birthDate)) return false;
-        if (filters.gender !== "all" && row.gender !== filters.gender) return false;
-        if (filters.status !== "all" && row.status !== filters.status) return false;
-        if (filters.regime !== "all" && row.regime !== filters.regime) return false;
-        if (filters.classe !== "all" && row.classe !== filters.classe) return false;
-        if (filters.transportType !== "all" && row.transportType !== filters.transportType) return false;
-        if (filters.etablissementName !== "all" && row.etablissementName !== filters.etablissementName) return false;
-        if (filters.etablissementCity && !row.etablissementCity?.toLowerCase().includes(filters.etablissementCity.toLowerCase())) return false;
-        if (filters.secondaryEtablissementName !== "all" && row.secondaryEtablissementName !== filters.secondaryEtablissementName) return false;
-        if (filters.transportStartDate && !(row.transportStartDate ?? "").includes(filters.transportStartDate)) return false;
-        if (filters.transportEndDate && !(row.transportEndDate ?? "").includes(filters.transportEndDate)) return false;
-        if (filters.transportParticularity && !row.transportParticularity?.toLowerCase().includes(filters.transportParticularity.toLowerCase())) return false;
-        if (filters.specificity && !row.specificity?.toLowerCase().includes(filters.specificity.toLowerCase())) return false;
-        if (filters.notes && !row.notes?.toLowerCase().includes(filters.notes.toLowerCase())) return false;
-        return true;
-      }}
-      actions={[
-        {
-          label: "Voir la fiche",
-          icon: ExternalLink,
-          onClick: (row) => router.push(`${detailBase}/${row.id}`),
-        },
-        {
-          label: "Modifier rapidement",
-          icon: Pencil,
-          onClick: (row) => {
-            setEditingItem(row);
-            setFormMode("edit");
-            setFormOpen(true);
+        rowAccent={(row) => TRANSPORT_ACCENT[row.transportType ?? ""] ?? null}
+        title="Usagers"
+        description="Gérez les élèves transportés"
+        emptyIcon={UsersIcon}
+        emptyTitle={
+          activeTab === "archived" ? "Aucun usager archivé" : "Aucun usager"
+        }
+        emptyDescription={
+          activeTab === "archived"
+            ? "Les usagers archivés apparaîtront ici."
+            : "Commencez par ajouter votre premier usager."
+        }
+        addButtonLabel={
+          isPrepa || activeTab === "archived" ? undefined : "Ajouter un usager"
+        }
+        addHref={isPrepa || activeTab === "archived" ? undefined : "/usagers/new"}
+        storageKey="usagers"
+        defaultVisibleColumns={[
+          "displayId",
+          "lastName",
+          "firstName",
+          "birthDate",
+          "etablissementName",
+          "etablissementCity",
+        ]}
+        columns={USAGER_LIST_COLUMNS}
+        getRowId={(row) => row.id}
+        onRowClick={(row) => router.push(`${detailBase}/${row.id}`)}
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        sortFn={usagerSortFn}
+        filters={buildUsagerFilterConfigs({
+          classeOptions,
+          etablissementOptions,
+          secondaryEtablissementOptions,
+        })}
+        emptyFilters={EMPTY_FILTERS}
+        filterFn={usagerFilterFn}
+        actions={[
+          {
+            label: "Voir la fiche",
+            icon: ExternalLink,
+            onClick: (row) => router.push(`${detailBase}/${row.id}`),
           },
-        },
-        activeTab === "archived"
-          ? {
-              label: "Désarchiver",
-              icon: ArchiveRestore,
-              onClick: (row) =>
-                archiveMutation.mutate({ id: row.id, archived: false }),
-            }
-          : {
-              label: "Archiver",
-              icon: Archive,
-              onClick: (row) =>
-                archiveMutation.mutate({ id: row.id, archived: true }),
+          {
+            label: "Modifier rapidement",
+            icon: Pencil,
+            onClick: (row) => {
+              setEditingItem(row);
+              setFormMode("edit");
+              setFormOpen(true);
             },
-        {
-          label: "Supprimer",
-          icon: Trash2,
-          variant: "destructive",
-          separator: true,
-          onClick: (row) => setDeleteItem(row),
-        },
-      ]}
-    >
-      <UsagerFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        onSubmit={handleFormSubmit}
-        defaultValues={
-          editingItem
+          },
+          activeTab === "archived"
             ? {
-                firstName: editingItem.firstName,
-                lastName: editingItem.lastName,
-                birthDate: editingItem.birthDate ?? "",
-                gender: (editingItem.gender as "M" | "F" | "") ?? "",
-                etablissementId: editingItem.etablissementId ?? "",
+                label: "Désarchiver",
+                icon: ArchiveRestore,
+                onClick: (row) =>
+                  archiveMutation.mutate({ id: row.id, archived: false }),
               }
-            : undefined
-        }
-        isPending={createMutation.isPending || updateMutation.isPending}
-        mode={formMode}
-      />
-
-      <EntityDeleteDialog
-        open={!!deleteItem}
-        onOpenChange={(open) => !open && setDeleteItem(null)}
-        onConfirm={() => deleteItem && deleteMutation.mutate({ id: deleteItem.id })}
-        entityName="l'usager"
-        entityLabel={deleteItem ? `${deleteItem.firstName} ${deleteItem.lastName}` : ""}
-        isPending={deleteMutation.isPending}
-      />
-
-      <BulkTransportDatesDialog
-        open={bulkDatesIds !== null}
-        onOpenChange={(open) => !open && setBulkDatesIds(null)}
-        count={bulkDatesIds?.length ?? 0}
-        isPending={updateDatesManyMutation.isPending}
-        onSubmit={(values) =>
-          bulkDatesIds &&
-          updateDatesManyMutation.mutate({ ids: bulkDatesIds, ...values })
-        }
-      />
-    </DataList>
+            : {
+                label: "Archiver",
+                icon: Archive,
+                onClick: (row) =>
+                  archiveMutation.mutate({ id: row.id, archived: true }),
+              },
+          {
+            label: "Supprimer",
+            icon: Trash2,
+            variant: "destructive",
+            separator: true,
+            onClick: (row) => setDeleteItem(row),
+          },
+        ]}
+      >
+        <UsagerListDialogs
+          formOpen={formOpen}
+          setFormOpen={setFormOpen}
+          formMode={formMode}
+          editingItem={editingItem}
+          onFormSubmit={handleFormSubmit}
+          isFormPending={createMutation.isPending || updateMutation.isPending}
+          deleteItem={deleteItem}
+          setDeleteItem={setDeleteItem}
+          onConfirmDelete={(id) => deleteMutation.mutate({ id })}
+          isDeletePending={deleteMutation.isPending}
+          bulkDatesIds={bulkDatesIds}
+          setBulkDatesIds={setBulkDatesIds}
+          onBulkDatesSubmit={(input) => updateDatesManyMutation.mutate(input)}
+          isBulkDatesPending={updateDatesManyMutation.isPending}
+        />
+      </DataList>
     </div>
   );
 }

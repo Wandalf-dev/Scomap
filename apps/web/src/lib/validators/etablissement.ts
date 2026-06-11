@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Schéma pour la création rapide (dialog de la liste)
+// Schema for quick creation (list dialog)
 export const etablissementSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   type: z.string().min(1, "Type requis").max(50),
@@ -13,7 +13,7 @@ export const etablissementSchema = z.object({
 
 export type EtablissementFormValues = z.infer<typeof etablissementSchema>;
 
-// Schéma complet pour la fiche détail
+// Full schema for the detail page
 export const etablissementDetailSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   type: z.string().min(1, "Type requis").max(50),
@@ -37,13 +37,13 @@ export const etablissementDetailSchema = z.object({
 
 export type EtablissementDetailFormValues = z.infer<typeof etablissementDetailSchema>;
 
-// Schéma horaires
+// Schedules schema
 const dayScheduleSchema = z.object({
   morning: z.string().optional(),
   evening: z.string().optional(),
 });
 
-// Le lundi matin est le seul horaire obligatoire.
+// Monday morning is the only mandatory schedule slot.
 const lundiScheduleSchema = z.object({
   morning: z.string().min(1, "Horaire du lundi matin requis"),
   evening: z.string().optional(),

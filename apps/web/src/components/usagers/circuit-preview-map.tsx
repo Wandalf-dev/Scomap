@@ -20,23 +20,23 @@ export interface PreviewPoint {
 
 const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
-// Délai au-delà duquel un style/des tuiles qui ne répondent pas sont
-// considérés en échec (réseau coupé, provider down).
+// Timeout beyond which an unresponsive style/tiles are considered failed
+// (network down, provider down).
 const LOAD_TIMEOUT_MS = 15000;
 
-// Couleur + taille du pin par catégorie. On utilise l'épingle MapLibre par
-// défaut (teardrop) : sa POINTE est ancrée précisément sur la coordonnée — bien
-// plus lisible qu'un gros disque centré. L'adresse choisie est légèrement plus
-// grande pour ressortir. Cohérent avec components/shared/point-map.tsx.
+// Color + size of the pin per category. We use the default MapLibre teardrop
+// marker: its TIP is anchored precisely on the coordinate — much more readable
+// than a large centered disc. The chosen address is slightly larger to stand out.
+// Consistent with components/shared/point-map.tsx.
 const MARKER: Record<PreviewPointKind, { color: string; scale: number }> = {
-  etablissement: { color: "#2563eb", scale: 0.85 }, // bleu
-  selected: { color: "#059669", scale: 1 }, // vert émeraude (bien distinct du bleu)
+  etablissement: { color: "#2563eb", scale: 0.85 }, // blue
+  selected: { color: "#059669", scale: 1 }, // emerald green (clearly distinct from blue)
   usager: { color: "#d97706", scale: 0.75 }, // orange
 };
 
-// Chevron blanc à liseré violet (canvas), pointant vers le HAUT (nord). Il sera
-// tourné par `icon-rotate` selon le cap de chaque flèche → pointe dans le sens
-// de circulation.
+// White chevron with a purple outline (canvas), pointing UP (north). It will be
+// rotated by `icon-rotate` according to the bearing of each arrow → points in the
+// direction of travel.
 function buildArrowImage(): ImageData | null {
   if (typeof document === "undefined") return null;
   const ratio = 2;
@@ -56,7 +56,7 @@ function buildArrowImage(): ImageData | null {
     ctx.lineTo(s * 0.74, s * 0.62);
     ctx.stroke();
   };
-  ctx.strokeStyle = "rgba(76,29,149,0.95)"; // liseré violet foncé (contraste)
+  ctx.strokeStyle = "rgba(76,29,149,0.95)"; // dark purple outline (contrast)
   ctx.lineWidth = 5;
   chevron();
   ctx.strokeStyle = "#ffffff";
@@ -65,7 +65,7 @@ function buildArrowImage(): ImageData | null {
   return ctx.getImageData(0, 0, s * ratio, s * ratio);
 }
 
-// Distance haversine (m) entre deux [lng, lat].
+// Haversine distance (m) between two [lng, lat] points.
 function distMeters(a: [number, number], b: [number, number]): number {
   const R = 6371000;
   const toR = (x: number) => (x * Math.PI) / 180;
@@ -77,7 +77,7 @@ function distMeters(a: [number, number], b: [number, number]): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-// Cap compas (deg, 0 = nord, sens horaire) de a vers b.
+// Compass bearing (deg, 0 = north, clockwise) from a to b.
 function bearingDeg(a: [number, number], b: [number, number]): number {
   const toR = (x: number) => (x * Math.PI) / 180;
   const toD = (x: number) => (x * 180) / Math.PI;
@@ -90,10 +90,10 @@ function bearingDeg(a: [number, number], b: [number, number]): number {
 }
 
 /**
- * Flèches de sens à positions géographiques FIXES le long du tracé (≈ 1 / 1,2 km,
- * de 1 à 6), chacune avec son cap. Positions stables → contrairement à
- * `symbol-placement: line`, elles ne se recalculent pas au zoom (plus de flèches
- * qui se multiplient / disparaissent).
+ * Direction arrows at FIXED geographic positions along the route (≈ every 1.2 km,
+ * 1 to 6 arrows), each with its own bearing. Stable positions → unlike
+ * `symbol-placement: line`, they don't recompute on zoom (no arrows multiplying /
+ * disappearing).
  */
 function buildArrowFeatures(line: [number, number][]) {
   if (!line || line.length < 2) return [];
@@ -131,9 +131,9 @@ function buildArrowFeatures(line: [number, number][]) {
 }
 
 /**
- * Carte d'aperçu temps réel des points d'un circuit en cours d'association :
- * établissement de destination + usagers déjà sur le circuit + adresse choisie
- * (mise à jour à chaque changement de sélection, sans recréer la carte).
+ * Real-time preview map of the points of a circuit being associated:
+ * destination établissement + usagers already on the circuit + chosen address
+ * (updated on every selection change, without recreating the map).
  */
 export function CircuitPreviewMap({
   points,
@@ -142,7 +142,7 @@ export function CircuitPreviewMap({
   className,
 }: {
   points: PreviewPoint[];
-  /** Tracé d'aperçu en `[lng, lat][]` (ordre GeoJSON). Dessiné sous les pins. */
+  /** Preview route as `[lng, lat][]` (GeoJSON order). Drawn below the pins. */
   routeGeometry?: [number, number][];
   basemap?: BasemapStyle;
   className?: string;
@@ -152,7 +152,7 @@ export function CircuitPreviewMap({
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  // Incrémenté par « Réessayer » pour relancer l'init complète de la carte.
+  // Incremented by "Réessayer" to trigger a full map re-initialization.
   const [attempt, setAttempt] = useState(0);
 
   const geoPoints = useMemo(
@@ -167,8 +167,8 @@ export function CircuitPreviewMap({
     [geoPoints],
   );
   const basemapKey = useMemo(() => JSON.stringify(basemap ?? null), [basemap]);
-  // Signature peu coûteuse du tracé (longueur + extrémités) — évite de
-  // sérialiser ~1000 points à chaque rendu.
+  // Cheap fingerprint of the route (length + endpoints) — avoids serializing
+  // ~1000 points on every render.
   const routeKey = useMemo(() => {
     if (!routeGeometry || routeGeometry.length < 2) return "none";
     const a = routeGeometry[0]!;
@@ -176,8 +176,8 @@ export function CircuitPreviewMap({
     return `${routeGeometry.length}:${a[0]},${a[1]}:${b[0]},${b[1]}`;
   }, [routeGeometry]);
 
-  // Init : une seule carte par fond de carte (remontée seulement si le provider
-  // du tenant change). Les marqueurs sont gérés par l'effet suivant.
+  // Init: one map per basemap (recreated only if the tenant's provider changes).
+  // Markers are managed by the next effect.
   useEffect(() => {
     if (!containerRef.current) return;
     const style: string | StyleSpecification =
@@ -188,7 +188,7 @@ export function CircuitPreviewMap({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style,
-      center: [2.4, 46.6], // centre France par défaut ; recadré via fitBounds
+      center: [2.4, 46.6], // default center of France; reframed via fitBounds
       zoom: 4,
     });
     mapRef.current = map;
@@ -200,8 +200,8 @@ export function CircuitPreviewMap({
       if (!isLoaded) setLoadError(true);
     }, LOAD_TIMEOUT_MS);
 
-    // Erreur fatale uniquement avant le premier rendu (style indisponible) ;
-    // les erreurs de tuiles isolées après le `load` sont ignorées.
+    // Fatal error only before the first render (style unavailable);
+    // isolated tile errors after `load` are ignored.
     map.on("error", () => {
       if (!isLoaded) {
         clearTimeout(timeout);
@@ -214,8 +214,8 @@ export function CircuitPreviewMap({
       clearTimeout(timeout);
       setLoadError(false);
       setLoaded(true);
-      // Le conteneur peut avoir été mesuré à 0 au moment de l'init (layout pas
-      // encore flush / panneau sticky) → canvas blanc. On force un recalcul.
+      // The container may have been measured at 0 at init time (layout not yet
+      // flushed / sticky panel) → white canvas. Force a resize.
       map.resize();
     });
 
@@ -228,8 +228,8 @@ export function CircuitPreviewMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemapKey, attempt]);
 
-  // Marqueurs : recalculés à chaque changement de points (temps réel), sans
-  // recréer la carte — on retire les anciens marqueurs et on recadre.
+  // Markers: recomputed on every point change (real-time), without recreating
+  // the map — we remove the old markers and re-fit bounds.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
@@ -259,8 +259,8 @@ export function CircuitPreviewMap({
     }
   }, [pointsKey, loaded, geoPoints]);
 
-  // Tracé : couche GeoJSON sous les marqueurs (pins HTML toujours au-dessus du
-  // canvas). Recréée à chaque changement de géométrie ; retirée si plus de tracé.
+  // Route: GeoJSON layer below the markers (HTML pins always above the canvas).
+  // Recreated on every geometry change; removed if no more route.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
@@ -287,9 +287,9 @@ export function CircuitPreviewMap({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#7c3aed", "line-width": 3.5, "line-opacity": 0.85 },
       });
-      // Flèches de sens : points FIXES (positions géo stables au zoom), chacun
-      // tourné selon son cap. L'image n'est ajoutée qu'une fois (survit aux
-      // re-rendus de couches, pas à une remontée de carte).
+      // Direction arrows: FIXED points (stable geo positions at any zoom level),
+      // each rotated by its bearing. The image is added only once (survives layer
+      // re-renders, not a full map recreation).
       if (!map.hasImage("route-arrow")) {
         const arrow = buildArrowImage();
         if (arrow) map.addImage("route-arrow", arrow, { pixelRatio: 2 });
@@ -320,8 +320,8 @@ export function CircuitPreviewMap({
 
   return (
     <div className={`relative ${className ?? ""}`}>
-      {/* Conteneur en hauteur réelle (h-full) et non absolute : MapLibre mesure
-          ainsi correctement le conteneur à l'init (sinon canvas blanc). */}
+      {/* Real height container (h-full), not absolute: MapLibre correctly measures
+          it at init (otherwise white canvas). */}
       <div ref={containerRef} className="h-full w-full" />
       {!loaded && !loadError && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-muted/40">

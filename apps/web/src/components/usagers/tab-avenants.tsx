@@ -39,7 +39,7 @@ type ChangeRow = {
   createdAt: Date;
 };
 
-/** « Nom Prénom, … : motif » — façon objet d'avenant Transcolaire. */
+/** "Nom Prénom, … : motif" — avenant subject line in the Transcolaire style. */
 function buildObjet(changes: ChangeRow[], reason: string): string {
   const names = [
     ...new Set(
@@ -67,15 +67,15 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
   const cancelMutation = useMutation(
     trpc.avenants.cancel.mutationOptions({
       onSuccess: () => {
-        // Tous les usagers (l'avenant peut être visible chez d'autres usagers du
-        // même circuit) + vues circuit (versioning de trajets annulé).
+        // All usagers (the avenant may be visible for other usagers on the same
+        // circuit) + circuit views (cancelled trajet versioning).
         queryClient.invalidateQueries({
           queryKey: trpc.avenants.listByUsager.queryKey(),
         });
         queryClient.invalidateQueries({
           queryKey: trpc.usagerCircuits.listByUsager.queryKey({ usagerId }),
         });
-        // La composition du circuit change aussi (versions rouvertes/supprimées).
+        // The circuit composition also changes (versions reopened/deleted).
         queryClient.invalidateQueries({
           queryKey: trpc.usagerCircuits.listByCircuit.queryKey(),
         });
@@ -95,7 +95,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
     }),
   );
 
-  // Regroupe les lignes de changement par avenant.
+  // Groups change rows by avenant.
   const grouped = useMemo(() => {
     const map = new Map<string, { header: ChangeRow; changes: ChangeRow[] }>();
     for (const r of (rows ?? []) as ChangeRow[]) {
@@ -128,12 +128,12 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
   }
 
   const avenantRows: AvenantTableRow[] = grouped.map(({ header, changes }) => {
-    // « Propre » = l'usager est sujet d'au moins un changement (sinon avenant
-    // d'un autre usager du même circuit → badge « circuit »). Tous les avenants
-    // du circuit restent annulables depuis la fiche usager.
+    // "Own" = the usager is the subject of at least one change (otherwise it is
+    // an avenant from another usager on the same circuit → "circuit" badge). All
+    // avenants of the circuit remain cancellable from the usager detail page.
     const isOwn = changes.some((c) => c.usagerId === usagerId);
     const cancellable = header.status !== "annule";
-    // N° = ID de l'objet avenant (displayId).
+    // N° = the avenant object's displayId.
     const numero = String(header.displayId);
     return {
       key: header.avenantId,
@@ -145,7 +145,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
       objet: buildObjet(changes, header.reason),
       code: header.circuitCode,
       circuitName: header.circuitName,
-      // Depuis la fiche usager : le circuit est cliquable (≠ fiche circuit).
+      // From the usager detail page: the circuit is clickable (≠ circuit detail page).
       circuitHref: header.circuitId ? `/circuits/${header.circuitId}` : null,
       href: header.circuitId
         ? `/circuits/${header.circuitId}/avenants/${header.avenantId}`
@@ -160,7 +160,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
     };
   });
 
-  // Ligne N°0 (composition initiale) par circuit distinct présent dans les avenants.
+  // Row N°0 (initial composition) per distinct circuit present in the avenants.
   const circuitsSeen = new Map<
     string,
     { code: string | null; name: string | null; startDate: string | null }

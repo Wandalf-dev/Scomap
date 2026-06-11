@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-// "YYYY-MM-DD" → "JJ/MM/AAAA".
+// "YYYY-MM-DD" → "DD/MM/YYYY".
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   const [y, m, day] = d.split("-");
@@ -26,22 +26,22 @@ type Validity = "en_cours" | "a_venir" | "passe";
 
 export interface AvenantTableRow {
   key: string;
-  /** Regroupe les lignes par circuit pour le calcul « en cours » par timeline. */
+  /** Groups rows by circuit for the per-timeline "en cours" calculation. */
   circuitKey?: string;
-  /** ID de l'objet avenant (displayId) ; « 0 » pour la composition initiale. */
+  /** Avenant object ID (displayId); "0" for the initial composition. */
   numero: string;
   isBase: boolean;
-  /** Avenant d'un autre usager du même circuit (vue usager). */
+  /** Avenant from another usager on the same circuit (usager view). */
   fromCircuit?: boolean;
   effectiveDate: string;
   objet: string;
   code: string | null;
   circuitName: string | null;
-  /** Si fourni, le nom du circuit devient un lien (utile depuis la fiche usager). */
+  /** If provided, the circuit name becomes a link (useful from the usager detail page). */
   circuitHref?: string | null;
-  /** Destination au clic sur la ligne. */
+  /** Navigation target on row click. */
   href: string | null;
-  /** Actions (ex. annuler), rendues en fin de ligne ; clic isolé de la ligne. */
+  /** Actions (e.g. cancel), rendered at end of row; click isolated from row click. */
   actions?: ReactNode;
 }
 
@@ -75,17 +75,17 @@ function ValidityBadge({ validity }: { validity: Validity }) {
 }
 
 /**
- * Tableau d'avenants façon Transcolaire : une ligne par avenant + une ligne
- * « N°0 » (composition initiale). Statut résolu par date (en cours / à venir /
- * passé) — la ligne EN COURS est mise en avant. Lignes cliquables (→ détail).
+ * Avenant table in Transcolaire style: one row per avenant + a "N°0" row
+ * (initial composition). Status resolved by date (en cours / à venir / passé)
+ * — the EN COURS row is highlighted. Rows are clickable (→ detail).
  */
 export function AvenantTable({ rows }: { rows: AvenantTableRow[] }) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
 
-  // « En cours » par CIRCUIT (chaque circuit a sa propre timeline) : le dernier
-  // AVENANT dont la date d'effet est passée gouverne ; si aucun n'a pris effet,
-  // c'est la composition de base (N°0) qui est « en cours » (le plan courant).
+  // "En cours" per CIRCUIT (each circuit has its own timeline): the last
+  // AVENANT whose effective date has passed governs; if none has taken effect,
+  // the base composition (N°0) is "en cours" (the current plan).
   const groups = new Map<string, AvenantTableRow[]>();
   for (const r of rows) {
     const g = r.circuitKey ?? "_";

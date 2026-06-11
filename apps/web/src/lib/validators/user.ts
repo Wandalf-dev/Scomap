@@ -13,7 +13,7 @@ export const userCreateSchema = z.object({
   lastName: z.string().trim().min(1, "Nom requis").max(100),
   email: z.string().email("Email invalide").max(254),
   role: z.enum(USER_ROLES),
-  // Mot de passe provisoire transmis hors-app par l'admin (pas d'infra email)
+  // Temporary password communicated out-of-band by the admin (no email infrastructure)
   password: z
     .string()
     .min(12, "Le mot de passe doit contenir au moins 12 caractères")

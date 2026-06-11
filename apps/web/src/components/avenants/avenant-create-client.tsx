@@ -46,8 +46,8 @@ import {
 import { normalizeDays, type DayEntry } from "@/lib/types/day-entry";
 import { formatAvenantDate } from "@/components/shared/avenant-status-badge";
 
-// Types SAISISSABLES via le formulaire (exclut « ajout », généré automatiquement
-// côté serveur lors de l'association à un circuit déjà démarré).
+// Types available in the form (excludes "ajout", which is auto-generated
+// server-side when associating to an already-started circuit).
 const TYPES: { value: AvenantChangeInput["type"]; icon: typeof Route }[] = [
   { value: "circuit", icon: Route },
   { value: "jours_pec", icon: CalendarDays },
@@ -90,8 +90,8 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   const [newTransportType, setNewTransportType] = useState("");
   const [daysAller, setDaysAller] = useState<DayEntry[]>([]);
   const [daysRetour, setDaysRetour] = useState<DayEntry[]>([]);
-  // Volontairement vide : pas de pré-remplissage à aujourd'hui (date d'effet à
-  // saisir explicitement). Obligatoire à la soumission.
+  // Intentionally empty: no pre-fill to today (effective date must be entered
+  // explicitly). Required on submission.
   const [effectiveDate, setEffectiveDate] = useState("");
   const [reason, setReason] = useState("");
 
@@ -100,8 +100,8 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
     [affectations, usagerCircuitId],
   );
 
-  // Fusion auto : si un avenant existe déjà sur ce circuit à la même date d'effet,
-  // le changement y sera rattaché (le backend regroupe sous un seul avenant).
+  // Auto-merge: if an avenant already exists on this circuit for the same effective
+  // date, the change will be attached to it (backend groups under a single avenant).
   const circuitIdForAvenant = selectedAffectation?.circuitId ?? null;
   const { data: circuitAvenants } = useQuery({
     ...trpc.avenants.listByCircuit.queryOptions({
@@ -119,10 +119,10 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
     [circuitAvenants, circuitIdForAvenant, effectiveDate],
   );
 
-  // Fenêtre autorisée pour la date d'effet : intersection des bornes du circuit
-  // (entête + nouveau circuit ciblé) et des dates de transport de l'usager.
-  // Comparaisons lexicographiques (format ISO chronologiquement ordonné). La
-  // garde serveur fait foi ; ceci est le retour immédiat à la saisie.
+  // Allowed window for the effective date: intersection of the circuit bounds
+  // (header + targeted new circuit) and the usager's transport dates.
+  // Lexicographic comparisons (ISO format is chronologically ordered). The
+  // server guard is authoritative; this is immediate feedback at input time.
   const dateBounds = useMemo(() => {
     const starts: { date: string; label: string }[] = [];
     const ends: { date: string; label: string }[] = [];
@@ -255,8 +255,8 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
       toast.error(dateError);
       return;
     }
-    // En fusion, le motif de l'avenant existant est conservé (le motif saisi est
-    // ignoré côté serveur) ; sinon le motif est obligatoire.
+    // On merge, the existing avenant's reason is kept (the entered reason is
+    // ignored server-side); otherwise the reason is required.
     const finalReason = mergeTarget ? mergeTarget.reason : reason.trim();
     if (!mergeTarget && !finalReason) {
       toast.error("Le motif est obligatoire");
@@ -273,7 +273,7 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   const needsAffectation =
     type !== "etablissement" && type !== "type_transport";
   const noAffectations = (affectations?.length ?? 0) === 0;
-  // Avertit que le circuit sautera si on bascule vers un mode sans circuit.
+  // Warns that the circuit will be dropped if switching to a non-circuit mode.
   const transportDropsCircuit =
     type === "type_transport" &&
     !!newTransportType &&
@@ -293,7 +293,7 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
   }
 
   return (
-    // Pleine largeur, comme la fiche usager (EntityDetailLayout) → UI cohérente.
+    // Full width, matching the usager detail page (EntityDetailLayout) → consistent UI.
     <div className="w-full space-y-6">
       {/* Header */}
       <div className="space-y-3">
@@ -328,7 +328,7 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
         </div>
       </div>
 
-      {/* Type de changement */}
+      {/* Change type */}
       <Card>
         <CardHeader>
           <CardTitle>Type de changement</CardTitle>
@@ -360,14 +360,14 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
         </CardContent>
       </Card>
 
-      {/* Détail du changement */}
+      {/* Change detail */}
       <Card>
         <CardHeader>
           <CardTitle>Détail</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5">
-          {/* Pour un changement de circuit, le choix de l'affectation est porté
-              par le bloc « Circuit actuel → Nouveau circuit » ci-dessous. */}
+          {/* For a circuit change, the affectation selection is handled
+              by the "Circuit actuel → Nouveau circuit" block below. */}
           {needsAffectation && type !== "circuit" && (
             <div className="grid gap-2">
               <Label>Affectation concernée</Label>
@@ -454,8 +454,8 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
               </p>
             ) : (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
-                {/* Circuit actuel = l'affectation à modifier. Select si l'usager
-                    a plusieurs affectations, sinon affiché en lecture seule. */}
+                {/* Circuit actuel = the affectation to modify. Select if the usager
+                    has multiple affectations, otherwise displayed as read-only. */}
                 <div className="grid flex-1 gap-1.5 sm:max-w-xs">
                   <Label className="text-xs text-muted-foreground">
                     Circuit actuel
@@ -498,7 +498,7 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
 
                 <ArrowRight className="mb-2.5 hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
 
-                {/* Nouveau circuit */}
+                {/* New circuit */}
                 <div className="grid flex-1 gap-1.5 sm:max-w-xs">
                   <Label className="text-xs text-muted-foreground">
                     Nouveau circuit
@@ -565,7 +565,7 @@ export function AvenantCreateClient({ usagerId }: AvenantCreateClientProps) {
         </CardContent>
       </Card>
 
-      {/* Effet */}
+      {/* Effect */}
       <Card>
         <CardHeader>
           <CardTitle>Effet</CardTitle>

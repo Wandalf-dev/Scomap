@@ -11,14 +11,14 @@ import {
 import { nextDisplayId } from "@/lib/db/display-id";
 
 /**
- * Copie « production → préparation ». Clone des arbres (circuit→trajets→arrêts,
- * usager→adresses→affectations) dans une campagne, en ré-allouant les displayId,
- * en réinitialisant statuts/dates/affectations de ressources, et SANS reprendre
- * les avenants. Toutes les FK pointent vers les copies (jamais vers la prod).
+ * "Production → preparation" copy. Clones trees (circuit→trajets→arrêts,
+ * usager→addresses→assignments) into a campaign, re-allocating displayIds,
+ * resetting statuses/dates/resource assignments, and WITHOUT carrying over
+ * avenants. All FKs point to the copies (never to production).
  *
- * Garde-fous clés :
- * - une seule copie d'un usager/circuit par campagne (dédup via source_id) ;
- * - tout filtré par tenant + production (preparation_campaign_id IS NULL).
+ * Key safeguards:
+ * - only one copy of a usager/circuit per campaign (dedup via source_id);
+ * - everything filtered by tenant + production (preparation_campaign_id IS NULL).
  */
 
 type Tx = Parameters<
@@ -28,7 +28,7 @@ type Tx = Parameters<
 type Ctx = { db: typeof import("@scomap/db").db; tenantId: string };
 
 interface CopyMaps {
-  // prodId -> prepaId, partagés sur toute l'opération (dédup multi-circuits).
+  // prodId -> prepaId, shared across the whole operation (multi-circuit dedup).
   usagers: Map<string, string>;
   addresses: Map<string, string>;
 }
@@ -39,7 +39,7 @@ function dayBefore(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Clone (ou retrouve) un usager prod dans la campagne, avec ses adresses. */
+/** Clones (or retrieves) a production usager into the campaign, with their addresses. */
 async function getOrCreatePrepaUsager(
   tx: Tx,
   ctx: Ctx,
@@ -50,7 +50,7 @@ async function getOrCreatePrepaUsager(
   const cached = maps.usagers.get(prodUsagerId);
   if (cached) return cached;
 
-  // Déjà copié lors d'une opération précédente ? (dédup persistante via source_id)
+  // Already copied in a previous operation? (persistent dedup via source_id)
   const existing = await tx
     .select({ id: usagers.id })
     .from(usagers)
@@ -66,7 +66,7 @@ async function getOrCreatePrepaUsager(
   if (existing[0]) {
     const prepaId = existing[0].id;
     maps.usagers.set(prodUsagerId, prepaId);
-    // Reconstruit la map d'adresses par position (prod <-> prépa).
+    // Rebuild the address map by position (prod <-> prépa).
     const prodAddrs = await tx
       .select({ id: usagerAddresses.id, position: usagerAddresses.position })
       .from(usagerAddresses)
@@ -83,7 +83,7 @@ async function getOrCreatePrepaUsager(
     return prepaId;
   }
 
-  // Charge l'usager prod (tenant + production).
+  // Load the production usager (tenant + production).
   const prodRows = await tx
     .select()
     .from(usagers)
@@ -116,10 +116,10 @@ async function getOrCreatePrepaUsager(
     .values({
       ...rest,
       displayId,
-      // Copie en préparation → statut « À reconduire » (façon Transcolaire).
+      // Copy in préparation → status "À reconduire" (Transcolaire style).
       status: "a_reconduire",
       archivedAt: null,
-      // Dates de transport remises à zéro (recalées à la rentrée).
+      // Transport dates reset to zero (recalibrated for the new school year).
       transportStartDate: null,
       transportEndDate: null,
       preparationCampaignId: campaignId,
@@ -130,7 +130,7 @@ async function getOrCreatePrepaUsager(
   const prepaUsagerId = insertedUsager[0]!.id;
   maps.usagers.set(prodUsagerId, prepaUsagerId);
 
-  // Clone toutes les adresses de l'usager (isolation totale).
+  // Clone all addresses of the usager (full isolation).
   const prodAddrs = await tx
     .select()
     .from(usagerAddresses)
@@ -151,7 +151,7 @@ async function getOrCreatePrepaUsager(
   return prepaUsagerId;
 }
 
-/** Clone un circuit prod (cascade trajets, arrêts, usagers, affectations) dans la campagne. */
+/** Clones a production circuit (cascade trajets, arrêts, usagers, assignments) into the campaign. */
 async function copyOneCircuit(
   tx: Tx,
   ctx: Ctx,
@@ -163,7 +163,7 @@ async function copyOneCircuit(
   const targetStart = campaign.targetStartDate ?? null;
   const targetEnd = campaign.targetEndDate ?? null;
 
-  // Dédup : circuit déjà copié dans cette campagne ?
+  // Dedup: circuit already copied into this campaign?
   const dup = await tx
     .select({ id: circuits.id })
     .from(circuits)
@@ -192,7 +192,7 @@ async function copyOneCircuit(
   const prod = prodRows[0];
   if (!prod) return false;
 
-  // 1. Clone le circuit.
+  // 1. Clone the circuit.
   const circuitDisplayId = await nextDisplayId(tx, ctx.tenantId, "circuits");
   let prepaCircuitId: string;
   {
@@ -217,7 +217,7 @@ async function copyOneCircuit(
     prepaCircuitId = inserted[0]!.id;
   }
 
-  // 2. Clone les affectations ouvertes (usager_circuits) + les usagers/adresses.
+  // 2. Clone the open assignments (usager_circuits) + usagers/addresses.
   const openUC = await tx
     .select()
     .from(usagerCircuits)
@@ -258,7 +258,7 @@ async function copyOneCircuit(
     });
   }
 
-  // 3. Clone les trajets (chauffeur/véhicule vidés, dates recalées).
+  // 3. Clone the trajets (chauffeur/véhicule cleared, dates recalibrated).
   const prodTrajets = await tx
     .select()
     .from(trajets)
@@ -295,7 +295,7 @@ async function copyOneCircuit(
     trajetMap.set(t.id, inserted[0]!.id);
   }
 
-  // 4. Clone les arrêts (rattachés aux trajets-copies + adresses-copies).
+  // 4. Clone the arrêts (linked to the copied trajets + copied addresses).
   if (prodTrajets.length > 0) {
     const prodArrets = await tx
       .select()
@@ -351,7 +351,7 @@ async function loadOpenCampaign(tx: Tx, ctx: Ctx, campaignId: string) {
   return rows[0] ?? null;
 }
 
-/** Copie une liste de circuits prod dans la campagne. */
+/** Copies a list of production circuits into the campaign. */
 export async function copyCircuitsToCampaign(
   ctx: Ctx,
   campaignId: string,
@@ -370,7 +370,7 @@ export async function copyCircuitsToCampaign(
   });
 }
 
-/** Copie une liste d'usagers prod (sans rattachement circuit) dans la campagne. */
+/** Copies a list of production usagers (without circuit assignment) into the campaign. */
 export async function copyUsagersToCampaign(
   ctx: Ctx,
   campaignId: string,
@@ -391,7 +391,7 @@ export async function copyUsagersToCampaign(
   });
 }
 
-/** Copie TOUTE la production (tous les circuits + tous les usagers) dans la campagne. */
+/** Copies the ENTIRE production (all circuits + all usagers) into the campaign. */
 export async function copyAllToCampaign(
   ctx: Ctx,
   campaignId: string,
@@ -417,7 +417,7 @@ export async function copyAllToCampaign(
       if (await copyOneCircuit(tx, ctx, campaign, c.id, maps)) circuitsCopied++;
     }
 
-    // Usagers non rattachés (pas encore clonés via un circuit).
+    // Unassigned usagers (not yet cloned via a circuit).
     const prodUsagers = await tx
       .select({ id: usagers.id })
       .from(usagers)
@@ -438,8 +438,8 @@ export async function copyAllToCampaign(
 }
 
 /**
- * Active la campagne : archive la prod remplacée (par source_id) et promeut les
- * copies en production (preparation_campaign_id = NULL). Transaction unique.
+ * Activates the campaign: archives the replaced production (by source_id) and
+ * promotes the copies to production (preparation_campaign_id = NULL). Single transaction.
  */
 export async function activateCampaign(
   ctx: Ctx,
@@ -453,7 +453,7 @@ export async function activateCampaign(
       ? dayBefore(campaign.targetStartDate)
       : now.toISOString().slice(0, 10);
 
-    // Circuits/usagers prod remplacés par une copie de la campagne.
+    // Production circuits/usagers replaced by a copy from the campaign.
     const prepaCircuits = await tx
       .select({ sourceId: circuits.sourceId })
       .from(circuits)
@@ -480,7 +480,7 @@ export async function activateCampaign(
       .map((u) => u.sourceId)
       .filter((id): id is string => !!id);
 
-    // 1. Archive la prod remplacée + clôt ses affectations ouvertes.
+    // 1. Archive the replaced production + close its open assignments.
     if (replacedCircuitIds.length > 0) {
       await tx
         .update(circuits)
@@ -518,7 +518,7 @@ export async function activateCampaign(
         );
     }
 
-    // 2. Promeut les copies en production (FK campagne → NULL).
+    // 2. Promote the copies to production (campaign FK → NULL).
     const promote = { preparationCampaignId: null, updatedAt: now };
     await tx
       .update(circuits)
@@ -566,7 +566,7 @@ export async function activateCampaign(
         ),
       );
 
-    // 3. Marque la campagne activée.
+    // 3. Mark the campaign as activated.
     await tx
       .update(preparationCampaigns)
       .set({ status: "activee", activatedAt: now, updatedAt: now })

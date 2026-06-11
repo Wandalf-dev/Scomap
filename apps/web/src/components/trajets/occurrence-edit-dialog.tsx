@@ -42,9 +42,9 @@ interface OccurrenceEditDialogProps {
   defaultValues?: OccurrenceOverrideFormValues;
   isPending: boolean;
   occurrenceDate: string;
-  /** Masque le champ statut (géré par ailleurs dans le planning). */
+  /** Hides the status field (managed elsewhere in the planning view). */
   hideStatus?: boolean;
-  /** Si fourni, affiche « Réinitialiser » : remet tous les overrides à null. */
+  /** If provided, shows a "Reset" button that clears all overrides back to null. */
   onReset?: () => void;
 }
 

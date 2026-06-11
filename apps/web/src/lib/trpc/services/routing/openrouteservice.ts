@@ -8,8 +8,8 @@ import type {
 const ORS_BASE = "https://api.openrouteservice.org/v2/directions/driving-car/geojson";
 
 /**
- * OpenRouteService. Clé requise (quota gratuit). Mondial.
- * Endpoint GeoJSON : la géométrie est déjà en `[lng, lat]`.
+ * OpenRouteService. Key required (free quota). Worldwide.
+ * GeoJSON endpoint: geometry is already in `[lng, lat]`.
  */
 export const orsAdapter: RoutingAdapter = {
   id: "openrouteservice",

@@ -65,7 +65,7 @@ export function OccurrenceCard({
   );
 }
 
-/** Petit indicateur amber « Personnalisé pour ce jour » (override ponctuel). */
+/** Small amber indicator "Personnalisé pour ce jour" (one-off override). */
 export function CustomizedIndicator() {
   return (
     <TooltipProvider delayDuration={150}>

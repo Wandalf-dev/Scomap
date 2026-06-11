@@ -77,7 +77,7 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
         toast.success("Chauffeur enregistré");
-        // Repasse le formulaire en pristine après sauvegarde.
+        // Resets the form to pristine state after saving.
         form.reset(variables.data);
       },
       onError: (err) => {
@@ -90,8 +90,8 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
     mutation.mutate({ id: chauffeur.id, data: values });
   }
 
-  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
-  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  // Syncs the dirty state with the layout context (stable `setDirty`
+  // dependency only, see tab-identite for usagers).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {
@@ -119,7 +119,7 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-6"
       >
-        {/* Identité */}
+        {/* Identity */}
         <Card>
           <CardHeader>
             <CardTitle>Identité</CardTitle>
@@ -209,7 +209,7 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
           </CardContent>
         </Card>
 
-        {/* Embauche */}
+        {/* Hire date */}
         <Card>
           <CardHeader>
             <CardTitle>Embauche</CardTitle>

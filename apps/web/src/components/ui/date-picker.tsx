@@ -26,14 +26,14 @@ interface DatePickerProps {
 
 const DISPLAY = "dd/MM/yyyy";
 
-// ISO (yyyy-MM-dd) -> "jj/mm/aaaa" pour l'affichage dans l'input.
+// ISO (yyyy-MM-dd) -> "dd/mm/yyyy" for display in the input field.
 function isoToDisplay(iso?: string | null): string {
   if (!iso) return "";
   const d = parse(iso, "yyyy-MM-dd", new Date());
   return isValid(d) ? format(d, DISPLAY) : "";
 }
 
-// Masque progressif : on garde les chiffres et on insère les "/" (jj/mm/aaaa).
+// Progressive mask: keep digits only and insert "/" separators (dd/mm/yyyy).
 function maskTyping(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 2) return digits;
@@ -54,8 +54,8 @@ export function DatePicker({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState<string>(() => isoToDisplay(value));
 
-  // Resynchronise l'input quand la valeur change de l'extérieur
-  // (reset du formulaire, sélection via le calendrier).
+  // Re-sync the input when the value changes from outside
+  // (form reset, calendar selection).
   useEffect(() => {
     setText(isoToDisplay(value));
   }, [value]);
@@ -63,7 +63,7 @@ export function DatePicker({
   const date = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined;
   const validDate = date && isValid(date) ? date : undefined;
 
-  // Valide et remonte la saisie (au blur / Entrée).
+  // Validate and propagate the typed value (on blur / Enter).
   function commit(raw: string) {
     const t = raw.trim();
     if (t === "") {
@@ -74,7 +74,7 @@ export function DatePicker({
     if (isValid(parsed)) {
       onChange?.(format(parsed, "yyyy-MM-dd"));
     } else {
-      // Saisie invalide : on revient au dernier état valide.
+      // Invalid input: revert to the last valid state.
       setText(isoToDisplay(value));
     }
   }

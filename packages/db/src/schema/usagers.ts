@@ -36,14 +36,14 @@ export const usagers = pgTable(
     status: varchar("status", { length: 20 }).notNull().default("non_controle"),
     regime: varchar("regime", { length: 30 }),
     classe: varchar("classe", { length: 30 }),
-    // Mode de transport de l'usager (3 catégories). Pilote le rattachement
-    // circuit (taxi) vs remboursement (famille / transport en commun).
+    // Usager transport mode (3 categories). Drives circuit assignment (taxi)
+    // vs reimbursement (famille / transport en commun).
     transportType: varchar("transport_type", { length: 30 }),
     transportStartDate: date("transport_start_date"),
     transportEndDate: date("transport_end_date"),
     transportParticularity: text("transport_particularity"),
-    // Distance domicile (adresse principale) ↔ établissement, en km.
-    // Socle du futur remboursement kilométrique.
+    // Home (primary address) ↔ établissement distance in km.
+    // Basis for future kilometric reimbursement.
     distanceKm: doublePrecision("distance_km"),
     specificity: text("specificity"),
     notes: text("notes"),
@@ -53,9 +53,9 @@ export const usagers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Archivage (historisation) : null = courant, daté = archivé.
+    // Archiving (historisation): null = current, dated = archived.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
-    // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+    // Back-to-school preparation: null = production, otherwise a draft copy linked to a campaign.
     preparationCampaignId: uuid("preparation_campaign_id"),
     sourceId: uuid("source_id"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

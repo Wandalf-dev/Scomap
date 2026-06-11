@@ -71,8 +71,8 @@ export function TimelineView({
     return getDatesInRange(range.start, range.end);
   }, [currentDate, period]);
 
-  // Lignes = ressources ayant au moins une occurrence sur la période,
-  // « Non assigné » en tête, puis tri alphabétique.
+  // Rows = resources with at least one occurrence in the period,
+  // "Non assigné" first, then alphabetical sort.
   const rows = useMemo<TimelineRow[]>(() => {
     const map = new Map<string, TimelineRow>();
     for (const occ of occurrences) {
@@ -120,7 +120,7 @@ export function TimelineView({
 
   return (
     <div className="space-y-3">
-      {/* Sous-switch ressource */}
+      {/* Resource sub-switch */}
       <div className="flex items-center justify-end">
         <div className="flex items-center rounded-[0.3rem] border border-border">
           <Button
@@ -144,7 +144,7 @@ export function TimelineView({
 
       <div className="overflow-x-auto rounded-[0.3rem] border border-border bg-card">
         <div className="grid" style={{ gridTemplateColumns }}>
-          {/* En-tête : coin sticky + jours */}
+          {/* Header: sticky corner + day columns */}
           <div className="sticky left-0 z-20 border-b border-r border-border bg-muted/60 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur">
             {resourceMode === "chauffeurs" ? "Chauffeur" : "Véhicule"}
           </div>
@@ -162,7 +162,7 @@ export function TimelineView({
             </div>
           ))}
 
-          {/* Lignes ressource */}
+          {/* Resource rows */}
           {rows.map((row) => (
             <TimelineResourceRow
               key={row.key}
@@ -263,7 +263,7 @@ function TimelineBlock({
           : "border-purple-200 bg-purple-50/50 dark:border-purple-800 dark:bg-purple-950/30"
       }`}
     >
-      {/* Pastille direction : bleu aller / violet retour */}
+      {/* Direction dot: blue for aller / purple for retour */}
       <span
         className={`h-1.5 w-1.5 shrink-0 rounded-full ${
           isAller
@@ -276,7 +276,7 @@ function TimelineBlock({
       )}
       <span className="truncate font-medium">{occurrence.trajetName}</span>
       {hasOverride(occurrence) && <CustomizedIndicator />}
-      {/* Point de statut (mêmes conventions que les cartes calendrier) */}
+      {/* Status dot (same conventions as calendar cards) */}
       <span
         className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${
           STATUS_DOTS[occurrence.status] ?? STATUS_DOTS.planifie

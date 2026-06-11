@@ -19,7 +19,7 @@ import {
 
 const secondaryEtab = alias(etablissements, "secondary_etab");
 
-// Anti-IDOR : les établissements référencés doivent appartenir au tenant
+// Anti-IDOR: referenced établissements must belong to the tenant
 async function assertEtabRefsOwned(
   ctx: { db: typeof import("@scomap/db").db; tenantId: string },
   data: { etablissementId?: string | null; secondaryEtablissementId?: string | null },
@@ -35,7 +35,7 @@ async function assertEtabRefsOwned(
 }
 
 export const usagersRouter = createTRPCRouter({
-  // campaignId absent => production ; fourni => usagers de la préparation.
+  // campaignId absent => production; provided => usagers of the preparation campaign.
   list: tenantProcedure
     .input(z.object({ campaignId: z.string().uuid().optional() }).optional())
     .query(async ({ ctx, input }) => {
@@ -67,7 +67,7 @@ export const usagersRouter = createTRPCRouter({
         updatedAt: usagers.updatedAt,
       })
       .from(usagers)
-      // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+      // Re-filter tenant on joins (anti-IDOR via injected FK)
       .leftJoin(
         etablissements,
         and(
@@ -156,7 +156,7 @@ export const usagersRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await assertEtabRefsOwned(ctx, input);
 
-      // Récupérer les dates d'année scolaire pour pré-remplir
+      // Fetch school year dates to pre-fill
       const settings = await ctx.db
         .select({
           schoolYearStart: tenantSettings.schoolYearStart,
@@ -297,9 +297,9 @@ export const usagersRouter = createTRPCRouter({
       return result[0] ?? null;
     }),
 
-  // Modification groupée des dates de transport (début et/ou fin) sur une
-  // sélection d'usagers. Un champ absent (`undefined`) n'est pas touché ;
-  // fourni à `null` il est vidé, fourni daté il est défini.
+  // Bulk update of transport dates (start and/or end) on a selection of usagers.
+  // An absent field (`undefined`) is not touched; provided as `null` it is
+  // cleared; provided as a date it is set.
   updateTransportDatesMany: tenantProcedure
     .input(
       z.object({
@@ -309,7 +309,7 @@ export const usagersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Rien de coché côté UI → no-op (le dialog l'empêche déjà).
+      // Nothing checked UI-side → no-op (the dialog already prevents this).
       if (
         input.transportStartDate === undefined &&
         input.transportEndDate === undefined
@@ -340,9 +340,9 @@ export const usagersRouter = createTRPCRouter({
       return { updated: result.length };
     }),
 
-  // Calcule la distance routière entre l'adresse principale (position 1) de
-  // l'usager et son établissement principal. Renvoie les km sans persister :
-  // le formulaire de la fiche se charge de l'enregistrement.
+  // Computes the road distance between the usager's primary address (position 1)
+  // and their primary établissement. Returns km without persisting:
+  // the detail form is responsible for saving.
   computeDistance: tenantProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -410,13 +410,13 @@ export const usagersRouter = createTRPCRouter({
         });
       }
 
-      // Distance domicile↔école affichée à 0,1 km près (comme l'historique).
+      // Home↔school distance displayed to 0.1 km precision (as in legacy).
       const km = Math.round(outcome.result.distanceKm * 10) / 10;
 
       return { km };
     }),
 
-  // Archivage / désarchivage (historisation, distinct de la suppression).
+  // Archiving / unarchiving (historization, distinct from deletion).
   setArchived: tenantProcedure
     .input(z.object({ id: z.string().uuid(), archived: z.boolean() }))
     .mutation(async ({ ctx, input }) => {

@@ -5,8 +5,8 @@ export const tenants = pgTable("tenants", {
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   description: text("description"),
-  // Profil métier du client : conditionne notamment la vue planning par défaut
-  // (les transporteurs vivent dans la timeline, les départements non).
+  // Client business profile: determines the default planning view,
+  // among other things (transporteurs use the timeline view; départements do not).
   type: varchar("type", { length: 20 }).notNull().default("departement"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

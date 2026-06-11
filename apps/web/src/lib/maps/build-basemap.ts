@@ -1,7 +1,7 @@
 /**
- * Construit la spécification de fond de carte MapLibre selon le provider et le
- * style choisis par le tenant. Fonction pure et sans secret : la clé MapTiler
- * n'apparaît jamais ici (elle est injectée par le proxy `/api/basemap/maptiler`).
+ * Builds the MapLibre basemap specification for the provider and style chosen
+ * by the tenant. Pure function with no secrets: the MapTiler key never appears
+ * here (it is injected by the `/api/basemap/maptiler` proxy).
  */
 
 import type { BasemapStyle, MapStyleSpec } from "./basemap-types";
@@ -66,7 +66,7 @@ export function buildBasemapStyle(
       };
 
     case "maptiler": {
-      // URL du proxy interne (la clé est ajoutée côté serveur, jamais exposée).
+      // Internal proxy URL (the key is added server-side, never exposed).
       const style = styleId ?? DEFAULT_MAPTILER_STYLE;
       return {
         kind: "styleUrl",

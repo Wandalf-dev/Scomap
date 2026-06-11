@@ -11,17 +11,17 @@ import {
 import { cn } from "@/lib/utils";
 
 interface FieldLockProps {
-  /** Lien de résolution — typiquement la création d'un avenant. */
+  /** Resolution link — typically the avenant creation form. */
   href: string;
-  /** Texte affiché dans le tooltip. */
+  /** Text displayed in the tooltip. */
   message?: string;
   className?: string;
 }
 
 /**
- * Petit cadenas affiché près du label d'un champ verrouillé (usager affecté à
- * un circuit). Le champ ne se modifie que via un avenant : cliquer le cadenas
- * ouvre la création de l'avenant. Remplace la phrase répétée sous chaque champ.
+ * Small padlock displayed near the label of a locked field (usager assigned to
+ * a circuit). The field can only be changed via an avenant: clicking the padlock
+ * opens the avenant creation form. Replaces the repeated sentence under each field.
  */
 export function FieldLock({
   href,

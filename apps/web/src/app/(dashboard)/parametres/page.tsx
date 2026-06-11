@@ -7,7 +7,7 @@ import { ParametresClient } from "@/components/parametres/parametres-client";
 export const metadata: Metadata = { title: "Paramètres" };
 
 export default async function ParametresPage() {
-  // Rôle relu frais en DB (un JWT peut porter un rôle obsolète)
+  // Role re-read fresh from DB (a JWT may carry a stale role)
   const session = await getValidatedSession();
   const isAdmin = session?.user?.role === "admin";
 

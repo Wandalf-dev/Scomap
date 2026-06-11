@@ -53,7 +53,7 @@ const EMPTY_FILTERS: TrajetFilters = {
   vehicule: "all",
 };
 
-// Valeur sentinelle pour filtrer les trajets sans chauffeur / sans véhicule.
+// Sentinel value to filter trajets without a chauffeur / without a véhicule.
 const UNASSIGNED = "__none__";
 
 export function TrajetsClient() {
@@ -70,8 +70,8 @@ export function TrajetsClient() {
     trpc.trajets.list.queryOptions(),
   );
 
-  // Options des selects dérivées des données affichées (circuits/chauffeurs/
-  // véhicules réellement présents), triées par libellé.
+  // Select options derived from the displayed data (circuits/chauffeurs/
+  // véhicules actually present), sorted by label.
   const { circuitOptions, chauffeurOptions, vehiculeOptions } = useMemo(() => {
     const circuits = new Map<string, string>();
     const chauffeurs = new Map<string, string>();

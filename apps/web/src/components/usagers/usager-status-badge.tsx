@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 import { USAGER_STATUS_LABELS } from "@/lib/validators/usager";
 
-// Couleurs sémantiques par statut, style contour : fond transparent, bordure
-// fine dans la teinte (renforcée en dark), label teinté et pastille vive.
+// Semantic colors per status, outline style: transparent background, thin border
+// in the hue (stronger in dark mode), tinted label and vivid dot.
 const STATUS_STYLES: Record<string, { dot: string; className: string }> = {
   non_controle: {
     dot: "bg-slate-400",

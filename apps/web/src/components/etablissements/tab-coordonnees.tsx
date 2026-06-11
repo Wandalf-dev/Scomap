@@ -146,7 +146,7 @@ export function TabCoordonnees({ etablissement }: TabCoordonneesProps) {
     mutation.mutate({ id: etablissement.id, data: values });
   }
 
-  // Synchronise l'état « modifié » avec le bandeau (avertissement au retour).
+  // Syncs the "modified" state with the header band (back-navigation warning).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {
@@ -198,7 +198,7 @@ export function TabCoordonnees({ etablissement }: TabCoordonneesProps) {
           onSubmit={form.handleSubmit(onSubmit)}
           className="space-y-6"
         >
-          {/* Informations générales */}
+          {/* General information */}
           <section className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-xs">
             <SectionHeader icon={Building2}>
               Informations générales
@@ -468,7 +468,7 @@ export function TabCoordonnees({ etablissement }: TabCoordonneesProps) {
             />
           </section>
 
-          {/* Responsable */}
+          {/* Manager */}
           <section className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-xs">
             <SectionHeader icon={UserRound}>Responsable</SectionHeader>
             <div className="grid grid-cols-2 gap-4">

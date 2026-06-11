@@ -63,7 +63,7 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
           queryKey: trpc.vehicules.getById.queryKey({ id: vehicule.id }),
         });
         toast.success("Maintenance enregistrée");
-        // Repasse le formulaire en pristine après sauvegarde.
+        // Resets the form to pristine state after saving.
         form.reset(variables.data);
       },
       onError: (err) => {
@@ -76,8 +76,8 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
     mutation.mutate({ id: vehicule.id, data: values });
   }
 
-  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
-  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  // Syncs the dirty state with the layout context (stable `setDirty`
+  // dependency only, see tab-identite for usagers).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {
@@ -127,7 +127,7 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
           </CardContent>
         </Card>
 
-        {/* Contrôle technique */}
+        {/* Technical inspection */}
         <Card>
           <CardHeader>
             <CardTitle>Contrôle technique</CardTitle>

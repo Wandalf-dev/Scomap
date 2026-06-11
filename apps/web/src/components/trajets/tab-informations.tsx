@@ -107,8 +107,8 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
           queryKey: trpc.trajets.list.queryKey(),
         });
         toast.success("Trajet enregistré");
-        // Repasse le formulaire en pristine avec les valeurs affichées
-        // (et non les valeurs transformées envoyées au serveur).
+        // Reset the form to pristine with the displayed values
+        // (not the transformed values sent to the server).
         form.reset(form.getValues());
       },
       onError: (err) => {
@@ -137,9 +137,9 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
     });
   }
 
-  // Synchronise l'état dirty du formulaire avec le contexte du layout.
-  // On dépend de `setDirty` (stable) et non de l'objet `unsaved` complet pour
-  // éviter une boucle de re-déclenchement (cf. tab-identite des usagers).
+  // Sync the form dirty state with the layout context.
+  // We depend on `setDirty` (stable) rather than the full `unsaved` object to
+  // avoid a re-trigger loop (cf. tab-identite for usagers).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {

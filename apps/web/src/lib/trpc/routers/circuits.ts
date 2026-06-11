@@ -25,7 +25,7 @@ import { normalizeDays } from "@/lib/types/day-entry";
 
 export const circuitsRouter = createTRPCRouter({
   // campaignId absent => production (preparation_campaign_id IS NULL).
-  // campaignId fourni => circuits de cette campagne de préparation.
+  // campaignId provided => circuits of that preparation campaign.
   list: tenantProcedure
     .input(z.object({ campaignId: z.string().uuid().optional() }).optional())
     .query(async ({ ctx, input }) => {
@@ -51,7 +51,7 @@ export const circuitsRouter = createTRPCRouter({
         updatedAt: circuits.updatedAt,
       })
       .from(circuits)
-      // Re-filtre tenant sur la jointure (anti-IDOR via FK injectée)
+      // Re-filter tenant on the join (anti-IDOR via injected FK)
       .leftJoin(
         etablissements,
         and(
@@ -92,8 +92,8 @@ export const circuitsRouter = createTRPCRouter({
           etablissementId: circuits.etablissementId,
           etablissementName: etablissements.name,
           etablissementCity: etablissements.city,
-          // Nombre d'usagers affectés (versions OUVERTES). > 0 ⇒ dates de
-          // validité figées (voir verrou dans updateDetail / tab-informations).
+          // Number of assigned usagers (OPEN versions). > 0 ⇒ validity dates
+          // are frozen (see lock in updateDetail / tab-informations).
           usagerCount: sql<number>`(select count(*) from ${usagerCircuits} uc where uc.circuit_id = ${circuits.id} and uc.valid_to is null and uc.deleted_at is null)::int`,
           createdAt: circuits.createdAt,
           updatedAt: circuits.updatedAt,
@@ -202,9 +202,9 @@ export const circuitsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await assertTenantOwned(ctx.db, etablissements, input.data.etablissementId, ctx.tenantId, "Etablissement");
 
-      // État avant modification : l'établissement (pour détecter un changement
-      // de destination qui invalide géométries/horaires) ET les dates de
-      // validité (pour le verrou ci-dessous).
+      // State before update: the établissement (to detect a destination change
+      // that invalidates geometries/schedules) AND the validity dates
+      // (for the lock below).
       const beforeRows = await ctx.db
         .select({
           etablissementId: circuits.etablissementId,
@@ -222,11 +222,11 @@ export const circuitsRouter = createTRPCRouter({
         .limit(1);
       const before = beforeRows[0];
 
-      // Verrou métier : dès qu'un circuit a au moins un usager affecté (version
-      // ouverte), ses dates de début/fin de validité sont figées. Les changer
-      // romprait la cohérence avec les périodes de transport des usagers déjà
-      // affectés (la garde d'affectation exige leur chevauchement). Pour les
-      // modifier, dissocier d'abord tous les usagers du circuit.
+      // Business lock: once a circuit has at least one assigned usager (open
+      // version), its start/end validity dates are frozen. Changing them would
+      // break consistency with the transport periods of already-assigned usagers
+      // (the assignment guard requires overlap). To modify them, first
+      // dissociate all usagers from the circuit.
       const newStart = input.data.startDate || null;
       const newEnd = input.data.endDate || null;
       const datesChanged =
@@ -276,9 +276,9 @@ export const circuitsRouter = createTRPCRouter({
 
       const updated = result[0];
 
-      // Si l'établissement de destination change : les arrêts "établissement"
-      // pointent encore sur l'ancien, et les itinéraires/horaires sont périmés.
-      // On repointe l'arrêt établissement + réinitialise le calcul des trajets.
+      // If the destination établissement changes: the "établissement" arrêts still
+      // point to the old one, and routes/schedules are stale.
+      // Re-point the établissement arrêt + reset trajet calculations.
       if (
         updated &&
         before &&
@@ -333,8 +333,8 @@ export const circuitsRouter = createTRPCRouter({
               t.direction,
               normalizeDays(rec?.daysOfWeek),
             );
-            // Repointe l'arrêt établissement de ce trajet vers le nouveau,
-            // re-snapshot coords/nom/adresse + ré-ancre l'horaire (verrouillé).
+            // Re-point this trajet's établissement arrêt to the new one,
+            // re-snapshot coords/name/address + re-anchor the schedule (locked).
             await ctx.db
               .update(arrets)
               .set({
@@ -355,7 +355,7 @@ export const circuitsRouter = createTRPCRouter({
                   isNull(arrets.deletedAt),
                 ),
               );
-            // Ré-ancre l'heure de référence du trajet.
+            // Re-anchor the reference time of the trajet.
             await ctx.db
               .update(trajets)
               .set({ departureTime: anchor, updatedAt: new Date() })
@@ -364,7 +364,7 @@ export const circuitsRouter = createTRPCRouter({
               );
           }
 
-          // Réinitialise géométrie/distance/temps (recalcul nécessaire).
+          // Reset geometry/distance/duration (recalculation needed).
           await ctx.db
             .update(trajets)
             .set({
@@ -380,7 +380,7 @@ export const circuitsRouter = createTRPCRouter({
               ),
             );
 
-          // Réinitialise les horaires de PEC des arrêts non verrouillés.
+          // Reset the PEC schedules of non-locked arrêts.
           await ctx.db
             .update(arrets)
             .set({ arrivalTime: null, updatedAt: new Date() })
@@ -398,7 +398,7 @@ export const circuitsRouter = createTRPCRouter({
       return updated ?? null;
     }),
 
-  // Archivage / désarchivage (cycle de vie, distinct de la suppression).
+  // Archiving / unarchiving (lifecycle, distinct from deletion).
   setArchived: tenantProcedure
     .input(z.object({ id: z.string().uuid(), archived: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
@@ -419,7 +419,7 @@ export const circuitsRouter = createTRPCRouter({
       return result[0] ?? null;
     }),
 
-  // Archivage groupé (sélection multiple).
+  // Bulk archiving (multiple selection).
   setArchivedMany: tenantProcedure
     .input(
       z.object({
@@ -446,7 +446,7 @@ export const circuitsRouter = createTRPCRouter({
       return { updated: result.length };
     }),
 
-  // Modification groupée des dates de validité (début / fin).
+  // Bulk update of validity dates (start / end).
   updateDatesMany: tenantProcedure
     .input(
       z.object({
@@ -458,9 +458,9 @@ export const circuitsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       if (input.ids.length === 0) return { updated: 0, skipped: 0 };
 
-      // Verrou métier (cohérent avec updateDetail) : un circuit qui a des
-      // usagers affectés (version ouverte) a ses dates figées. On les ignore
-      // dans le lot plutôt que d'échouer le tout, et on remonte le compte.
+      // Business lock (consistent with updateDetail): a circuit that has
+      // assigned usagers (open version) has its dates frozen. They are skipped
+      // in the batch rather than failing the whole operation; the count is returned.
       const lockedRows = await ctx.db
         .select({ circuitId: usagerCircuits.circuitId })
         .from(usagerCircuits)
@@ -479,7 +479,7 @@ export const circuitsRouter = createTRPCRouter({
         return { updated: 0, skipped: input.ids.length };
       }
 
-      // On ne met à jour que les champs explicitement fournis (undefined = inchangé).
+      // Only update explicitly provided fields (undefined = unchanged).
       const patch: { startDate?: string | null; endDate?: string | null; updatedAt: Date } = {
         updatedAt: new Date(),
       };
@@ -529,7 +529,7 @@ export const circuitsRouter = createTRPCRouter({
             ),
           );
 
-        // Soft-delete usager-circuit associations (conserve l'historique daté).
+        // Soft-delete usager-circuit associations (preserves the dated history).
         await ctx.db
           .update(usagerCircuits)
           .set({ deletedAt: now })
@@ -579,8 +579,8 @@ export const circuitsRouter = createTRPCRouter({
             ),
           );
 
-        // Soft-delete usager-circuit associations (cohérent avec le reste : on
-        // conserve l'historique daté plutôt qu'un hard-delete).
+        // Soft-delete usager-circuit associations (consistent with the rest:
+        // we preserve the dated history rather than hard-deleting).
         await ctx.db
           .update(usagerCircuits)
           .set({ deletedAt: now })

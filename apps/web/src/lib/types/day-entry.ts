@@ -117,7 +117,7 @@ export function hasParityRules(entries: DayEntry[]): boolean {
 
 /**
  * Build a display string for days, e.g. "LU-MA-ME" or "LU-MEP-VEI"
- * (parité accolée : P = paires, I = impaires).
+ * (parity appended: P = even weeks, I = odd weeks).
  */
 export function formatDaysShort(entries: DayEntry[]): string {
   if (!entries.length) return "";

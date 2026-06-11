@@ -23,9 +23,8 @@ async function clientIp(): Promise<string> {
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 
-// L'inscription publique donne accès à toutes les données du tenant (dont des
-// données personnelles de mineurs) : désactivée par défaut, opt-in explicite
-// via ENABLE_PUBLIC_SIGNUP=true (dev/onboarding uniquement).
+// Public signup grants access to all tenant data (including minors' personal data):
+// disabled by default, explicit opt-in via ENABLE_PUBLIC_SIGNUP=true (dev/onboarding only).
 export async function isSignupEnabled(): Promise<boolean> {
   return process.env.ENABLE_PUBLIC_SIGNUP === "true";
 }
@@ -43,7 +42,7 @@ export async function login(
   }
   const { email, password } = parsed.data;
 
-  // Anti brute-force : par couple IP+email (ciblé) et par IP seule (énumération)
+  // Brute-force protection: per IP+email pair (targeted) and per IP alone (enumeration)
   const ip = await clientIp();
   const accountKey = `login:${ip}:${email.toLowerCase()}`;
   const ipKey = `login:${ip}`;
@@ -68,8 +67,8 @@ export async function login(
           return { error: "Une erreur est survenue" };
       }
     }
-    // Succès = signIn throw un redirect (pas une AuthError) : on remet les
-    // compteurs à zéro avant de laisser la redirection se faire.
+    // Success = signIn throws a redirect (not an AuthError): reset the counters
+    // before letting the redirect proceed.
     clearFailures(accountKey);
     throw error;
   }
@@ -81,7 +80,7 @@ export async function signup(
   _prevState: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  // Garde serveur — le masquage du formulaire côté UI n'est pas une protection
+  // Server guard — hiding the form on the UI side is not a security measure
   if (!(await isSignupEnabled())) {
     return { error: "Les inscriptions sont désactivées. Contactez votre administrateur." };
   }
@@ -109,8 +108,8 @@ export async function signup(
     return { error: "Accédez via le sous-domaine de votre organisation" };
   }
 
-  // Message générique commun (anti-énumération) : ne pas révéler si c'est le
-  // tenant qui n'existe pas ou l'email qui est déjà enregistré.
+  // Generic shared message (anti-enumeration): do not reveal whether it is the
+  // tenant that does not exist or the email that is already registered.
   const genericError = {
     error: "Impossible de créer le compte avec ces informations.",
   };

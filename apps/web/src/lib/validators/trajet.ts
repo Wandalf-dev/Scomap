@@ -22,7 +22,7 @@ export const recurrenceRuleSchema = z.object({
 
 export type RecurrenceRule = z.infer<typeof recurrenceRuleSchema>;
 
-// Schema pour la creation rapide (dialog de la liste)
+// Schema for quick creation (list dialog)
 export const trajetSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   circuitId: z.string().uuid("Circuit requis"),
@@ -31,7 +31,7 @@ export const trajetSchema = z.object({
 
 export type TrajetFormValues = z.infer<typeof trajetSchema>;
 
-// Schema complet pour la fiche detail / creation
+// Full schema for the detail page / creation
 export const trajetDetailSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   circuitId: z.string().uuid("Circuit requis"),
@@ -49,7 +49,7 @@ export const trajetDetailSchema = z.object({
 
 export type TrajetDetailFormValues = z.infer<typeof trajetDetailSchema>;
 
-// Schema pour override d'une occurrence (avenant)
+// Schema for an occurrence override (avenant)
 export const occurrenceOverrideSchema = z.object({
   chauffeurId: z.string().uuid().nullable().optional(),
   vehiculeId: z.string().uuid().nullable().optional(),
@@ -60,7 +60,7 @@ export const occurrenceOverrideSchema = z.object({
 
 export type OccurrenceOverrideFormValues = z.infer<typeof occurrenceOverrideSchema>;
 
-// Schema pour un arret (lie a un trajet)
+// Schema for an arrêt (linked to a trajet)
 export const arretSchema = z.object({
   type: z.enum(["usager", "etablissement"]),
   usagerAddressId: z.string().uuid().nullable().optional(),

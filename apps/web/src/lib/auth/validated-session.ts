@@ -7,11 +7,11 @@ import { auth } from ".";
 import { getTenantSlug } from "../tenant";
 
 /**
- * Session validée : cohérente avec le sous-domaine visité ET adossée à un
- * compte encore présent en DB, avec le rôle relu frais. Un JWT stateless ne
- * reflète ni la suppression d'un compte ni un changement de rôle : sans cette
- * relecture, un utilisateur supprimé garderait l'accès jusqu'à l'expiration
- * du token (7 jours). cache() = une seule requête par render pass.
+ * Validated session: consistent with the visited subdomain AND backed by an
+ * account still present in the DB, with a freshly re-read role. A stateless JWT
+ * reflects neither account deletion nor a role change: without this re-read, a
+ * deleted user would retain access until the token expires (7 days).
+ * cache() = a single DB query per render pass.
  */
 export const getValidatedSession = cache(
   async (): Promise<Session | null> => {

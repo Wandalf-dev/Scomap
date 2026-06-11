@@ -158,7 +158,7 @@ export function EtablissementFormDialog({
               />
             </div>
 
-            {/* Ville + Code postal */}
+            {/* City + Postal code */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -188,7 +188,7 @@ export function EtablissementFormDialog({
               />
             </div>
 
-            {/* Téléphone + Email */}
+            {/* Phone + Email */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Schema pour la creation rapide (dialog de la liste)
+// Schema for quick creation (list dialog)
 export const vehiculeSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   licensePlate: z.string().max(20).optional(),
@@ -9,7 +9,7 @@ export const vehiculeSchema = z.object({
 
 export type VehiculeFormValues = z.infer<typeof vehiculeSchema>;
 
-// Schema complet pour la fiche detail
+// Full schema for the detail page
 export const vehiculeDetailSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   licensePlate: z.string().max(20).optional(),
@@ -23,7 +23,7 @@ export const vehiculeDetailSchema = z.object({
 
 export type VehiculeDetailFormValues = z.infer<typeof vehiculeDetailSchema>;
 
-// Schema pour l'onglet maintenance
+// Schema for the maintenance tab
 export const vehiculeMaintenanceSchema = z.object({
   insuranceExpiry: z.string().max(32).optional(),
   technicalControlExpiry: z.string().max(32).optional(),

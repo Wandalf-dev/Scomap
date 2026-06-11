@@ -8,9 +8,9 @@ import type {
 const IGN_BASE = "https://data.geopf.fr/navigation/itineraire";
 
 /**
- * IGN Géoplateforme (ressource `bdtopo-osrm`). Pas de clé. France uniquement.
- * Port fidèle du calcul historique de `trajets.calculateRoute`, y compris la
- * contrainte d'évitement des autoroutes lorsque les péages sont exclus.
+ * IGN Géoplateforme (resource `bdtopo-osrm`). No key. France only.
+ * Faithful port of the legacy `trajets.calculateRoute` calculation, including
+ * the highway-avoidance constraint when péages are excluded.
  */
 export const ignAdapter: RoutingAdapter = {
   id: "ign",

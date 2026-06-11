@@ -36,14 +36,14 @@ export function BulkTransportDatesDialog({
   isPending,
   onSubmit,
 }: BulkTransportDatesDialogProps) {
-  // Une case par date : on n'envoie que les champs cochés (les autres restent
-  // inchangés). Cochée + champ vide = on vide la date pour la sélection.
+  // One checkbox per date: only checked fields are sent (others remain unchanged).
+  // Checked + empty field = clear the date for the selection.
   const [editStart, setEditStart] = useState(false);
   const [editEnd, setEditEnd] = useState(false);
   const [start, setStart] = useState<string | null>(null);
   const [end, setEnd] = useState<string | null>(null);
 
-  // Remise à zéro à chaque réouverture.
+  // Reset on every re-open.
   useEffect(() => {
     if (open) {
       setEditStart(false);

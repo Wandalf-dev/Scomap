@@ -57,7 +57,7 @@ const data: { navGroups: { label: string; items: NavItem[] }[] } = {
     {
       label: "Configuration",
       items: [
-        // adminOnly : la gestion des comptes est réservée aux administrateurs
+        // adminOnly: account management is restricted to administrators
         { title: "Utilisateurs", url: "/utilisateurs", icon: UserCogIcon, adminOnly: true },
         { title: "Paramètres", url: "/parametres", icon: Cog6ToothIcon },
       ],

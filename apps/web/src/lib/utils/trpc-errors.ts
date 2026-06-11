@@ -1,9 +1,8 @@
 import { TRPCClientError } from "@trpc/client";
 import { toast } from "sonner";
 
-// Codes dont le message serveur est rédigé pour l'utilisateur (règles métier
-// en français dans les routers). Les autres (INTERNAL_SERVER_ERROR…) sont des
-// messages techniques : on affiche le fallback.
+// Codes whose server message is written for the user (business rules in the
+// routers). Others (INTERNAL_SERVER_ERROR…) are technical messages: show the fallback.
 const ACTIONABLE_CODES = new Set([
   "BAD_REQUEST",
   "CONFLICT",
@@ -13,15 +12,15 @@ const ACTIONABLE_CODES = new Set([
 ]);
 
 /**
- * Affiche une erreur tRPC en toast : le message métier du serveur quand il est
- * exploitable, sinon le fallback fourni.
+ * Displays a tRPC error as a toast: the server's business message when it is
+ * actionable, otherwise the provided fallback.
  */
 export function toastTrpcError(error: unknown, fallback: string) {
   if (error instanceof TRPCClientError) {
     const code = (error.data as { code?: string } | undefined)?.code;
     const message = error.message;
-    // Les erreurs de validation Zod arrivent en BAD_REQUEST avec un JSON brut
-    // ([{"code":…}]) : illisible, on garde le fallback.
+    // Zod validation errors arrive as BAD_REQUEST with raw JSON
+    // ([{"code":…}]): unreadable, so we keep the fallback.
     if (
       message &&
       !message.startsWith("[") &&

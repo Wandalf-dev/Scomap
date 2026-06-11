@@ -20,10 +20,10 @@ import { users } from "./users";
 type DayArray = number[] | { day: number; parity: "all" | "even" | "odd" }[];
 
 /**
- * Snapshot figé (avant/après) d'un changement d'avenant.
- * La forme dépend de `avenant_changes.type` (discriminant porté par la ligne).
- * Les ids sont stockés sans contrainte FK : on fige la valeur telle qu'au
- * moment T pour préserver l'historique même si la cible est supprimée plus tard.
+ * Frozen snapshot (before/after) of an avenant change.
+ * The shape depends on `avenant_changes.type` (discriminant on the row).
+ * IDs are stored without FK constraints: the value is frozen as-is at time T
+ * to preserve history even if the target is deleted later.
  */
 export type AvenantSnapshot =
   | {
@@ -56,7 +56,7 @@ export type AvenantSnapshot =
       type: string | null;
     };
 
-/** Entête d'avenant : un objet daté/numéroté rattaché à un circuit. */
+/** Avenant header: a dated/numbered object attached to a circuit. */
 export const avenants = pgTable(
   "avenants",
   {
@@ -68,7 +68,7 @@ export const avenants = pgTable(
     circuitId: uuid("circuit_id").references(() => circuits.id, {
       onDelete: "set null",
     }),
-    // N° d'avenant DANS le circuit (Avenant n°1, n°2…). Null si hors circuit.
+    // Avenant sequence number WITHIN the circuit (Avenant n°1, n°2…). Null if outside a circuit.
     circuitSequence: integer("circuit_sequence"),
     effectiveDate: date("effective_date").notNull(),
     endDate: date("end_date"),
@@ -85,7 +85,7 @@ export const avenants = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+    // Back-to-school preparation: null = production, otherwise a draft copy linked to a campaign.
     preparationCampaignId: uuid("preparation_campaign_id"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
@@ -100,7 +100,7 @@ export const avenants = pgTable(
   ],
 );
 
-/** Détail d'un avenant : un changement par usager × type. */
+/** Avenant detail: one change record per usager × type. */
 export const avenantChanges = pgTable(
   "avenant_changes",
   {

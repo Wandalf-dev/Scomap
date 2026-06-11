@@ -9,9 +9,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Même validation que le contexte tRPC : une session d'un autre
-  // sous-domaine, un ancien JWT sans tenantSlug ou un compte supprimé est
-  // purgé au lieu de laisser les pages crasher en UNAUTHORIZED au prefetch.
+  // Same validation as the tRPC context: a session from another subdomain,
+  // a legacy JWT without tenantSlug, or a deleted account is purged instead
+  // of letting pages crash with UNAUTHORIZED on prefetch.
   const session = await getValidatedSession();
 
   if (!session) {

@@ -2,17 +2,17 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface TrajetEtatBadgeProps {
-  /** État stocké (pour le cas « suspendu »). */
+  /** Stored état (for the "suspendu" case). */
   etat?: string | null;
-  /** Distance/route calculée (totalDistanceKm renseigné). */
+  /** Route/distance computed (totalDistanceKm is set). */
   hasKm: boolean;
-  /** Horaires de prise en charge calculés (tous les arrêts ont une heure). */
+  /** Pick-up schedules computed (all arrêts have a time). */
   hasTimes: boolean;
 }
 
 /**
- * État de calcul d'un trajet, explicite : un trajet doit être « OK » (distance
- * ET horaires calculés) pour être exploitable (ex. facturation).
+ * Explicit computation état of a trajet: a trajet must be "OK" (both distance
+ * AND schedules computed) to be usable (e.g. billing).
  */
 export function getTrajetEtat({
   etat,

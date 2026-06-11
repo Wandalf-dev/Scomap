@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, GraduationCap } from "lucide-react";
 
 /**
- * Bandeau pleine largeur, bien visible, signalant le mode préparation (≠ prod).
- * `fullBleed` étire le bandeau bord à bord (compense le padding de la page),
- * utile au-dessus d'une fiche détail.
+ * Full-width, highly visible banner signaling preparation mode (≠ prod).
+ * `fullBleed` stretches the banner edge-to-edge (compensates for page padding),
+ * useful above a detail fiche.
  */
 export function PrepaBanner({
   label,

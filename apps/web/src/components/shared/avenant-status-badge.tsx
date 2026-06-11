@@ -7,7 +7,7 @@ export function formatAvenantDate(iso: string | null): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
-/** Date du jour (locale) en "YYYY-MM-DD", pour comparer aux dates d'effet. */
+/** Today's date (local) as "YYYY-MM-DD", for comparing against effectiveDates. */
 export function avenantTodayStr(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(
@@ -23,8 +23,8 @@ interface AvenantHead {
 }
 
 /**
- * « État courant » = dernier avenant non annulé dont la date d'effet est passée.
- * (Tri par date d'effet décroissante, puis n° d'avenant.)
+ * "Current state" = last non-cancelled avenant whose effectiveDate is in the past.
+ * (Sorted by effectiveDate descending, then by avenant sequence number.)
  */
 export function getHeadAvenantId(
   items: AvenantHead[],
@@ -41,11 +41,11 @@ export function getHeadAvenantId(
 }
 
 /**
- * Badge de statut TEMPOREL d'un avenant (vs son simple statut d'enregistrement) :
+ * TEMPORAL status badge for an avenant (vs its simple record status):
  * - Annulé   (status = annule)
- * - À venir  (date d'effet future → pas encore en vigueur)
- * - En cours (dernier avenant dont la date d'effet est passée = état courant)
- * - Appliqué (date d'effet passée mais remplacé par un avenant plus récent)
+ * - À venir  (future effectiveDate → not yet in effect)
+ * - En cours (latest avenant whose effectiveDate has passed = current state)
+ * - Appliqué (past effectiveDate but superseded by a more recent avenant)
  */
 export function AvenantStatusBadge({
   id,

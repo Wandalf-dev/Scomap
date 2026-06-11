@@ -24,9 +24,8 @@ import { CircuitRecap } from "./circuit-recap";
 interface TabTrajetsProps {
   circuitId: string;
   /**
-   * Date de résolution (défaut : aujourd'hui). Fournie pour la vue « état du
-   * circuit à la date d'un avenant » : validité des trajets + récap résolus à
-   * cette date.
+   * Resolution date (default: today). Provided for the "circuit state at avenant
+   * date" view: trajet validity + recap resolved at that date.
    */
   date?: string;
 }
@@ -55,12 +54,12 @@ function Dash() {
 }
 
 /**
- * Validité temporelle d'un trajet, résolue par date (modèle daté des arrêts) :
- * - actif   → présent aujourd'hui (« En cours »)
- * - avenir  → démarre plus tard via un avenant (« Dès le JJ/MM »)
- * - termine → remplacé par un avenant, présence close (« Terminé le JJ/MM »)
- * À la date d'effet de l'avenant, l'ancien bascule en « terminé » et le nouveau
- * en « en cours » automatiquement (les compteurs sont relatifs à aujourd'hui).
+ * Temporal validity of a trajet, resolved by date (dated arrêt model):
+ * - actif   → active today ("En cours")
+ * - avenir  → starts later via an avenant ("Dès le DD/MM")
+ * - termine → replaced by an avenant, period closed ("Terminé le DD/MM")
+ * At the avenant's effective date, the old trajet switches to "terminé" and the
+ * new one to "en cours" automatically (counters are relative to today).
  */
 function TrajetValiditeBadge({
   validity,
@@ -108,8 +107,8 @@ export function TabTrajets({ circuitId, date }: TabTrajetsProps) {
     trpc.trajets.listByCircuit.queryOptions({ circuitId, date }),
   );
 
-  // Retour contextuel : depuis un trajet ouvert ici, le bouton « Retour »
-  // ramène sur l'onglet Trajets de ce circuit (et non la liste globale).
+  // Contextual back: from a trajet opened here, the "Back" button returns
+  // to the Trajets tab of this circuit (not the global list).
   const backParam = encodeURIComponent(`/circuits/${circuitId}?tab=trajets`);
 
   if (isLoading) {
@@ -136,9 +135,9 @@ export function TabTrajets({ circuitId, date }: TabTrajetsProps) {
     );
   }
 
-  // Vue ICI = uniquement les trajets EN COURS + le PROCHAIN avenant à venir
-  // (le groupe « à venir » dont la date est la plus proche). On masque les
-  // trajets terminés et les trajets d'avenants ultérieurs (au-delà du prochain).
+  // View HERE = only EN COURS trajets + the NEXT upcoming avenant
+  // (the "à venir" group with the nearest date). Terminé trajets and trajets
+  // from subsequent avenants (beyond the next one) are hidden.
   const avenirDates = trajets
     .filter((t) => t.validity.status === "avenir" && t.validity.date)
     .map((t) => t.validity.date as string);
@@ -191,8 +190,8 @@ export function TabTrajets({ circuitId, date }: TabTrajetsProps) {
           </TableHeader>
           <TableBody>
             {visibleTrajets.map((trajet) => {
-              // « A partir du » = date d'effet de l'avenant créateur, sinon
-              // date propre du trajet, sinon date de début du circuit.
+              // "A partir du" = effective date of the creating avenant, otherwise
+              // the trajet's own date, otherwise the circuit start date.
               const aPartirDu =
                 trajet.avenantEffectiveDate ??
                 trajet.startDate ??
@@ -252,8 +251,8 @@ export function TabTrajets({ circuitId, date }: TabTrajetsProps) {
                     {formatDuration(trajet.totalDurationSeconds)}
                   </TableCell>
                   <TableCell className="text-center tabular-nums">
-                    {/* Composition du trajet (tous ses usagers), pas seulement
-                        ceux actifs aujourd'hui — sinon un trajet à venir = 0. */}
+                    {/* Trajet composition (all its usagers), not only those
+                        active today — otherwise an upcoming trajet shows 0. */}
                     {trajet.totalUsager}
                   </TableCell>
                   <TableCell className="text-center tabular-nums">
@@ -268,7 +267,7 @@ export function TabTrajets({ circuitId, date }: TabTrajetsProps) {
                         N&deg;{trajet.avenantDisplayId}
                       </Badge>
                     ) : (
-                      // Trajet de la composition initiale (créé hors avenant).
+                      // Trajet from the initial composition (created outside any avenant).
                       <Badge
                         variant="outline"
                         className="border-border text-muted-foreground"

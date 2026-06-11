@@ -16,7 +16,7 @@ import {
 } from "@/lib/validators/user";
 
 export const usersRouter = createTRPCRouter({
-  // Profil de l'utilisateur courant + son organisation, pour la page « Mon compte »
+  // Current user profile + their organisation, for the "My account" page
   me: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
@@ -106,8 +106,8 @@ export const usersRouter = createTRPCRouter({
   updateRole: adminProcedure
     .input(z.object({ id: z.string().uuid(), role: z.enum(USER_ROLES) }))
     .mutation(async ({ ctx, input }) => {
-      // Interdit sur soi-même : évite qu'un admin se rétrograde et laisse
-      // le tenant sans administrateur
+      // Forbidden on oneself: prevents an admin from downgrading themselves
+      // and leaving the tenant without an administrator
       if (input.id === ctx.user.id) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -138,9 +138,9 @@ export const usersRouter = createTRPCRouter({
         });
       }
 
-      // Hard delete : les FKs créateur (avenants, campagnes) sont en
-      // onDelete "set null", l'historique métier est préservé. L'accès est
-      // coupé immédiatement (le contexte tRPC revérifie l'existence en DB).
+      // Hard delete: creator FKs (avenants, campaigns) are set to
+      // onDelete "set null", business history is preserved. Access is
+      // cut immediately (the tRPC context re-checks existence in DB).
       const result = await ctx.db
         .delete(users)
         .where(
@@ -153,7 +153,7 @@ export const usersRouter = createTRPCRouter({
       return result[0];
     }),
 
-  // Chaque utilisateur peut changer son propre mot de passe
+  // Each user can change their own password
   changePassword: protectedProcedure
     .input(changePasswordSchema)
     .mutation(async ({ ctx, input }) => {

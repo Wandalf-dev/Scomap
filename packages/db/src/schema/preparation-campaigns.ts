@@ -11,10 +11,10 @@ import { tenants } from "./tenants";
 import { users } from "./users";
 
 /**
- * Campagne de préparation de rentrée : espace de travail isolé qui regroupe
- * des copies « brouillon » d'usagers/circuits (via la FK preparation_campaign_id
- * sur les entités). La production reste intacte tant que la campagne n'est pas
- * activée. À l'activation, les copies deviennent prod et l'ancienne est archivée.
+ * Back-to-school preparation campaign: isolated workspace that groups
+ * draft copies of usagers/circuits (via the preparation_campaign_id FK
+ * on entities). Production remains untouched until the campaign is activated.
+ * On activation, the copies become production and the old ones are archived.
  */
 export const preparationCampaigns = pgTable(
   "preparation_campaigns",
@@ -24,10 +24,10 @@ export const preparationCampaigns = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     label: varchar("label", { length: 255 }).notNull(),
-    // Libellé d'année lisible (« 2026-2027 ») — purement informatif (pas de
-    // sémantique structurelle d'année scolaire).
+    // Human-readable year label ("2026-2027") — purely informational (no
+    // structural school-year semantics).
     schoolYearLabel: varchar("school_year_label", { length: 50 }),
-    // Dates cibles de la rentrée préparée (servent à recaler les dates des copies).
+    // Target dates of the prepared school year (used to rebase the copy dates).
     targetStartDate: date("target_start_date"),
     targetEndDate: date("target_end_date"),
     // en_cours | activee | abandonnee
@@ -45,7 +45,7 @@ export const preparationCampaigns = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
-    // Au plus UNE campagne « en cours » par tenant (index unique partiel).
+    // At most ONE active campaign per tenant (partial unique index).
     uniqueIndex("preparation_campaigns_one_open_per_tenant_idx")
       .on(t.tenantId)
       .where(sql`status = 'en_cours' and deleted_at is null`),

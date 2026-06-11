@@ -31,8 +31,8 @@ interface TrajetMapProps {
 
 const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
-// Délai au-delà duquel un style/des tuiles qui ne répondent pas sont
-// considérés en échec (réseau coupé, provider down).
+// Timeout beyond which an unresponsive style/tiles are considered failed
+// (network down, provider unavailable).
 const LOAD_TIMEOUT_MS = 15000;
 
 export function TrajetMap({
@@ -46,7 +46,7 @@ export function TrajetMap({
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
-  // Incrémenté par « Réessayer » pour relancer l'init complète de la carte.
+  // Incremented by "Réessayer" to fully reinitialize the map.
   const [attempt, setAttempt] = useState(0);
 
   const geoArrets = arrets.filter(
@@ -58,8 +58,8 @@ export function TrajetMap({
     [geoArrets],
   );
   const geometryKey = routeGeometry ? routeGeometry.coordinates.length : 0;
-  // Le fond de carte étant changé via remontage complet (cf. deps), on en fait
-  // une clé stable pour relancer l'effet quand le tenant change de provider.
+  // The basemap is changed via full remount (see deps), so we make it
+  // a stable key to re-trigger the effect when the tenant changes provider.
   const basemapKey = useMemo(() => JSON.stringify(basemap ?? null), [basemap]);
 
   useEffect(() => {
@@ -89,8 +89,8 @@ export function TrajetMap({
       if (!loaded) setStatus("error");
     }, LOAD_TIMEOUT_MS);
 
-    // Erreur fatale uniquement avant le premier rendu (style indisponible) ;
-    // les erreurs de tuiles isolées après le `load` sont ignorées.
+    // Fatal error only before the first render (style unavailable);
+    // isolated tile errors after `load` are ignored.
     map.on("error", () => {
       if (!loaded) {
         clearTimeout(timeout);

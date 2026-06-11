@@ -10,19 +10,19 @@ import {
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
 
-/** Catégorie de provider à laquelle se rattache une clé d'API. */
+/** Provider category to which an API key belongs. */
 export const providerCategoryEnum = pgEnum("provider_category", [
   "routing",
   "basemap",
 ]);
 
 /**
- * Clés d'API des providers (routing/basemap) par tenant, chiffrées au repos.
+ * Provider API keys (routing/basemap) per tenant, encrypted at rest.
  *
- * Table SÉPARÉE de `tenant_settings` : aucune requête métier sur les réglages
- * ne doit jamais ramener de `ciphertext` au client. Les clés ne sortent d'ici
- * que déchiffrées côté serveur (jamais renvoyées à l'UI), sauf `lastFour` pour
- * l'affichage masqué.
+ * SEPARATE table from `tenant_settings`: no business query on settings
+ * should ever return `ciphertext` to the client. Keys only leave here
+ * decrypted server-side (never sent to the UI), except `lastFour` for
+ * masked display.
  */
 export const tenantProviderKeys = pgTable(
   "tenant_provider_keys",
@@ -36,9 +36,9 @@ export const tenantProviderKeys = pgTable(
     provider: varchar("provider", { length: 32 }).notNull(),
     // Composite AES-256-GCM : "v1:<iv_b64>:<tag_b64>:<ciphertext_b64>"
     ciphertext: text("ciphertext").notNull(),
-    // Version de la clé maître (pour une éventuelle rotation d'AUTH_SECRET).
+    // Master key version (for a potential AUTH_SECRET rotation).
     keyVersion: integer("key_version").notNull().default(1),
-    // 4 derniers caractères pour l'affichage "••••Ab3f" — jamais la clé entière.
+    // Last 4 characters for "••••Ab3f" display — never the full key.
     lastFour: varchar("last_four", { length: 8 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

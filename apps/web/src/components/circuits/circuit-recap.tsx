@@ -21,7 +21,7 @@ import {
 
 interface CircuitRecapProps {
   circuitId: string;
-  /** Date de résolution (défaut : aujourd'hui). Fige l'état à la date d'un avenant. */
+  /** Resolution date (default: today). Freezes state to the date of an avenant. */
   date?: string;
 }
 
@@ -68,8 +68,8 @@ function TimeChip({
   );
 }
 
-/** En-tête de colonne Aller/Retour façon Transcolaire : libellé du sens, puis
- *  le N° (lien vert vers le trajet) et l'intitulé (jours). Sans flèche. */
+/** Transcolaire-style aller/retour column header: direction label, then the
+ *  N° (green link to the trajet) and the title (days). No arrow. */
 function DirectionHeaderCell({
   trajet,
   direction,
@@ -89,7 +89,7 @@ function DirectionHeaderCell({
     );
   }
 
-  // Le sens est déjà affiché en libellé : on retire le préfixe du nom.
+  // Direction is already shown as label: strip the name prefix.
   const daysLabel = trajet.name.replace(/^(Aller|Retour)\s+/i, "");
 
   return (
@@ -123,7 +123,7 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
     trpc.usagerCircuits.listByCircuit.queryOptions({ circuitId, date }),
   );
 
-  // Trajet représentatif par sens : l'actif d'abord, sinon le premier.
+  // Representative trajet per direction: active first, otherwise the first one.
   const allerTrajet = useMemo(() => {
     const list = (trajets ?? []).filter((t) => t.direction === "aller");
     return list.find((t) => t.validity.status === "actif") ?? list[0] ?? null;
@@ -161,9 +161,9 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
     return m;
   }, [retourArrets]);
 
-  // Ordre de ramassage : on suit l'ordre réel des arrêts à l'aller (sinon
-  // retour), pour lister les usagers dans l'ordre de la tournée — l'école
-  // (destination) étant rendue en fin de tableau.
+  // Pickup order: follow the actual arrêt order on the aller (otherwise
+  // retour), to list usagers in tour order — the school (destination)
+  // is rendered at the end of the table.
   const pickupOrderByAddr = useMemo(() => {
     const source =
       allerArrets && allerArrets.length > 0 ? allerArrets : (retourArrets ?? []);
@@ -186,7 +186,7 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
         ? pickupOrderByAddr.get(b.usagerAddressId)
         : undefined;
       if (oa == null && ob == null) return 0;
-      if (oa == null) return 1; // arrêt inconnu → en fin de liste
+      if (oa == null) return 1; // unknown arrêt → end of list
       if (ob == null) return -1;
       return oa - ob;
     });
@@ -229,13 +229,13 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
   const totalDurationSeconds =
     (allerTrajet?.totalDurationSeconds ?? 0) +
     (retourTrajet?.totalDurationSeconds ?? 0);
-  // Retour contextuel : depuis un trajet ouvert via le récap, revenir sur
-  // l'onglet Trajets de ce circuit (et non la liste globale des trajets).
+  // Contextual back: from a trajet opened via the recap, return to
+  // the Trajets tab of this circuit (not the global trajet list).
   const backParam = encodeURIComponent(`/circuits/${circuitId}?tab=trajets`);
 
   return (
     <div className="overflow-hidden rounded-[0.3rem] border border-border dark:border-foreground/30 bg-card shadow-xs">
-      {/* En-tête + options d'affichage */}
+      {/* Header + display options */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border dark:border-foreground/30 bg-gradient-to-r from-primary/[0.08] to-transparent px-4 py-2.5">
         <h3 className="text-[15px] font-bold tracking-tight text-foreground">
           Récapitulatif des prises en charge
@@ -280,7 +280,7 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
           </thead>
 
           <tbody>
-            {/* Usagers d'abord (ordre de ramassage) — établissement en fin */}
+            {/* Usagers first (pickup order) — établissement at the end */}
             {sortedUsagers.length === 0 ? (
               <tr>
                 <td
@@ -312,8 +312,8 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
                   : null;
                 const hasAllerDays = u.daysAller.length > 0;
                 const hasRetourDays = u.daysRetour.length > 0;
-                // Un seul tableau si les jours aller = retour (cas courant) ;
-                // deux (Aller / Retour) seulement s'ils diffèrent réellement.
+                // Single table if aller days = retour days (common case);
+                // two (Aller / Retour) only if they actually differ.
                 const sameDays =
                   hasAllerDays &&
                   hasRetourDays &&
@@ -430,7 +430,7 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
               })
             )}
 
-            {/* Établissement (destination) — fin de tournée à l'aller */}
+            {/* Établissement (destination) — end of route on the aller */}
             <tr className="bg-primary/[0.06]">
               <td className="border-l-[3px] border-l-primary px-4 py-3">
                 <div className="flex items-start gap-2.5">
@@ -480,7 +480,7 @@ export function CircuitRecap({ circuitId, date }: CircuitRecapProps) {
             </tr>
           </tbody>
 
-          {/* Totaux */}
+          {/* Totals */}
           <tfoot className="border-t-2 border-border dark:border-foreground/30 bg-muted/50 text-sm">
             <tr className="border-b border-border dark:border-foreground/30">
               <td className="px-4 py-2 text-right font-medium text-muted-foreground">

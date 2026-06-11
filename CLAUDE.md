@@ -77,11 +77,11 @@ Tenancy is resolved by **subdomain**, and isolation is enforced at the **applica
 
 ### tRPC
 
-- Routers in `apps/web/src/lib/trpc/routers/`, composed in `root.ts` (`appRouter`).
+- Routers in `apps/web/src/lib/trpc/routers/`, composed in `root.ts` (`appRouter`). Large routers are **folders** (`trajets/`, `usager-circuits/`, `avenants/`): procedure groups in sibling files (`satisfies TRPCRouterRecord`), assembled in `index.ts` — import specifiers unchanged. Follow this pattern when a router grows past ~400 lines.
 - Server caller: `lib/trpc/server.ts`; client/provider: `lib/trpc/client.tsx`; `query-client.ts`.
 - Client usage: `const trpc = useTRPC()` then `useQuery(trpc.x.y.queryOptions(...))` / `useMutation(trpc.x.y.mutationOptions(...))`; invalidate via `queryClient.invalidateQueries({ queryKey: trpc.x.y.queryKey(...) })`.
 - Server Components read `searchParams` (a Promise) directly to pass initial values (e.g. `?tab=`, `?back=`) — avoids `useSearchParams` hydration issues.
-- Heavier domain logic lives in `lib/trpc/services/` (e.g. `trajet-sync.ts`, `circuit-suggestions.ts`, `routing/`).
+- Heavier domain logic lives in `lib/trpc/services/` (e.g. `trajet-sync/`, `circuit-suggestions.ts`, `routing/`).
 
 ### Database conventions
 
@@ -94,7 +94,7 @@ Tenancy is resolved by **subdomain**, and isolation is enforced at the **applica
 
 - **`usager_circuits`** is **date-versioned** (`valid_from`/`valid_to`): the open version is `valid_to IS NULL AND deleted_at IS NULL`. One active circuit per `(usager, address)` is enforced (UI + server guard + partial unique index, migration `0026`).
 - **Avenants** (amendments) = header (circuit + effective date + reason) + N `avenant_changes` (one per usager × change type), numbered per circuit. Creating an avenant **auto-merges** into an existing non-cancelled one with the same `(circuitId, effectiveDate)`. Resolution is by date at read time (no triggers). A usager with avenants on a circuit **cannot be dissociated** (server guard) — cancel/delete the avenants first.
-- **Trajets are largely derived, not free-form.** `lib/trpc/services/trajet-sync.ts` creates/groups one trajet per `(direction, set-of-days)` from the usagers' PEC (prise en charge) days. The trajet `name` and `recurrence.daysOfWeek` are **derived** from usagers — these fields are read-only in the trajet form (change via avenant). The establishment's opening/closing hours feed the trajet's `departureTime` anchor (morning→aller, evening→retour), and the establishment stop is created pre-filled + `timeLocked` so `calculateTimes` uses it as the anchor.
+- **Trajets are largely derived, not free-form.** `lib/trpc/services/trajet-sync/` creates/groups one trajet per `(direction, set-of-days)` from the usagers' PEC (prise en charge) days. The trajet `name` and `recurrence.daysOfWeek` are **derived** from usagers — these fields are read-only in the trajet form (change via avenant). The establishment's opening/closing hours feed the trajet's `departureTime` anchor (morning→aller, evening→retour), and the establishment stop is created pre-filled + `timeLocked` so `calculateTimes` uses it as the anchor.
 - **Cascade invalidation**: changing an establishment's address (lat/lng) or schedules resets the affected trajets' computed route/times so their état no longer reads "OK" (see `routers/etablissements.ts`).
 - **Trajet état** is explicit (`shared/trajet-etat-badge.tsx`): "OK" only when both distance AND horaires are computed; otherwise it spells out what's missing. Billing is deferred and depends on trajets being "OK".
 - **Day model** (`lib/types/day-entry.ts`): each PEC day is `{ day: 1-7, parity: "all"|"even"|"odd" }`. Labels are 2-letter codes `LU MA ME JE VE SA DI`; parity is appended (`LUP`=lundi paire, `LUI`=impaire). Use the `DAY_LABELS` / `formatDaysShort` helpers — they drive both badges and derived trajet names.
@@ -102,10 +102,11 @@ Tenancy is resolved by **subdomain**, and isolation is enforced at the **applica
 ### Frontend patterns
 
 - **Detail pages** use `components/shared/entity-detail-layout.tsx` (`EntityDetailLayout`): sticky header with back button, delete dialog, plus a **header-actions portal** + **unsaved-changes context**. Tab forms inject their Save buttons into the header via `useHeaderActions()` + `createPortal`, register dirty state via `useUnsavedChanges()`, and submit through `<form id=...>` + `<Button form={id} type="submit">`. Save buttons go in the header (top), not at the bottom. Reference: `usagers/tab-identite.tsx`.
-- **List pages** use the generic `components/shared/data-list.tsx` (`DataList`): columns, per-column filters (`type: "text" | "select"`, keyed to the column `key`), bulk delete, column picker, pagination, xlsx export, clickable rows.
+- **List pages** use the generic `components/shared/data-list/` (`DataList`): columns, per-column filters (`type: "text" | "select"`, keyed to the column `key`), bulk delete, column picker, pagination, xlsx export, clickable rows.
 - **Forms**: Zod schema in `lib/validators/` + react-hook-form + `zodResolver`. Always handle loading / error / empty states.
 - **Maps**: `components/trajets/trajet-map.tsx` (numbered markers for ordered stops); `components/shared/point-map.tsx` (single pin to verify one address); `components/shared/address-map-dialog.tsx` (reusable "Voir sur la carte" button). Tile style comes from `trpc.basemap.getStyle` (per-tenant provider; keys encrypted via `lib/crypto/`).
 - Server Components by default; `'use client'` as low as possible. Named exports (pages excepted). shadcn `ui/` components are extended by composition, **never edited directly**.
+- **Big feature components are split into feature subfolders**: the entry file stays a thin orchestrator at its original path, sub-components/hooks/helpers live next to it (e.g. `usagers/associer-circuit/`, `usagers/adresses/`, `usagers/list/`, `trajets/arrets/`). Follow this pattern when a component grows past ~400 lines.
 
 ### Known workaround
 
@@ -122,7 +123,7 @@ Tenancy is resolved by **subdomain**, and isolation is enforced at the **applica
 
 - **Import order**: React → Next.js → external libs → internal (`@/`) → types last.
 - Components `PascalCase.tsx`; utils/hooks `kebab-case.ts`; DB `snake_case`; interface for all props.
-- **Comments**: add them **occasionally, not everywhere** — only where the code isn't self-evident (the *why*: business rules, non-obvious tradeoffs, gotchas, workarounds). Skip them on trivial/obvious code. Write comments in **French**, matching the existing codebase style.
+- **Comments**: add them **occasionally, not everywhere** — only where the code isn't self-evident (the *why*: business rules, non-obvious tradeoffs, gotchas, workarounds). Skip them on trivial/obvious code. Write comments in **English** (universal across the codebase); keep French domain vocabulary as-is inside them (usager, trajet, avenant, PEC…). UI strings stay French.
 - Commits: Conventional Commits, **no co-author attribution**. Commit body in **English** even though the app/conversation is French.
 
 ## Domain Glossary (French → English)

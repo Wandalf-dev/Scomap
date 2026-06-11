@@ -66,8 +66,8 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
   const exitAfterSaveRef = useRef(false);
   const formId = "etablissement-horaires-form";
 
-  // Valide la structure jsonb au lieu d'un cast aveugle : une donnée inattendue
-  // en base retombe proprement sur les valeurs par défaut.
+  // Validates the jsonb structure instead of a blind cast: unexpected data
+  // in the database gracefully falls back to default values.
   const parsedSchedules = schedulesSchema.safeParse(etablissement.schedules);
   const savedSchedules = parsedSchedules.success ? parsedSchedules.data : null;
 
@@ -100,7 +100,7 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
     mutation.mutate({ id: etablissement.id, schedules: values });
   }
 
-  // Synchronise l'état « modifié » avec le bandeau (avertissement au retour).
+  // Syncs the "modified" state with the header band (back-navigation warning).
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {
@@ -179,14 +179,14 @@ export function TabHoraires({ etablissement }: TabHorairesProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {/* En-tête */}
+              {/* Header */}
               <div className="grid grid-cols-[140px_1fr_1fr] gap-4 text-sm font-medium text-muted-foreground">
                 <div>Jour</div>
                 <div>Matin</div>
                 <div>Soir</div>
               </div>
 
-              {/* Lignes */}
+              {/* Rows */}
               {DAYS.map((day) => (
                 <div key={day.key} className="grid grid-cols-[140px_1fr_1fr] items-start gap-4">
                   <div className="pt-2 text-sm font-medium">

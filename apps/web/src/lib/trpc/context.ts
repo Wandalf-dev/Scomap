@@ -3,8 +3,8 @@ import { getValidatedSession } from "@/lib/auth/validated-session";
 import { db } from "@scomap/db";
 
 export const createTRPCContext = cache(async () => {
-  // Session recroisée avec le sous-domaine et l'existence du compte en DB
-  // (défense en profondeur + prise d'effet immédiate des suppressions/rôles)
+  // Session cross-checked against the subdomain and account existence in DB
+  // (defence in depth + immediate effect of deletions/role changes)
   const session = await getValidatedSession();
 
   return {

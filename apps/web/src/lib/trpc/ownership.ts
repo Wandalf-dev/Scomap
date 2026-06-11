@@ -10,10 +10,10 @@ type OwnedTable = PgTable & {
 };
 
 /**
- * Garde anti-IDOR : vérifie qu'un id de FK fourni en input appartient bien au
- * tenant courant. Sans cette validation, une mutation peut référencer l'objet
- * d'un autre tenant, que les jointures de lecture exposeraient ensuite.
- * Throw NOT_FOUND (et non FORBIDDEN) pour ne pas révéler l'existence de l'id.
+ * Anti-IDOR guard: verifies that a FK id provided as input belongs to the
+ * current tenant. Without this check, a mutation could reference another
+ * tenant's object, which read joins would then expose.
+ * Throws NOT_FOUND (not FORBIDDEN) to avoid revealing whether the id exists.
  */
 export async function assertTenantOwned(
   database: typeof db,

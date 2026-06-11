@@ -2,8 +2,8 @@ import Link from "next/link";
 import { MapPinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// 404 global : les URLs sans route (ex. lien obsolète) atterrissent ici,
-// hors du chrome dashboard puisque rendu dans le layout racine.
+// Global 404: unmatched URLs (e.g. stale links) land here,
+// outside the dashboard chrome since it is rendered in the root layout.
 export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">

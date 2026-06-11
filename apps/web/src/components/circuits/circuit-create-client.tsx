@@ -96,7 +96,7 @@ export function CircuitCreateClient() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {/* Identification + Période côte à côte */}
+          {/* Identification + Period side by side */}
           <div className="grid grid-cols-2 gap-8">
             <section className="space-y-4">
               <SectionTitle icon={Tag}>Identification</SectionTitle>

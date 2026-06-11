@@ -1,9 +1,9 @@
 /**
- * Rate-limiting en mémoire des tentatives d'authentification (anti brute-force).
+ * In-memory rate-limiting of authentication attempts (anti brute-force).
  *
- * Fenêtre glissante par clé (IP, IP+email…). Stockage dans le process Node :
- * suffisant en single-instance ; à remplacer par Redis/upstash si l'app est
- * déployée multi-instances (chaque instance a alors son propre compteur).
+ * Sliding window per key (IP, IP+email…). Stored in the Node process:
+ * sufficient for a single instance; replace with Redis/upstash if the app is
+ * deployed across multiple instances (each instance would then have its own counter).
  */
 
 const WINDOW_MS = 15 * 60 * 1000;
@@ -15,7 +15,7 @@ interface Entry {
 
 const attempts = new Map<string, Entry>();
 
-// Borne la mémoire : purge opportuniste des fenêtres expirées
+// Cap memory usage: opportunistic purge of expired windows
 function prune(now: number) {
   if (attempts.size < 10_000) return;
   for (const [key, entry] of attempts) {
@@ -23,7 +23,7 @@ function prune(now: number) {
   }
 }
 
-/** True si la clé a dépassé `max` échecs dans la fenêtre courante. */
+/** True if the key has exceeded `max` failures in the current window. */
 export function isRateLimited(key: string, max: number): boolean {
   const entry = attempts.get(key);
   if (!entry) return false;

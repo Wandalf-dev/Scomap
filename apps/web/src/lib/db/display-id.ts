@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@scomap/db";
 
-// Accepte la base ou une transaction : on n'a besoin que de `.execute`.
+// Accepts the db or a transaction: we only need `.execute`.
 type DbOrTx = Pick<typeof db, "execute">;
 
 /**

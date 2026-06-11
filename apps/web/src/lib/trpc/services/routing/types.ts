@@ -1,10 +1,9 @@
 /**
- * Contrat commun des moteurs de routing. Chaque provider (OSRM, IGN, ORS,
- * Google) implémente `RoutingAdapter` et normalise sa réponse vers
- * `RouteResult` (distance km, durée s, géométrie `[lng, lat][]`).
+ * Common contract for routing engines. Each provider (OSRM, IGN, ORS,
+ * Google) implements `RoutingAdapter` and normalises its response to
+ * `RouteResult` (distance km, duration s, geometry `[lng, lat][]`).
  *
- * ⚠️ Server-only : les adaptateurs portent des clés d'API. Ne jamais importer
- * côté client.
+ * ⚠️ Server-only: adapters carry API keys. Never import client-side.
  */
 
 export interface LatLng {
@@ -13,20 +12,20 @@ export interface LatLng {
 }
 
 export interface RouteResult {
-  /** Distance en kilomètres (3 décimales, comme l'existant trajets.calculateRoute). */
+  /** Distance in kilometres (3 decimal places, as in existing trajets.calculateRoute). */
   distanceKm: number;
-  /** Durée en secondes (entier). */
+  /** Duration in seconds (integer). */
   durationSec: number;
-  /** Géométrie de l'itinéraire en `[lng, lat][]` (ordre GeoJSON/MapLibre). */
+  /** Route geometry in `[lng, lat][]` (GeoJSON/MapLibre order). */
   geometry: [number, number][];
 }
 
 export interface RouteOptions {
-  /** Clé d'API déjà déchiffrée par le resolver (si le provider en exige une). */
+  /** API key already decrypted by the resolver (if the provider requires one). */
   apiKey?: string;
-  /** Éviter les autoroutes/péages (mappe le `peages === false` des trajets). */
+  /** Avoid highways/péages (maps the `peages === false` of trajets). */
   avoidTolls?: boolean;
-  /** Annulation/timeout. */
+  /** Cancellation/timeout. */
   signal?: AbortSignal;
 }
 
@@ -34,12 +33,12 @@ export type RoutingProviderId = "osrm" | "ign" | "openrouteservice" | "google";
 
 export interface RoutingAdapter {
   readonly id: RoutingProviderId;
-  /** `true` si une clé d'API par tenant est nécessaire. */
+  /** `true` if a per-tenant API key is required. */
   readonly requiresKey: boolean;
   /**
-   * Calcule UN segment (origine -> destination). Primitive réutilisée en boucle
-   * par les trajets multi-arrêts. Renvoie `null` sur échec récupérable
-   * (réseau, pas d'itinéraire, clé absente).
+   * Computes ONE segment (origin -> destination). Primitive reused in a loop
+   * by multi-arrêt trajets. Returns `null` on recoverable failure
+   * (network, no route, key absent).
    */
   computeSegment(
     from: LatLng,

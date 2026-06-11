@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// Statut de contrôle/validation du circuit (4 codes, façon usager / E1VALID
-// de Transcolaire). Distinct de l'archivage (archivedAt).
+// Circuit control/validation status (4 codes, mirroring usager / E1VALID
+// from Transcolaire). Distinct from archiving (archivedAt).
 export const CIRCUIT_STATUSES = [
   "non_controle",
   "controle",
@@ -19,7 +19,7 @@ export const CIRCUIT_STATUS_LABELS: Record<
   en_attente: "En attente",
 };
 
-// Schema pour la creation rapide (dialog de la liste)
+// Schema for quick creation (list dialog)
 export const circuitSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   etablissementId: z.string().uuid("Etablissement requis"),
@@ -27,7 +27,7 @@ export const circuitSchema = z.object({
 
 export type CircuitFormValues = z.infer<typeof circuitSchema>;
 
-// Schema complet pour la fiche detail
+// Full schema for the detail page
 export const circuitDetailSchema = z.object({
   name: z.string().min(1, "Nom requis").max(255),
   code: z.string().max(50, "Code trop long").optional(),

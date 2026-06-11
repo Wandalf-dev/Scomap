@@ -38,7 +38,7 @@ import {
 } from "@/lib/validators/usager";
 import type { DayEntry } from "@/lib/types/day-entry";
 
-// "YYYY-MM-DD" → "JJ/MM/AAAA" (cohérent avec l'affichage des trajets).
+// "YYYY-MM-DD" → "DD/MM/YYYY" (consistent with the trajet display format).
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   const [y, m, day] = d.split("-");
@@ -65,7 +65,7 @@ interface UsagerCircuitRow {
 interface UsagerInfo {
   id: string;
   transportType: string | null;
-  /** Date de début de transport (fiche usager) — début par défaut sur un circuit. */
+  /** Transport start date (usager record) — default start on a circuit. */
   transportStartDate: string | null;
 }
 
@@ -98,8 +98,8 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
         });
-        // Dissocier change usagerCount du circuit → rafraîchit sa fiche pour
-        // déverrouiller les dates (onglet Informations).
+        // Dissociating changes the circuit's usagerCount → refreshes its detail
+        // page to unlock the dates (Informations tab).
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.getById.queryKey(),
         });
@@ -117,7 +117,7 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
     return ADDRESS_TYPE_LABELS[type as keyof typeof ADDRESS_TYPE_LABELS] ?? type;
   }
 
-  // Seul le transport "Taxi collectif / individuel" donne lieu à un circuit.
+  // Only "Taxi collectif / individuel" transport type requires a circuit.
   const circuitEligible = isCircuitCompatibleTransport(usager.transportType);
   const transportTypeLabel = usager.transportType
     ? USAGER_TRANSPORT_TYPE_LABELS[
@@ -125,8 +125,8 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
       ] ?? usager.transportType
     : null;
 
-  // Une seule affectation par adresse : on ne peut associer que s'il reste une
-  // adresse LIBRE (aucune adresse, ou toutes déjà sur un circuit → désactivé).
+  // One assignment per address: association is only possible if there is at least
+  // one FREE address (no address at all, or all already on a circuit → disabled).
   const occupiedAddressIds = new Set(
     (linkedCircuits ?? [])
       .map((lc) => lc.usagerAddressId)
@@ -278,9 +278,9 @@ export function TabCircuits({ usagerId, usager }: TabCircuitsProps) {
                     )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {/* Début effectif sur ce circuit : validFrom de la version
-                        si présent (cas avenant), sinon la date de début de
-                        transport de la fiche usager. */}
+                    {/* Effective start on this circuit: validFrom of the version
+                        if present (avenant case), otherwise the usager's transport
+                        start date. */}
                     {item.validFrom ?? usager.transportStartDate ? (
                       <span className="text-sm tabular-nums">
                         {formatDate(item.validFrom ?? usager.transportStartDate)}

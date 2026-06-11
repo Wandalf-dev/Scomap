@@ -1,11 +1,11 @@
 /**
- * Type partagé (isomorphe serveur/client) décrivant le fond de carte résolu
- * pour un tenant. Volontairement découplé du type `StyleSpecification` de
- * maplibre-gl pour que le serveur (router tRPC) n'ait pas à dépendre de la lib
- * de rendu. Le client caste vers `StyleSpecification` au moment de l'usage.
+ * Shared (isomorphic server/client) type describing the resolved basemap for
+ * a tenant. Intentionally decoupled from maplibre-gl's `StyleSpecification`
+ * so the server (tRPC router) does not need to depend on the rendering lib.
+ * The client casts to `StyleSpecification` at point of use.
  */
 
-/** Objet de style MapLibre (typé librement côté transport). */
+/** MapLibre style object (loosely typed on the transport layer). */
 export type MapStyleSpec = Record<string, unknown>;
 
 export type BasemapStyle =

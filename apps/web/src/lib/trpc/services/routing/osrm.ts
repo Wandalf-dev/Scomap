@@ -8,8 +8,8 @@ import type {
 const OSRM_BASE = "https://router.project-osrm.org/route/v1/driving";
 
 /**
- * OSRM public (serveur de démo). Pas de clé. Mondial.
- * Note : OSRM ne sait pas éviter les péages -> `avoidTolls` ignoré.
+ * OSRM public (demo server). No key. Worldwide.
+ * Note: OSRM cannot avoid péages -> `avoidTolls` is ignored.
  */
 export const osrmAdapter: RoutingAdapter = {
   id: "osrm",
@@ -19,7 +19,7 @@ export const osrmAdapter: RoutingAdapter = {
     to: LatLng,
     opts: RouteOptions,
   ): Promise<RouteResult | null> {
-    // OSRM attend l'ordre lng,lat.
+    // OSRM expects lng,lat order.
     const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
     const url = `${OSRM_BASE}/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
 

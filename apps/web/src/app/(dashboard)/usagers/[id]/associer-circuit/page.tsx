@@ -29,7 +29,7 @@ export default async function AssocierCircuitPage({
     ),
     queryClient.prefetchQuery(trpc.etablissements.list.queryOptions()),
   ];
-  // Suggestions inutiles en mode édition (lien) → on évite le scoring serveur.
+  // Suggestions are useless in edit mode (lien) → skip server-side scoring.
   if (!lien) {
     prefetches.push(
       queryClient.prefetchQuery(

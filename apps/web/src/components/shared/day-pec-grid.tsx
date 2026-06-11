@@ -24,11 +24,11 @@ interface DayPecGridProps {
   daysRetour: DayEntry[];
   occupiedAller?: OccupiedDay[];
   occupiedRetour?: OccupiedDay[];
-  /** Composant contrôlé : émis à chaque modification (le parent gère le brouillon et l'enregistrement). */
+  /** Controlled component: emitted on every change (the parent manages the draft and saving). */
   onChange: (aller: DayEntry[], retour: DayEntry[]) => void;
-  /** Lecture seule : jours visibles mais non modifiables (ex. usager affecté à un circuit). */
+  /** Read-only: days visible but not editable (e.g. usager assigned to a circuit). */
   readOnly?: boolean;
-  /** Lien de résolution affiché quand readOnly (création d'avenant). */
+  /** Resolution link displayed when readOnly (avenant creation). */
   lockHref?: string;
 }
 
@@ -114,17 +114,17 @@ function Cell({
       onClick={onClick}
       className={cn(
         "relative flex size-8 items-center justify-center rounded-[9px] transition-all",
-        // Jour pris par une autre adresse
+        // Day occupied by another address
         locked && "cursor-not-allowed border border-border bg-muted/40",
         readOnly && !locked && "cursor-not-allowed",
         !locked && !readOnly && "cursor-pointer",
-        // Aller activé : case pleine accent
+        // Aller active: filled accent cell
         on && !locked && color === "aller" &&
           "border border-primary bg-primary shadow-sm shadow-primary/20",
-        // Retour activé : anneau accent sur fond carte
+        // Retour active: accent ring on card background
         on && !locked && color === "retour" &&
           "border-2 border-primary bg-card",
-        // Éteint : vraie case sur fond carte
+        // Off: plain cell on card background
         !on && !locked && "border border-border bg-card",
         !on && !locked && !readOnly && "hover:border-border hover:bg-muted/40",
       )}
@@ -136,7 +136,7 @@ function Cell({
           className={cn(
             color === "aller"
               ? "size-4 text-primary-foreground"
-              // Anneau Retour : coche violette en light, blanche en dark (lisibilité — primary sombre en dark)
+              // Retour ring: purple checkmark in light mode, white in dark mode (readability — primary is dark in dark mode)
               : "size-[15px] text-primary dark:text-primary-foreground",
           )}
         />

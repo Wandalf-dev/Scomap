@@ -29,8 +29,8 @@ type DisplayMode = "calendar" | "timeline";
 
 const DISPLAY_STORAGE_KEY = "planning:view";
 
-// Délai avant d'ouvrir le sheet au simple clic : laisse au double-clic
-// le temps d'annuler le clic simple (sinon le sheet flasherait).
+// Delay before opening the sheet on single click: gives double-click
+// enough time to cancel the pending single click (otherwise the sheet would flash).
 const SINGLE_CLICK_DELAY_MS = 250;
 
 function formatOccurrenceDate(dateStr: string) {
@@ -53,9 +53,9 @@ export function PlanningClient() {
   const [editingOccurrence, setEditingOccurrence] =
     useState<OccurrenceItem | null>(null);
 
-  // Vue Calendrier/Timeline — SSR-safe : on rend « calendar » au premier
-  // rendu, puis on applique post-mount le choix localStorage (prioritaire)
-  // ou le défaut métier (transporteur → timeline).
+  // Calendar/Timeline view — SSR-safe: we render "calendar" on first
+  // render, then apply the localStorage choice post-mount (takes priority)
+  // or the business default (transporteur → timeline).
   const [display, setDisplay] = useState<DisplayMode>("calendar");
   const hasStoredChoice = useRef(false);
   const { data: settings } = useQuery(trpc.tenantSettings.get.queryOptions());
@@ -129,8 +129,8 @@ export function PlanningClient() {
     }),
   );
 
-  // Simple clic = sheet de détail (différé), double-clic = dialog de
-  // personnalisation (annule le clic simple en attente).
+  // Single click = detail sheet (deferred), double-click = customization dialog
+  // (cancels the pending single click).
   const clickTimerRef = useRef<number | null>(null);
   useEffect(() => {
     return () => {
@@ -239,7 +239,7 @@ export function PlanningClient() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Switch de vue Calendrier / Timeline */}
+          {/* Calendar / Timeline view switch */}
           <div className="flex items-center rounded-[0.3rem] border border-border">
             <Button
               variant={display === "calendar" ? "secondary" : "ghost"}
@@ -259,7 +259,7 @@ export function PlanningClient() {
             </Button>
           </div>
 
-          {/* Période */}
+          {/* Period */}
           <div className="flex items-center rounded-[0.3rem] border border-border">
             <Button
               variant={period === "week" ? "secondary" : "ghost"}
@@ -281,7 +281,7 @@ export function PlanningClient() {
         </div>
       </div>
 
-      {/* Contenu */}
+      {/* Content */}
       {isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-8 w-full" />
@@ -339,7 +339,7 @@ export function PlanningClient() {
         }}
       />
 
-      {/* Dialog de personnalisation ponctuelle */}
+      {/* One-off customization dialog */}
       <OccurrenceEditDialog
         open={!!editingOccurrence}
         onOpenChange={(open) => !open && setEditingOccurrence(null)}

@@ -20,8 +20,8 @@ export default async function TrajetDetailPage({
 
   await Promise.all([
     queryClient.prefetchQuery(trpc.trajets.getById.queryOptions({ id })),
-    // Même input que le client ({ all: true }), sinon le prefetch alimente
-    // une autre entrée de cache et la liste recharge côté client.
+    // Same input as the client ({ all: true }), otherwise the prefetch populates
+    // a different cache entry and the list reloads on the client side.
     queryClient.prefetchQuery(
       trpc.arrets.list.queryOptions({ trajetId: id, all: true }),
     ),

@@ -11,7 +11,7 @@ const preferencesSchema = z.object({
       side: z.enum(["left", "right"]),
     })
     .optional(),
-  // Injecté dans document.style.setProperty("--radius", …) : format strict
+  // Injected via document.style.setProperty("--radius", …): strict format
   radius: z
     .string()
     .regex(/^\d+(\.\d+)?rem$/)

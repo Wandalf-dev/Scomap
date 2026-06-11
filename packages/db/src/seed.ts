@@ -17,7 +17,7 @@ const TENANT_SLUG = "demo";
 const TRANSPORT_START = "2025-09-01";
 const TRANSPORT_END = "2026-07-04";
 
-// Données de référence
+// Reference data
 const VILLES_PACA = [
   { city: "Arles", postalCode: "13200", lat: 43.6768, lng: 4.6308 },
   { city: "Tarascon", postalCode: "13150", lat: 43.806, lng: 4.6614 },
@@ -110,7 +110,7 @@ function randomBirthDate(minAge: number, maxAge: number): string {
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // 1. Récupérer le tenant demo
+  // 1. Fetch the demo tenant
   const tenant = await db
     .select({ id: tenants.id })
     .from(tenants)
@@ -124,7 +124,7 @@ async function main() {
   const tenantId = tenant.id;
   console.log(`✓ Tenant: ${TENANT_SLUG} (${tenantId})`);
 
-  // 2. Créer 20 établissements
+  // 2. Create 20 établissements
   const etabRows: { id: string; type: string }[] = [];
   const ecolesCount = 12;
   const collegesCount = 8;
@@ -173,8 +173,8 @@ async function main() {
 
   console.log(`✓ ${etabRows.length} établissements créés`);
 
-  // 3. Créer 100 usagers
-  // Récupérer le compteur actuel d'usagers pour ce tenant
+  // 3. Create 100 usagers
+  // Fetch the current usager counter for this tenant
   const counterRow = await db
     .select({ lastValue: tenantCounters.lastValue })
     .from(tenantCounters)
@@ -213,7 +213,7 @@ async function main() {
     });
   }
 
-  // Mettre à jour le compteur
+  // Update the counter
   await db
     .insert(tenantCounters)
     .values({
@@ -228,7 +228,7 @@ async function main() {
 
   console.log(`✓ ${usagersToCreate} usagers créés (#${startDisplayId} → #${nextDisplayId - 1})`);
 
-  // 4. Créer 10 circuits
+  // 4. Create 10 circuits
   const circuitNames = [
     "Circuit Matin Centre", "Circuit Matin Nord", "Circuit Matin Sud",
     "Circuit Midi Retour", "Circuit Soir Centre", "Circuit Soir Nord",

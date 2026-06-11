@@ -65,7 +65,7 @@ export const tenantSettingsRouter = createTRPCRouter({
       .where(eq(tenants.id, ctx.tenantId))
       .limit(1);
 
-    // Présence/masque des clés (jamais la clé en clair).
+    // Key presence/mask (never the key in plain text).
     const keyStatus = await getProviderKeyStatus(ctx.db, ctx.tenantId);
 
     return {
@@ -76,7 +76,7 @@ export const tenantSettingsRouter = createTRPCRouter({
     };
   }),
 
-  /** Profil métier du client (département / transporteur). */
+  /** Business profile of the client (département / transporteur). */
   setType: adminProcedure
     .input(z.object({ type: z.enum(tenantTypes) }))
     .mutation(async ({ ctx, input }) => {
@@ -128,7 +128,7 @@ export const tenantSettingsRouter = createTRPCRouter({
       return result[0] ?? null;
     }),
 
-  /** Enregistre (chiffrée) la clé d'API d'un provider. Écriture seule : jamais relue. */
+  /** Stores (encrypted) the API key of a provider. Write-only: never read back. */
   setProviderKey: adminProcedure
     .input(setProviderKeySchema)
     .mutation(async ({ ctx, input }) => {
@@ -142,7 +142,7 @@ export const tenantSettingsRouter = createTRPCRouter({
       return { ok: true };
     }),
 
-  /** Teste le moteur de routing configuré sur un court trajet parisien. */
+  /** Tests the configured routing engine on a short Parisian trajet. */
   testRouting: tenantProcedure.mutation(async ({ ctx }) => {
     const cfg = await resolveRoutingConfig(ctx.db, ctx.tenantId);
     const outcome = await computeSegmentForTenant(

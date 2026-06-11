@@ -24,13 +24,13 @@ export const trajets = pgTable("trajets", {
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
-  // N° lisible séquentiel par tenant (façon Transcolaire), distinct de l'UUID.
+  // Sequential human-readable number per tenant (Transcolaire-style), distinct from the UUID.
   displayId: integer("display_id").notNull(),
   circuitId: uuid("circuit_id")
     .notNull()
     .references(() => circuits.id, { onDelete: "cascade" }),
-  // Avenant ayant créé ce trajet (FK posée en SQL pour éviter un cycle
-  // d'import schéma trajets <-> avenants). Null si association directe.
+  // Avenant that created this trajet (FK defined in SQL to avoid a schema
+  // import cycle trajets <-> avenants). Null if direct association.
   createdByAvenantId: uuid("created_by_avenant_id"),
   chauffeurId: uuid("chauffeur_id").references(() => chauffeurs.id, {
     onDelete: "set null",
@@ -63,7 +63,7 @@ export const trajets = pgTable("trajets", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+  // Back-to-school preparation: null = production, otherwise a draft copy linked to a campaign.
   preparationCampaignId: uuid("preparation_campaign_id"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 }, (t) => [
@@ -133,8 +133,8 @@ export const arrets = pgTable("arrets", {
   distanceKm: doublePrecision("distance_km"),
   durationSeconds: integer("duration_seconds"),
   timeLocked: boolean("time_locked").notNull().default(false),
-  // Fenêtre de présence de l'usager sur ce trajet (résolution par date des
-  // avenants). null/null = toujours actif (arrêt non borné dans le temps).
+  // Usager presence window on this trajet (resolved by avenant date).
+  // null/null = always active (unbounded arrêt).
   validFrom: date("valid_from"),
   validTo: date("valid_to"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -143,7 +143,7 @@ export const arrets = pgTable("arrets", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  // Préparation de rentrée : null = production, sinon copie liée à une campagne.
+  // Back-to-school preparation: null = production, otherwise a draft copy linked to a campaign.
   preparationCampaignId: uuid("preparation_campaign_id"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });

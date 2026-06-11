@@ -89,7 +89,7 @@ async function main() {
   if (!tenant) throw new Error(`Tenant '${TENANT_SLUG}' introuvable`);
   const tenantId = tenant.id;
 
-  // Récupérer les usagers + leur établissement (pour la ville)
+  // Fetch usagers + their établissement (for the city)
   const usagersList = await db
     .select({
       id: usagers.id,
@@ -109,7 +109,7 @@ async function main() {
   let usagersWithSplitCustody = 0;
 
   for (const u of usagersList) {
-    // Skip si déjà des adresses
+    // Skip if addresses already exist
     const existing = await db
       .select({ id: usagerAddresses.id })
       .from(usagerAddresses)
@@ -117,21 +117,21 @@ async function main() {
       .limit(1);
     if (existing.length > 0) continue;
 
-    // Coordonnées de base = établissement (ville) avec jitter pour simuler un quartier
+    // Base coordinates = établissement (city) with jitter to simulate a neighbourhood
     const baseLat = u.etablissementLat ?? 43.6768;
     const baseLng = u.etablissementLng ?? 4.6308;
     const city = u.etablissementCity ?? "Arles";
     const postalCode = u.etablissementPostalCode ?? "13200";
 
-    const isSplitCustody = maybe(0.18); // 18% des usagers ont une garde alternée
-    // Le type de transport est désormais porté par l'usager (plus par l'adresse).
+    const isSplitCustody = maybe(0.18); // 18% of usagers have split custody
+    // Transport type is now carried by the usager (no longer by the address).
     const transportType = pick(TRANSPORT_TYPES);
     await db
       .update(usagers)
       .set({ transportType })
       .where(eq(usagers.id, u.id));
 
-    // Adresse #1 — domicile principal (parents ou mère)
+    // Address #1 — primary home (parents or mother)
     const lastName1 = u.lastName;
     const responsibleFirst1 = pick(PRENOMS_PARENTS);
     const days1Aller = randomDays();
@@ -159,7 +159,7 @@ async function main() {
     });
     totalAddresses++;
 
-    // Adresse #2 — garde alternée (père séparé) ou grand-parent occasionnel
+    // Address #2 — split custody (separated father) or occasional grandparent
     if (isSplitCustody) {
       usagersWithSplitCustody++;
       const remainingDays = [1, 2, 3, 4, 5].filter(
@@ -194,7 +194,7 @@ async function main() {
       });
       totalAddresses++;
     } else if (maybe(0.12)) {
-      // 12% des autres ont une 2e adresse occasionnelle (grand-parent)
+      // 12% of the others have a 2nd occasional address (grandparent)
       await db.insert(usagerAddresses).values({
         tenantId,
         usagerId: u.id,

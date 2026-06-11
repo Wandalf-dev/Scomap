@@ -24,18 +24,18 @@ const PointMap = dynamic(
 interface AddressMapDialogProps {
   latitude: number | null | undefined;
   longitude: number | null | undefined;
-  /** Titre du dialog + libellé du marqueur. */
+  /** Dialog title + marker label. */
   label: string;
-  /** Texte affiché à côté de l'icône (sinon bouton icône seule). */
+  /** Text displayed next to the icon (otherwise icon-only button). */
   buttonLabel?: string;
   variant?: "outline" | "ghost" | "secondary";
   triggerClassName?: string;
 }
 
 /**
- * Bouton de géolocalisation : ouvre une carte centrée sur la lat/lng fournie
- * (point unique), pour vérifier qu'une adresse saisie pointe au bon endroit.
- * Réutilise TrajetMap (un seul arrêt). Désactivé sans coordonnées.
+ * Geolocation button: opens a map centered on the provided lat/lng
+ * (single point), to verify that an entered address points to the right place.
+ * Reuses PointMap (single arrêt). Disabled without coordinates.
  */
 export function AddressMapDialog({
   latitude,

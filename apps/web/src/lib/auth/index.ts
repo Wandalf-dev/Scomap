@@ -6,8 +6,8 @@ import { users, tenants } from "@scomap/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getTenantSlug } from "../tenant";
 
-// Hash bcrypt (cost 12) d'une valeur factice : comparé quand l'email n'existe
-// pas, pour que le temps de réponse ne révèle pas l'existence du compte.
+// bcrypt hash (cost 12) of a dummy value: compared when the email does not exist
+// so that the response time does not reveal whether the account exists.
 const DUMMY_HASH =
   "$2b$12$XyfTot6daCHosRDk1qa8CubGvQYg1OJ63HCOP35qJbyzTrlaPxenS";
 
@@ -54,14 +54,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .limit(1);
 
         if (user.length === 0) {
-          await compare(password, DUMMY_HASH); // égalise le timing
+          await compare(password, DUMMY_HASH); // equalise timing
           return null;
         }
 
         const foundUser = user[0];
 
         if (!foundUser.passwordHash) {
-          await compare(password, DUMMY_HASH); // égalise le timing
+          await compare(password, DUMMY_HASH); // equalise timing
           return null;
         }
 
@@ -108,8 +108,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
-    // JWT stateless = non révocable avant expiration : fenêtre volontairement
-    // plus courte que les 30 jours par défaut d'Auth.js.
-    maxAge: 7 * 24 * 60 * 60, // 7 jours
+    // Stateless JWT = not revocable before expiry: window intentionally shorter
+    // than Auth.js's 30-day default.
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
 });

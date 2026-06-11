@@ -1,16 +1,15 @@
-// Suggestions de circuits pour un usager.
+// Circuit suggestions for a usager.
 //
-// Le projet n'utilise pas PostGIS : les distances sont calculées en JavaScript
-// à partir des coordonnées lat/lng (adresses, arrêts) et des tracés des trajets
-// (routeGeometry, une polyligne GeoJSON de paires [lng, lat]).
+// The project does not use PostGIS: distances are computed in JavaScript
+// from lat/lng coordinates (addresses, arrêts) and trajet routes
+// (routeGeometry, a GeoJSON polyline of [lng, lat] pairs).
 //
-// Deux signaux distincts, qui correspondent aux deux raisons exposées à
-// l'utilisateur :
-//  1. « Même établissement » — pertinence : un circuit dessert UN établissement
-//     de destination, l'usager va au sien. C'est la condition de base.
-//  2. « Optimisation du trajet » — le tracé du circuit passe près du domicile :
-//     l'ajouter coûte peu de détour. C'est ce qui départage les circuits d'un
-//     même établissement.
+// Two distinct signals, matching the two reasons shown to the user:
+//  1. "Same établissement" — relevance: a circuit serves ONE destination
+//     établissement, and the usager goes to theirs. This is the base condition.
+//  2. "Trajet optimisation" — the circuit route passes near the home:
+//     adding the usager costs little detour. This breaks ties between circuits
+//     serving the same établissement.
 
 const EARTH_RADIUS_M = 6_371_000;
 
@@ -18,7 +17,7 @@ function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-/** Distance grand-cercle entre deux points (mètres). */
+/** Great-circle distance between two points (metres). */
 export function haversineMeters(
   aLat: number,
   aLng: number,
@@ -36,9 +35,9 @@ export function haversineMeters(
 }
 
 /**
- * Distance d'un point au segment [A, B] (mètres), via une projection
- * équirectangulaire locale centrée sur le point — précision largement
- * suffisante à l'échelle d'un département.
+ * Distance from a point to segment [A, B] (metres), via a local equirectangular
+ * projection centred on the point — accuracy is more than sufficient at
+ * département scale.
  */
 function pointToSegmentMeters(
   pLat: number,
@@ -50,7 +49,7 @@ function pointToSegmentMeters(
 ): number {
   const mPerDegLat = 111_320;
   const mPerDegLng = 111_320 * Math.cos(toRad(pLat));
-  // Repère local métrique centré sur P (origine).
+  // Local metric coordinate system centred on P (origin).
   const ax = (aLng - pLng) * mPerDegLng;
   const ay = (aLat - pLat) * mPerDegLat;
   const bx = (bLng - pLng) * mPerDegLng;
@@ -65,7 +64,7 @@ function pointToSegmentMeters(
   return Math.hypot(cx, cy);
 }
 
-/** Distance minimale d'un point à une polyligne (paires [lng, lat]) en mètres. */
+/** Minimum distance from a point to a polyline ([lng, lat] pairs) in metres. */
 export function pointToPolylineMeters(
   pLat: number,
   pLng: number,
@@ -86,16 +85,16 @@ export function pointToPolylineMeters(
 export interface SuggestionAddress {
   lat: number;
   lng: number;
-  /** Libellé lisible (ex. « Mère », « Adresse 2 ») pour l'explication. */
+  /** Human-readable label (e.g. "Mère", "Adresse 2") for the explanation. */
   label: string;
 }
 
 export interface CandidateCircuit {
   id: string;
   etablissementId: string | null;
-  /** Polylignes [lng, lat][] des trajets du circuit (vide si non calculé). */
+  /** Polylines [lng, lat][] of the circuit's trajets (empty if not computed). */
   routes: number[][][];
-  /** Arrêts usager existants (coordonnées). */
+  /** Existing usager arrêts (coordinates). */
   stops: { lat: number; lng: number }[];
 }
 
@@ -120,12 +119,12 @@ export interface ScoredCircuitSuggestion {
   reasons: SuggestionReason[];
 }
 
-// Poids du scoring.
+// Scoring weights.
 const SCORE_ETAB_PRIMARY = 60;
 const SCORE_ETAB_SECONDARY = 45;
 const SCORE_STOP_SHARE = 12; // bonus « arrêt mutualisable »
 const STOP_SHARE_MAX_M = 150;
-/** Score minimal pour qu'un circuit soit présenté comme « suggéré ». */
+/** Minimum score for a circuit to be presented as "suggested". */
 const SUGGESTION_THRESHOLD = 20;
 
 function formatDistance(m: number): string {
@@ -133,7 +132,7 @@ function formatDistance(m: number): string {
   return `${Math.round(m / 10) * 10} m`;
 }
 
-/** Paliers de proximité domicile↔(tracé|arrêt) : score + libellé selon la source. */
+/** Home↔(route|arrêt) proximity tiers: score + label based on the source. */
 const PROXIMITY_LEVELS: {
   maxM: number;
   score: number;
@@ -160,7 +159,7 @@ export function scoreCircuitForUsager(
   const reasons: SuggestionReason[] = [];
   let score = 0;
 
-  // 1. Établissement (pertinence).
+  // 1. Etablissement (relevance).
   if (ctx.etablissementId && circuit.etablissementId === ctx.etablissementId) {
     score += SCORE_ETAB_PRIMARY;
     reasons.push({
@@ -180,10 +179,10 @@ export function scoreCircuitForUsager(
     });
   }
 
-  // 2. Proximité du tracé (optimisation) — meilleure adresse × meilleur tracé.
-  // On ignore les distances non finies (coordonnées NaN, tracé sans segment
-  // valide) : sinon une première itération NaN/Infinity « empoisonnerait » la
-  // réduction min (toute comparaison ultérieure `x < NaN` est fausse).
+  // 2. Route proximity (optimisation) — best address × best route.
+  // Non-finite distances (NaN coordinates, route without a valid segment)
+  // are ignored: otherwise a first NaN/Infinity iteration would "poison" the
+  // min reduction (every subsequent comparison `x < NaN` is false).
   let bestRoute: { m: number; addr: SuggestionAddress } | null = null;
   for (const addr of ctx.addresses) {
     for (const route of circuit.routes) {
@@ -194,7 +193,7 @@ export function scoreCircuitForUsager(
     }
   }
 
-  // 3. Proximité d'un arrêt existant (mutualisation / repli si pas de tracé).
+  // 3. Proximity to an existing arrêt (pooling / fallback when no route).
   let bestStop: { m: number; addr: SuggestionAddress } | null = null;
   for (const addr of ctx.addresses) {
     for (const stop of circuit.stops) {
@@ -204,9 +203,9 @@ export function scoreCircuitForUsager(
     }
   }
 
-  // Signal de proximité principal : le plus proche entre tracé et arrêt (et non
-  // « le tracé d'abord »), pour ne pas masquer un arrêt bien plus proche quand
-  // le tracé est lointain, absent ou géométriquement invalide.
+  // Primary proximity signal: the closer of route and arrêt (not "route first"),
+  // to avoid hiding a much closer arrêt when the route is distant, absent,
+  // or geometrically invalid.
   const primary =
     bestRoute && (!bestStop || bestRoute.m <= bestStop.m) ? bestRoute : bestStop;
   const usingRoute = primary !== null && primary === bestRoute;
@@ -225,8 +224,8 @@ export function scoreCircuitForUsager(
     }
   }
 
-  // Bonus « arrêt mutualisable » uniquement si le tracé est le signal principal
-  // (sinon l'arrêt est déjà crédité comme proximité principale → double compte).
+  // "Shareable arrêt" bonus only when the route is the primary signal
+  // (otherwise the arrêt is already credited as primary proximity → double count).
   if (usingRoute && bestStop && bestStop.m <= STOP_SHARE_MAX_M) {
     score += SCORE_STOP_SHARE;
     reasons.push({
@@ -244,7 +243,7 @@ export function scoreCircuitForUsager(
   };
 }
 
-/** Score tous les circuits candidats et ne garde que les suggestions, triées. */
+/** Scores all candidate circuits and keeps only the suggestions, sorted. */
 export function suggestCircuits(
   ctx: SuggestionContext,
   candidates: CandidateCircuit[],

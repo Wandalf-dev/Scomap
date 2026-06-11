@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-// Le `.max()` sur le mot de passe borne le travail bcrypt (qui tronque à
-// 72 octets de toute façon) ; pas de `.min()` au login pour ne pas bloquer
-// d'éventuels comptes antérieurs à la politique actuelle.
+// The `.max()` on password caps the bcrypt work (which truncates at 72 bytes
+// anyway); no `.min()` at login to avoid blocking accounts created before the
+// current password policy.
 export const loginSchema = z.object({
   email: z.string().email("Email invalide").max(254),
   password: z.string().min(1, "Mot de passe requis").max(128),

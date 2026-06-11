@@ -125,7 +125,7 @@ export function EtablissementCreateClient() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Informations générales */}
+          {/* General information */}
           <Card>
             <CardHeader>
               <CardTitle>Informations générales</CardTitle>
@@ -382,7 +382,7 @@ export function EtablissementCreateClient() {
             </CardContent>
           </Card>
 
-          {/* Responsable */}
+          {/* Manager */}
           <Card>
             <CardHeader>
               <CardTitle>Responsable</CardTitle>

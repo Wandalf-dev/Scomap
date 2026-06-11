@@ -163,7 +163,7 @@ export const etablissementsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Coordonnées avant modification, pour détecter un changement de géoloc.
+      // Coordinates before update, to detect a geolocation change.
       const beforeRows = await ctx.db
         .select({
           latitude: etablissements.latitude,
@@ -234,9 +234,9 @@ export const etablissementsRouter = createTRPCRouter({
           );
       }
 
-      // Si la géolocalisation a changé, le calcul itinéraire/horaires des
-      // trajets des circuits liés n'est plus valide : on le réinitialise pour
-      // forcer un recalcul (l'état « OK » ne reposant que sur ces champs).
+      // If the geolocation changed, the route/schedule calculation for the
+      // trajets of linked circuits is no longer valid: reset it to force a
+      // recalculation (the "OK" état relies only on those fields).
       const coordsChanged =
         !!updated &&
         (before?.latitude !== updated.latitude ||
@@ -268,7 +268,7 @@ export const etablissementsRouter = createTRPCRouter({
           const trajetIds = trajetRows.map((t) => t.id);
 
           if (trajetIds.length > 0) {
-            // Réinitialise km / temps / tracé du trajet.
+            // Reset km / duration / route geometry of the trajet.
             await ctx.db
               .update(trajets)
               .set({
@@ -283,7 +283,7 @@ export const etablissementsRouter = createTRPCRouter({
                   eq(trajets.tenantId, ctx.tenantId),
                 ),
               );
-            // Réinitialise les horaires de PEC des arrêts (hors verrouillés).
+            // Reset PEC schedules of arrêts (excluding locked ones).
             await ctx.db
               .update(arrets)
               .set({ arrivalTime: null, updatedAt: new Date() })
@@ -310,7 +310,7 @@ export const etablissementsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Horaires avant modification, pour détecter un vrai changement.
+      // Schedules before update, to detect an actual change.
       const beforeRows = await ctx.db
         .select({ schedules: etablissements.schedules })
         .from(etablissements)
@@ -341,9 +341,9 @@ export const etablissementsRouter = createTRPCRouter({
 
       const updated = result[0];
 
-      // Si les horaires de l'établissement changent, les horaires de PEC des
-      // trajets des circuits liés ne sont plus valides : on les réinitialise
-      // (sauf arrêts à horaire verrouillé manuellement) pour forcer un recalcul.
+      // If the établissement's schedules change, the PEC schedules of the
+      // trajets of linked circuits are no longer valid: reset them
+      // (except manually time-locked arrêts) to force a recalculation.
       const schedulesChanged =
         !!updated &&
         JSON.stringify(before?.schedules ?? null) !==
@@ -379,8 +379,8 @@ export const etablissementsRouter = createTRPCRouter({
           const trajetIds = trajetRows.map((t) => t.id);
 
           if (trajetIds.length > 0) {
-            // Re-ancre chaque trajet sur l'horaire de l'établissement
-            // (matin pour un aller, soir pour un retour).
+            // Re-anchor each trajet on the établissement's schedule
+            // (morning for an aller, evening for a retour).
             for (const t of trajetRows) {
               const rec = t.recurrence as { daysOfWeek?: unknown } | null;
               const anchor = resolveScheduleAnchor(
@@ -397,7 +397,7 @@ export const etablissementsRouter = createTRPCRouter({
                     eq(trajets.tenantId, ctx.tenantId),
                   ),
                 );
-              // Arrêt établissement = ancre verrouillée (horaire école).
+              // Etablissement arrêt = locked anchor (school schedule).
               await ctx.db
                 .update(arrets)
                 .set({
@@ -414,8 +414,8 @@ export const etablissementsRouter = createTRPCRouter({
                   ),
                 );
             }
-            // Invalide les horaires de PEC calculés (hors verrouillés) :
-            // ils seront recalculés à partir de la nouvelle ancre.
+            // Invalidate the computed PEC schedules (excluding locked ones):
+            // they will be recalculated from the new anchor.
             await ctx.db
               .update(arrets)
               .set({ arrivalTime: null, updatedAt: new Date() })

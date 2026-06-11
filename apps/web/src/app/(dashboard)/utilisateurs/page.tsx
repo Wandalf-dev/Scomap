@@ -8,7 +8,7 @@ import { UsersCard } from "@/components/utilisateurs/users-card";
 export const metadata: Metadata = { title: "Utilisateurs" };
 
 export default async function UtilisateursPage() {
-  // Page réservée aux administrateurs (rôle relu frais en DB)
+  // Page restricted to administrators (role re-read fresh from DB)
   const session = await getValidatedSession();
   if (session?.user?.role !== "admin") {
     redirect("/dashboard");

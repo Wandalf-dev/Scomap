@@ -49,7 +49,7 @@ interface UsagerCircuitRow {
   avenantCount: number;
 }
 
-// "YYYY-MM-DD" → "JJ/MM/AAAA".
+// "YYYY-MM-DD" → "DD/MM/YYYY".
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   const [y, m, day] = d.split("-");
@@ -61,10 +61,9 @@ interface TabUsagersProps {
 }
 
 /**
- * Vue circuit-centrée des usagers affectés, en LECTURE SEULE.
- * L'association se fait uniquement depuis la fiche usager ; les changements
- * de jours/adresse passent par un avenant. Seule la dissociation est offerte
- * ici.
+ * Circuit-centric view of assigned usagers, READ ONLY.
+ * Association is done exclusively from the usager detail page; day/address
+ * changes go through an avenant. Only dissociation is offered here.
  */
 export function TabUsagers({ circuitId }: TabUsagersProps) {
   const trpc = useTRPC();
@@ -73,14 +72,14 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
 
   const [deleteItem, setDeleteItem] = useState<UsagerCircuitRow | null>(null);
 
-  // openOnly : on montre TOUS les usagers du circuit (courants + à venir, ex.
-  // un usager qui démarre plus tard), pas seulement ceux actifs aujourd'hui.
+  // openOnly: show ALL usagers on the circuit (current + upcoming, e.g.
+  // a usager starting later), not only those active today.
   const { data: linkedUsagers, isLoading } = useQuery(
     trpc.usagerCircuits.listByCircuit.queryOptions({ circuitId, openOnly: true }),
   );
 
-  // Dès qu'un circuit a un avenant (au-delà de la base), on bloque la
-  // dissociation directe de tous ses usagers (cohérent avec la garde serveur).
+  // As soon as a circuit has an avenant (beyond the base), direct dissociation
+  // of all its usagers is blocked (consistent with the server guard).
   const { data: circuitAvenants } = useQuery(
     trpc.avenants.listByCircuit.queryOptions({ circuitId }),
   );
@@ -95,8 +94,8 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listByCircuit.queryKey({ circuitId }),
         });
-        // Rafraîchit usagerCount → déverrouille les dates dès qu'il n'y a plus
-        // d'usager (onglet Informations), sans attendre un rechargement.
+        // Refreshes usagerCount → unlocks dates as soon as there are no more
+        // usagers (Informations tab), without waiting for a full reload.
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.getById.queryKey({ id: circuitId }),
         });
@@ -156,8 +155,8 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
                 className="group/row cursor-pointer transition-colors hover:bg-muted/50"
               >
                 <TableCell className="whitespace-nowrap tabular-nums">
-                  {/* Début sur le circuit : validFrom de l'affectation (cas
-                      avenant), sinon date de début de transport de l'usager. */}
+                  {/* Start on circuit: validFrom of the affectation (avenant
+                      case), otherwise the usager's transport start date. */}
                   {item.validFrom ?? item.transportStartDate ? (
                     formatDate(item.validFrom ?? item.transportStartDate)
                   ) : (

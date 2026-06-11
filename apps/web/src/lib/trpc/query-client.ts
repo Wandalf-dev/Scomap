@@ -9,9 +9,9 @@ import { toast } from "sonner";
 export function makeQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
-      // Sans handler global, une query en erreur est indiscernable d'un état vide
-      // pour les écrans qui ne lisent pas `error`. On ne signale que l'échec du
-      // chargement initial : un refetch raté garde les données déjà affichées.
+      // Without a global handler, a failing query is indistinguishable from an empty
+      // state for screens that don't read `error`. We only signal the initial load
+      // failure: a failed refetch preserves the already-displayed data.
       onError: (_error, query) => {
         if (typeof window === "undefined") return;
         if (query.state.data !== undefined) return;

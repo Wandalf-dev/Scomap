@@ -37,7 +37,7 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
   const router = useRouter();
   const [occOpen, setOccOpen] = useState(false);
 
-  // Retour contextuel (param ?back=) restreint à un chemin interne (anti open-redirect).
+  // Contextual back link (?back= param) restricted to an internal path (anti open-redirect).
   const safeBack =
     backHref && backHref.startsWith("/") && !backHref.startsWith("//")
       ? backHref
@@ -48,11 +48,11 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
   );
 
   const { data: arretsList } = useQuery(
-    // Composition complète du trajet (y compris arrêts à venir d'un avenant).
+    // Full composition of the trajet (including upcoming arrêts from an avenant).
     trpc.arrets.list.queryOptions({ trajetId: id, all: true }),
   );
 
-  // Fond de carte configuré par le tenant (réglages > Paramètres).
+  // Basemap configured by the tenant (settings > Paramètres).
   const { data: basemap } = useQuery(trpc.basemap.getStyle.queryOptions());
 
   const deleteMutation = useMutation(
@@ -111,7 +111,7 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
       ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
       : "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-400";
 
-  // État explicite (km + horaires). hasTimes : tous les arrêts actifs ont une heure.
+  // Explicit état (km + horaires). hasTimes: all active arrêts have a time.
   const hasTimes =
     !!arretsList &&
     arretsList.length > 0 &&
@@ -142,15 +142,15 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
       isDeleting={deleteMutation.isPending}
       deleteEntityName="le trajet"
       deleteLabel={trajet?.name ?? ""}
-      // Fiche mono-vue : tout reste visible d'un coup (formulaire, arrêts,
-      // carte, occurrences), la barre d'onglets est masquée par le layout.
+      // Single-view fiche: everything stays visible at once (form, arrêts,
+      // map, occurrences); the tab bar is hidden by the layout.
       tabs={[
         {
           value: "fiche",
           label: "Fiche",
           content: trajet ? (
             <div className="space-y-6">
-              {/* Rattachement + période effective (avenants compris) */}
+              {/* Circuit attachment + effective period (avenants included) */}
               {(trajet.circuitName ||
                 trajet.effectiveStartDate ||
                 trajet.effectiveEndDate) && (
@@ -200,7 +200,7 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
                 circuitEndDate={trajet.circuitEndDate ?? null}
               />
 
-              {/* Barre d'actions de calcul */}
+              {/* Calculation action bar */}
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   onClick={() => calculateRouteMutation.mutate({ trajetId: id })}
@@ -242,7 +242,7 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
                 )}
               </div>
 
-              {/* Table des arrêts + carte */}
+              {/* Arrêts table + map */}
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
                 <div className="lg:col-span-3">
                   <TrajetArrets trajetId={id} />
@@ -266,7 +266,7 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
                 </div>
               </div>
 
-              {/* Occurrences - collapsible */}
+              {/* Occurrences — collapsible */}
               <Collapsible open={occOpen} onOpenChange={setOccOpen}>
                 <CollapsibleTrigger asChild>
                   <Button

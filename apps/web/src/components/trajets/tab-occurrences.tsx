@@ -55,7 +55,7 @@ function formatDate(dateStr: string) {
   });
 }
 
-/** Décale une date ISO (yyyy-MM-dd) de `days` jours. */
+/** Shifts an ISO date (yyyy-MM-dd) by `days` days. */
 function addDaysISO(iso: string, days: number): string {
   const d = new Date(iso + "T00:00:00");
   d.setDate(d.getDate() + days);
@@ -64,7 +64,7 @@ function addDaysISO(iso: string, days: number): string {
 
 interface TabOccurrencesProps {
   trajetId: string;
-  /** Fenêtre d'effectivité du trajet (repli : autour d'aujourd'hui). */
+  /** Effectivity window of the trajet (fallback: around today). */
   windowStart?: string | null;
   windowEnd?: string | null;
 }
@@ -77,12 +77,12 @@ export function TabOccurrences({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  // Les occurrences sont dérivées de la récurrence du trajet : on liste la
-  // fenêtre d'effectivité quand elle est connue, sinon une plage glissante.
+  // Occurrences are derived from the trajet recurrence: we list the
+  // effectivity window when known, otherwise a rolling range.
   const today = new Date().toISOString().split("T")[0]!;
   const fromDate = windowStart ?? addDaysISO(today, -60);
   const rawToDate = windowEnd ?? addDaysISO(today, 300);
-  // Garde serveur : 400 jours max.
+  // Server guard: 400 days max.
   const maxToDate = addDaysISO(fromDate, 399);
   const toDate = rawToDate > maxToDate ? maxToDate : rawToDate;
 

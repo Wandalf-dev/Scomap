@@ -8,9 +8,9 @@ export const AVENANT_TYPE_LABELS = {
   jours_pec: "Jours de PEC",
   adresse: "Adresse",
   type_transport: "Type de transport",
-  // Créé automatiquement quand un usager rejoint un circuit déjà démarré
-  // (cf. usagerCircuits.create). Pas dans avenantChangeInputSchema : non saisi
-  // via le formulaire d'avenant, uniquement généré côté serveur.
+  // Created automatically when a usager joins an already-started circuit
+  // (see usagerCircuits.create). Not in avenantChangeInputSchema: not entered
+  // via the avenant form, only generated server-side.
   ajout: "Ajout d'usager",
 } as const;
 
@@ -19,7 +19,7 @@ export type AvenantChangeType = keyof typeof AVENANT_TYPE_LABELS;
 export const AVENANT_STATUS_LABELS = {
   actif: "Actif",
   annule: "Annulé",
-  // États historiques conservés pour compatibilité d'affichage.
+  // Historical states kept for display compatibility.
   brouillon: "Brouillon",
   planifie: "Planifié",
   applique: "Appliqué",
@@ -28,14 +28,14 @@ export const AVENANT_STATUS_LABELS = {
 export type AvenantStatus = keyof typeof AVENANT_STATUS_LABELS;
 
 /**
- * Un changement par usager. La forme dépend du type (union discriminée) :
- * - etablissement   : nouvelle école de l'usager (indépendant du circuit)
- * - circuit         : re-router l'affectation vers un autre circuit (+ adresse)
- * - jours_pec       : nouveaux jours aller/retour sur l'affectation
- * - adresse         : basculer l'affectation sur une autre adresse de l'usager
- * - type_transport  : changer le mode de transport de l'usager ; si le nouveau
- *                     mode n'est pas un mode circuit (famille / transport en
- *                     commun), les affectations circuit actives sont clôturées.
+ * One change per usager. The shape depends on the type (discriminated union):
+ * - etablissement   : new établissement for the usager (independent of the circuit)
+ * - circuit         : re-route the assignment to another circuit (+ address)
+ * - jours_pec       : new aller/retour days on the assignment
+ * - adresse         : switch the assignment to another address of the usager
+ * - type_transport  : change the usager's transport mode; if the new mode is not
+ *                     a circuit mode (famille / transport en commun), active
+ *                     circuit assignments are closed.
  */
 export const avenantChangeInputSchema = z.discriminatedUnion("type", [
   z.object({

@@ -1,7 +1,7 @@
-// Type partagé des occurrences du planning (sortie de trajets.listOccurrences).
-// Les occurrences sont dérivées des trajets : `id` n'existe que si une ligne
-// d'exception (personnalisation/statut) a été créée. L'identité fonctionnelle
-// est le couple (trajetId, date).
+// Shared type for planning occurrences (output of trajets.listOccurrences).
+// Occurrences are derived from trajets: `id` only exists if an exception row
+// (customization/status) has been created. The functional identity
+// is the pair (trajetId, date).
 export interface OccurrenceItem {
   id: string | null;
   trajetId: string;
@@ -22,7 +22,7 @@ export interface OccurrenceItem {
   vehiculeName: string | null;
 }
 
-/** Une occurrence est « personnalisée » dès qu'au moins un override est posé. */
+/** An occurrence is "customized" as soon as at least one override is set. */
 export function hasOverride(occ: OccurrenceItem): boolean {
   return (
     occ.overrideChauffeurId !== null ||
@@ -32,7 +32,7 @@ export function hasOverride(occ: OccurrenceItem): boolean {
   );
 }
 
-/** Heure résolue : override ponctuel prioritaire sur l'heure du trajet. */
+/** Resolved time: one-off override takes priority over the trajet departure time. */
 export function resolvedDepartureTime(occ: OccurrenceItem): string | null {
   return occ.overrideDepartureTime ?? occ.trajetDepartureTime;
 }

@@ -9,12 +9,11 @@ import type {
 const GOOGLE_BASE = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 /**
- * Google Routes API v2. Clé requise (payant au-delà du palier gratuit). Mondial.
+ * Google Routes API v2. Key required (paid beyond the free tier). Worldwide.
  *
- * Contraintes : `X-Goog-FieldMask` obligatoire (jamais `*` qui bascule en SKU
- * Enterprise) ; `routingPreference` omis pour rester sur le SKU Essentials ;
- * `duration` renvoyé sous forme de chaîne ("165s") ; géométrie en polyline
- * précision 5.
+ * Constraints: `X-Goog-FieldMask` required (never `*` which switches to Enterprise
+ * SKU); `routingPreference` omitted to stay on the Essentials SKU;
+ * `duration` returned as a string ("165s"); geometry as precision-5 polyline.
  */
 export const googleAdapter: RoutingAdapter = {
   id: "google",
@@ -68,7 +67,7 @@ export const googleAdapter: RoutingAdapter = {
       const meters = route?.distanceMeters;
       if (typeof meters !== "number") return null;
 
-      // duration: chaîne "165s"
+      // duration: string "165s"
       const seconds = route?.duration
         ? parseFloat(route.duration.replace(/s$/, ""))
         : NaN;

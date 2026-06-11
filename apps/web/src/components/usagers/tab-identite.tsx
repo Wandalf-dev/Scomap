@@ -63,9 +63,9 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
     trpc.etablissements.list.queryOptions(),
   );
 
-  // Dès qu'une affectation circuit existe, les champs critiques (établissement,
-  // type de transport, dates de transport) sont verrouillés : ils ne se
-  // modifient plus que via un avenant — traçabilité.
+  // Once a circuit assignment exists, critical fields (établissement, transport
+  // type, transport dates) are locked: they can only be changed via an avenant
+  // for traceability.
   const { data: affectations } = useQuery(
     trpc.usagerCircuits.listByUsager.queryOptions({ usagerId: usager.id }),
   );
@@ -133,11 +133,11 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
   }
 
   // Sync form dirty state with the layout's unsaved-changes context.
-  // On dépend de `setDirty` (stable via useCallback dans le provider) et NON de
-  // l'objet `unsaved` complet : ce dernier change de référence à chaque
-  // changement de `dirtyKeys`, ce qui ferait re-déclencher cet effet en boucle
-  // (cleanup → false, body → true → dirtyKeys change → unsaved change → …) et
-  // provoquerait "Maximum update depth exceeded".
+  // We depend on `setDirty` (stable via useCallback in the provider) and NOT on
+  // the full `unsaved` object: the latter changes reference on every `dirtyKeys`
+  // change, which would re-trigger this effect in a loop
+  // (cleanup → false, body → true → dirtyKeys change → unsaved change → …) and
+  // cause "Maximum update depth exceeded".
   const isDirty = form.formState.isDirty;
   const setDirty = unsaved?.setDirty;
   useEffect(() => {

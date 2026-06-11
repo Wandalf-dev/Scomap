@@ -12,7 +12,7 @@ import {
 interface UnsavedChangesContextValue {
   isDirty: boolean;
   setDirty: (key: string, dirty: boolean) => void;
-  /** Réinitialise tous les flags dirty (après confirmation "quitter sans enregistrer"). */
+  /** Resets all dirty flags (after the "leave without saving" confirmation). */
   resetDirty: () => void;
 }
 
@@ -38,7 +38,7 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
 
   const isDirty = dirtyKeys.size > 0;
 
-  // Garde navigateur : F5 / fermeture d'onglet déclenchent la confirmation native
+  // Browser guard: F5 / tab close trigger the native confirmation dialog
   useEffect(() => {
     if (!isDirty) return;
     const handler = (event: BeforeUnloadEvent) => {

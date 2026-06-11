@@ -59,7 +59,7 @@ const STATUS_CONFIG: Record<
 interface OccurrenceDetailSheetProps {
   occurrence: OccurrenceItem | null;
   onClose: () => void;
-  /** Ouvre le dialog de personnalisation de l'occurrence affichée. */
+  /** Opens the customization dialog for the displayed occurrence. */
   onCustomize?: () => void;
 }
 
@@ -82,7 +82,7 @@ export function OccurrenceDetailSheet({
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  // Arrêts RÉSOLUS à la date de l'occurrence (présence active ce jour-là).
+  // Arrêts RESOLVED at the occurrence date (active attendance on that day).
   const { data: stops } = useQuery(
     trpc.arrets.forDate.queryOptions(
       {
@@ -192,7 +192,7 @@ export function OccurrenceDetailSheet({
               )}
             </dl>
 
-            {/* Arrêts du jour (résolus par date — reflète les avenants) */}
+            {/* Arrêts for the day (resolved by date — reflects avenants) */}
             {stops && stops.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

@@ -67,7 +67,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Users as UsersIcon, Plus, Trash2, RefreshCw, Loader2 } from "lucide-react";
 
-// Mot de passe provisoire lisible (sans caractères ambigus I/l/O/0)
+// Readable temporary password (excluding ambiguous characters I/l/O/0)
 function generatePassword(): string {
   const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   const bytes = crypto.getRandomValues(new Uint32Array(16));

@@ -12,7 +12,7 @@ import { createTRPCRouter, tenantProcedure } from "../init";
 import { assertTenantOwned } from "../ownership";
 import { arretSchema } from "@/lib/validators/trajet";
 
-// Anti-IDOR : les FKs optionnelles d'un arrêt doivent appartenir au tenant
+// Anti-IDOR: optional FKs of an arrêt must belong to the tenant
 async function assertArretRefsOwned(
   ctx: { db: typeof import("@scomap/db").db; tenantId: string },
   data: { usagerAddressId?: string | null; etablissementId?: string | null },
@@ -32,9 +32,8 @@ export const arretsRouter = createTRPCRouter({
     .input(
       z.object({
         trajetId: z.string().uuid(),
-        // true = TOUS les arrêts non supprimés (composition complète du trajet,
-        // y compris ceux à venir) — pour la fiche trajet. Défaut = présence
-        // active aujourd'hui (recap/aperçu).
+        // true = ALL non-deleted arrêts (full trajet composition including future ones)
+        // — for the trajet detail view. Default = active presence today (recap/preview).
         all: z.boolean().optional(),
       }),
     )
@@ -87,8 +86,8 @@ export const arretsRouter = createTRPCRouter({
           etablissementCity: etablissements.city,
         })
         .from(arrets)
-        // Re-filtre tenant sur les jointures : un id étranger injecté ne doit
-        // jamais résoudre les données d'un autre tenant
+        // Re-filter tenant on joins: an injected foreign id must never
+        // resolve data from another tenant
         .leftJoin(
           usagerAddresses,
           and(
@@ -114,8 +113,8 @@ export const arretsRouter = createTRPCRouter({
           and(
             eq(arrets.trajetId, input.trajetId),
             isNull(arrets.deletedAt),
-            // Présence active aujourd'hui (arrêts bornés par avenant), sauf en
-            // mode `all` où l'on renvoie toute la composition du trajet.
+            // Active presence today (arrêts bounded by avenant), except in
+            // `all` mode where the full trajet composition is returned.
             ...(input.all
               ? []
               : [
@@ -129,9 +128,9 @@ export const arretsRouter = createTRPCRouter({
       return rows;
     }),
 
-  // Arrêts d'un trajet RÉSOLUS à une date donnée : ne renvoie que la présence
-  // active ce jour-là (les avenants bornent les arrêts dans le temps). Permet
-  // au planning d'afficher les bons usagers pour une occurrence future.
+  // Arrêts of a trajet RESOLVED at a given date: returns only the presence
+  // active that day (avenants bound arrêts in time). Allows the planning
+  // to display the correct usagers for a future occurrence.
   forDate: tenantProcedure
     .input(
       z.object({

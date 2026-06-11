@@ -1,11 +1,11 @@
 /**
- * Proxy MapTiler par tenant.
+ * Per-tenant MapTiler proxy.
  *
- * MapTiler exige une clé d'API ; le brief impose des clés chiffrées PAR tenant.
- * Une clé `NEXT_PUBLIC_` partagée est donc exclue. Ce proxy injecte la clé du
- * tenant (résolu via la session, jamais via l'URL) côté serveur et réécrit les
- * sous-ressources (style.json, tiles.json, sprite, glyphs) pour que la clé
- * n'apparaisse jamais dans les réponses renvoyées au navigateur.
+ * MapTiler requires an API key; the spec mandates per-tenant encrypted keys.
+ * A shared `NEXT_PUBLIC_` key is therefore excluded. This proxy injects the
+ * tenant key (resolved via session, never via the URL) server-side and rewrites
+ * sub-resources (style.json, tiles.json, sprite, glyphs) so the key never
+ * appears in responses sent back to the browser.
  */
 
 import { auth } from "@/lib/auth";
@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 const MAPTILER_BASE = "https://api.maptiler.com/";
 const PROXY_PREFIX = "/api/basemap/maptiler/proxy/";
 
-/** Réécrit une URL MapTiler vers le proxy, en retirant la clé. */
+/** Rewrites a MapTiler URL to go through the proxy, stripping the key. */
 function rewriteUrl(u: string): string {
   if (!u.startsWith(MAPTILER_BASE)) return u;
   const rest = u.slice(MAPTILER_BASE.length);
@@ -28,7 +28,7 @@ function rewriteUrl(u: string): string {
   return `${PROXY_PREFIX}${path}${qs ? `?${qs}` : ""}`;
 }
 
-/** Réécrit récursivement toutes les URLs MapTiler d'un document JSON de style. */
+/** Recursively rewrites all MapTiler URLs found in a style JSON document. */
 function deepRewrite(value: unknown): unknown {
   if (typeof value === "string") return rewriteUrl(value);
   if (Array.isArray(value)) return value.map(deepRewrite);
@@ -52,7 +52,7 @@ export async function GET(
   if (!tenantId) return new Response("Unauthorized", { status: 401 });
 
   const { path } = await params;
-  // Défense en profondeur : pas de remontée de chemin (l'hôte reste figé).
+  // Defense in depth: disallow path traversal (the host is kept fixed).
   if (path.some((seg) => seg === "..")) {
     return new Response("Bad request", { status: 400 });
   }
@@ -78,7 +78,7 @@ export async function GET(
   const contentType =
     res.headers.get("content-type") ?? "application/octet-stream";
 
-  // style.json / tiles.json : on réécrit les URLs pour ne pas fuiter la clé.
+  // style.json / tiles.json: rewrite URLs to avoid leaking the key.
   if (contentType.includes("json")) {
     const json = await res.json();
     return Response.json(deepRewrite(json), {
@@ -86,7 +86,7 @@ export async function GET(
     });
   }
 
-  // Tuiles / sprites / glyphs : stream binaire.
+  // Tiles / sprites / glyphs: binary stream.
   const body = await res.arrayBuffer();
   return new Response(body, {
     headers: {

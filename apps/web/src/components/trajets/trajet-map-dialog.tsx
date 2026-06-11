@@ -26,8 +26,8 @@ interface TrajetMapDialogProps {
 }
 
 /**
- * Aperçu du tracé d'un trajet dans une fenêtre, sans entrer dans la fiche.
- * Les données (arrêts, géométrie, fond de carte) sont chargées à l'ouverture.
+ * Preview of a trajet's route in a dialog, without navigating to the fiche.
+ * Data (arrêts, geometry, basemap) is loaded on open.
  */
 export function TrajetMapDialog({ trajetId, trajetName }: TrajetMapDialogProps) {
   const trpc = useTRPC();
@@ -46,8 +46,8 @@ export function TrajetMapDialog({ trajetId, trajetName }: TrajetMapDialogProps) 
     enabled: open,
   });
 
-  // Tant que les données ne sont pas arrivées, on montre un squelette plutôt
-  // que de passer arrets=[] à la carte (faux message « aucun arrêt »).
+  // Until data has arrived, show a skeleton rather than passing arrets=[]
+  // to the map (which would show a misleading "no arrêt" message).
   const isLoading = trajetLoading || arretsLoading || basemapLoading;
 
   return (

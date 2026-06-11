@@ -33,8 +33,8 @@ export function AvenantDetailClient({
   const trpc = useTRPC();
   const router = useRouter();
 
-  // On réutilise listByCircuit (déjà utilisé par l'onglet Avenants) : il porte
-  // les changements AVEC les noms d'usagers, contrairement à getById.
+  // Reuse listByCircuit (already used by the Avenants tab): it carries
+  // changes WITH usager names, unlike getById.
   const { data: avenants, isLoading } = useQuery(
     trpc.avenants.listByCircuit.queryOptions({ circuitId }),
   );
@@ -92,7 +92,7 @@ export function AvenantDetailClient({
 
   return (
     <div className="w-full">
-      {/* En-tête collant (façon fiche circuit). */}
+      {/* Sticky header (circuit detail page style). */}
       <div className="sticky top-0 z-20 -mx-4 mb-6 flex items-center justify-between gap-4 border-b border-border/70 bg-background/80 px-4 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:-mx-6 lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <Button
@@ -121,7 +121,7 @@ export function AvenantDetailClient({
         </div>
       </div>
 
-      {/* Résumé de l'avenant (date d'effet, motif, changements par usager). */}
+      {/* Avenant summary (effective date, reason, changes per usager). */}
       <div className="mb-6 rounded-xl border border-border bg-card p-5 shadow-xs">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -165,7 +165,7 @@ export function AvenantDetailClient({
         </div>
       </div>
 
-      {/* Bandeau : on bascule en vue « état du circuit à la date de l'avenant ». */}
+      {/* Banner: switches to "circuit state at avenant date" view. */}
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/[0.06] px-4 py-2.5 text-sm">
         <CalendarRange className="size-4 shrink-0 text-primary" />
         <span className="text-foreground">
@@ -175,7 +175,7 @@ export function AvenantDetailClient({
         </span>
       </div>
 
-      {/* Trajets + récapitulatif des PEC, résolus à la date d'effet. */}
+      {/* Trajets + PEC recap, resolved at the effective date. */}
       <TabTrajets circuitId={circuitId} date={avenant.effectiveDate} />
     </div>
   );
