@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useRouter } from "nextjs-toploader/app";
 import {
   Plus,
@@ -315,6 +316,7 @@ function InlineColumnFilter({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
+        aria-label={`Filtrer par ${config.label}`}
         // pl-2/pr-6 (au lieu du px-3 + pr-7 de base) : sur une colonne étroite,
         // le padding par défaut mangeait toute la zone de texte → saisie invisible.
         className={`h-7 w-full pl-2 pr-6 text-xs font-normal ${active ? "border-primary/50" : ""}`}
@@ -425,7 +427,12 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   defaultVisibleColumns,
 }: DataListProps<TRow, TFilters>) {
   const router = useRouter();
+  const pathname = usePathname();
   const [filterValues, setFilterValues] = useState<TFilters>(emptyFilters);
+
+  // Filtres/page/taille persistés en sessionStorage : sans ça, ouvrir une fiche
+  // puis revenir remontait le composant et perdait tout l'état de travail.
+  const stateStorageKey = `datalist:${storageKey ?? pathname}:state`;
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -456,6 +463,29 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
 
   // Load persisted prefs only after mount (post-hydration).
   useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(stateStorageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          filters?: Record<string, string>;
+          page?: number;
+          pageSize?: number;
+        };
+        if (saved.filters) {
+          const allowed = new Set(Object.keys(emptyFilters));
+          const restored = Object.fromEntries(
+            Object.entries(saved.filters).filter(([k]) => allowed.has(k)),
+          );
+          setFilterValues((prev) => ({ ...prev, ...restored }) as TFilters);
+        }
+        if (typeof saved.pageSize === "number" && PAGE_SIZE_OPTIONS.includes(saved.pageSize)) {
+          setPageSize(saved.pageSize);
+        }
+        if (typeof saved.page === "number" && saved.page >= 0) {
+          setCurrentPage(saved.page);
+        }
+      }
+    } catch {}
     if (visibilityStorageKey) {
       try {
         const raw = localStorage.getItem(visibilityStorageKey);
@@ -493,6 +523,16 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
       localStorage.setItem(orderStorageKey, JSON.stringify(columnOrder));
     } catch {}
   }, [columnOrder, orderStorageKey, colsHydrated]);
+
+  useEffect(() => {
+    if (!colsHydrated) return;
+    try {
+      sessionStorage.setItem(
+        stateStorageKey,
+        JSON.stringify({ filters: filterValues, page: currentPage, pageSize }),
+      );
+    } catch {}
+  }, [filterValues, currentPage, pageSize, colsHydrated, stateStorageKey]);
 
   function toggleColumn(key: string) {
     setHiddenColumns((prev) => {
@@ -562,6 +602,24 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
     }
     return result;
   }, [data, filterValues, filterFn, sortColumn, sortDirection, sortFn]);
+
+  // Purge de la sélection : sans ça, des lignes cochées puis masquées par un
+  // filtre (ou un changement d'onglet Courants/Archivés) restaient supprimables
+  // en masse alors qu'elles n'étaient plus visibles.
+  const filteredIds = useMemo(
+    () => new Set(filtered.map(getRowId)),
+    [filtered, getRowId],
+  );
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (filteredIds.has(id)) next.add(id);
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredIds]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -924,7 +982,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
             <>
               <div className="h-4 w-px bg-border" />
               <span className="text-sm font-medium text-foreground">
-                {selectionCount} selectionne{selectionCount > 1 ? "s" : ""}
+                {selectionCount} sélectionné{selectionCount > 1 ? "s" : ""}
               </span>
               {!!bulkActions?.length && (
                 <DropdownMenu>
@@ -975,7 +1033,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                 className="h-8 cursor-pointer px-2"
               >
                 <X className="mr-1 h-3.5 w-3.5" />
-                Deselectionner
+                Désélectionner
               </Button>
             </>
           )}
@@ -1037,7 +1095,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-[0.3rem] border border-border bg-card">
+          <div className="overflow-x-auto rounded-[0.3rem] border border-border bg-card">
             <Table
               ref={tableRef}
               style={
@@ -1060,6 +1118,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
                         onCheckedChange={toggleSelectAll}
                         className="cursor-pointer"
+                        aria-label="Sélectionner toutes les lignes de la page"
                       />
                     </div>
                   </TableHead>
@@ -1075,20 +1134,40 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                         } ${col.className ?? ""}`}
                         style={hasFixedWidths ? { width: columnWidths[col.key] } : undefined}
                         onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
+                        aria-sort={
+                          col.sortable
+                            ? sortColumn === col.key
+                              ? sortDirection === "asc"
+                                ? "ascending"
+                                : "descending"
+                              : "none"
+                            : undefined
+                        }
                       >
                         <div
                           className={`flex flex-col gap-1.5 py-1 pr-1.5 ${fc ? "min-w-[6.5rem]" : ""}`}
                         >
-                          <span className="flex shrink-0 items-center gap-1">
-                            {col.header}
-                            {col.sortable && (
+                          {col.sortable && onSort ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSort(col.key);
+                              }}
+                              className="flex shrink-0 cursor-pointer items-center gap-1 text-left font-medium"
+                            >
+                              {col.header}
                               <SortIcon
                                 column={col.key}
                                 sortColumn={sortColumn}
                                 sortDirection={sortDirection}
                               />
-                            )}
-                          </span>
+                            </button>
+                          ) : (
+                            <span className="flex shrink-0 items-center gap-1">
+                              {col.header}
+                            </span>
+                          )}
                           {fc && (
                             <div
                               className="w-full"
@@ -1128,8 +1207,21 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                       <div className="flex flex-col items-center gap-1">
                         <EmptyIcon size={32} className="text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">
-                          Aucun resultat pour ces filtres
+                          {hasActiveFilters
+                            ? "Aucun résultat pour ces filtres"
+                            : "Aucun résultat"}
                         </p>
+                        {hasActiveFilters && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={clearFilters}
+                            className="mt-2 cursor-pointer"
+                          >
+                            <X className="mr-1 h-3.5 w-3.5" />
+                            Effacer les filtres
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1141,8 +1233,18 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                     return (
                       <TableRow
                         key={rowId}
-                        className={`cursor-pointer group transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                        tabIndex={0}
+                        className={`cursor-pointer group transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${isSelected ? "bg-primary/5" : ""}`}
                         onClick={() => onRowClick(row)}
+                        onKeyDown={(e) => {
+                          // Seule la ligne elle-même : ne pas voler Entrée/Espace
+                          // aux contrôles internes (checkbox, menu actions)
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onRowClick(row);
+                          }
+                        }}
                       >
                         <TableCell
                           className="relative w-[48px] px-0"
@@ -1160,6 +1262,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
                               checked={isSelected}
                               onCheckedChange={() => toggleSelect(rowId)}
                               className="cursor-pointer"
+                              aria-label="Sélectionner la ligne"
                             />
                           </div>
                         </TableCell>
@@ -1225,11 +1328,11 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer {selectionCount} element{selectionCount > 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer {selectionCount} élément{selectionCount > 1 ? "s" : ""}</AlertDialogTitle>
             <AlertDialogDescription>
-              Etes-vous sur de vouloir supprimer{" "}
-              <strong>{selectionCount} element{selectionCount > 1 ? "s" : ""}</strong> ?
-              Cette action est irreversible.
+              Êtes-vous sûr de vouloir supprimer{" "}
+              <strong>{selectionCount} élément{selectionCount > 1 ? "s" : ""}</strong> ?
+              Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

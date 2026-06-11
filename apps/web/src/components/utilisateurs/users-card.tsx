@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   userCreateSchema,
   USER_ROLES,
@@ -112,7 +113,7 @@ export function UsersCard({ currentUserId }: UsersCardProps) {
       form.reset();
       invalidateList();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la création");
+      toastTrpcError(err, "Erreur lors de la création");
     }
   }
 
@@ -124,7 +125,7 @@ export function UsersCard({ currentUserId }: UsersCardProps) {
           toast.success("Rôle mis à jour");
           invalidateList();
         },
-        onError: (err) => toast.error(err.message),
+        onError: (err) => toastTrpcError(err, "Erreur lors de la modification du rôle"),
       },
     );
   }
@@ -137,7 +138,7 @@ export function UsersCard({ currentUserId }: UsersCardProps) {
           toast.success("Compte supprimé");
           invalidateList();
         },
-        onError: (err) => toast.error(err.message),
+        onError: (err) => toastTrpcError(err, "Erreur lors de la suppression"),
       },
     );
   }

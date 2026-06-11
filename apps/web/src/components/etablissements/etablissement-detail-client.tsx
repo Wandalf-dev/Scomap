@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Badge } from "@/components/ui/badge";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
 import { TabCoordonnees } from "./tab-coordonnees";
@@ -36,11 +37,11 @@ export function EtablissementDetailClient({ id }: EtablissementDetailClientProps
         queryClient.invalidateQueries({
           queryKey: trpc.etablissements.list.queryKey(),
         });
-        toast.success("Etablissement supprime");
+        toast.success("Établissement supprimé");
         router.push("/etablissements");
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -50,7 +51,7 @@ export function EtablissementDetailClient({ id }: EtablissementDetailClientProps
       isLoading={isLoading}
       entity={etablissement}
       backHref="/etablissements"
-      entityName="Etablissement"
+      entityName="Établissement"
       title={etablissement?.name ?? ""}
       badges={
         etablissement?.type && (

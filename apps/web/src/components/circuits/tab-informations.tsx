@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "nextjs-toploader/app";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
 import { useHeaderActions } from "@/components/shared/header-actions-context";
 import {
@@ -114,8 +115,8 @@ export function TabInformations({ circuit }: TabInformationsProps) {
         }
         exitAfterSaveRef.current = false;
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
         exitAfterSaveRef.current = false;
       },
     }),

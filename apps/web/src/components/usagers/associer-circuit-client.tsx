@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import NextLink from "next/link";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   Form,
   FormControl,
@@ -1224,8 +1225,7 @@ export function AssocierCircuitClient({
         toast.success("Circuit associé");
         backToTab();
       },
-      onError: (err) =>
-        toast.error(err.message || "Erreur lors de l'association"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de l'association"),
     }),
   );
   const updateMutation = useMutation(
@@ -1235,13 +1235,12 @@ export function AssocierCircuitClient({
         toast.success("Circuit modifié");
         backToTab();
       },
-      onError: (err) =>
-        toast.error(err.message || "Erreur lors de la modification"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de la modification"),
     }),
   );
   const createCircuitMutation = useMutation(
     trpc.circuits.createFull.mutationOptions({
-      onError: () => toast.error("Erreur lors de la création du circuit"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de la création du circuit"),
     }),
   );
 

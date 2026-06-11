@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,12 +100,10 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.getById.queryKey({ id: circuitId }),
         });
-        toast.success("Usager dissocie");
+        toast.success("Usager dissocié");
         setDeleteItem(null);
       },
-      onError: (err) => {
-        toast.error(err.message || "Erreur lors de la dissociation");
-      },
+      onError: (err) => toastTrpcError(err, "Erreur lors de la dissociation"),
     }),
   );
 

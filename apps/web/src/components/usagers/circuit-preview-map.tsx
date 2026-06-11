@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Loader2, MapPinOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { StyleSpecification } from "maplibre-gl";
 import type { BasemapStyle } from "@/lib/maps/basemap-types";
 
@@ -17,6 +19,10 @@ export interface PreviewPoint {
 }
 
 const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+
+// Délai au-delà duquel un style/des tuiles qui ne répondent pas sont
+// considérés en échec (réseau coupé, provider down).
+const LOAD_TIMEOUT_MS = 15000;
 
 // Couleur + taille du pin par catégorie. On utilise l'épingle MapLibre par
 // défaut (teardrop) : sa POINTE est ancrée précisément sur la coordonnée — bien
@@ -145,6 +151,9 @@ export function CircuitPreviewMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  // Incrémenté par « Réessayer » pour relancer l'init complète de la carte.
+  const [attempt, setAttempt] = useState(0);
 
   const geoPoints = useMemo(
     () => points.filter((p) => p.latitude != null && p.longitude != null),
@@ -184,7 +193,26 @@ export function CircuitPreviewMap({
     });
     mapRef.current = map;
     setLoaded(false);
+    setLoadError(false);
+
+    let isLoaded = false;
+    const timeout = setTimeout(() => {
+      if (!isLoaded) setLoadError(true);
+    }, LOAD_TIMEOUT_MS);
+
+    // Erreur fatale uniquement avant le premier rendu (style indisponible) ;
+    // les erreurs de tuiles isolées après le `load` sont ignorées.
+    map.on("error", () => {
+      if (!isLoaded) {
+        clearTimeout(timeout);
+        setLoadError(true);
+      }
+    });
+
     map.on("load", () => {
+      isLoaded = true;
+      clearTimeout(timeout);
+      setLoadError(false);
       setLoaded(true);
       // Le conteneur peut avoir été mesuré à 0 au moment de l'init (layout pas
       // encore flush / panneau sticky) → canvas blanc. On force un recalcul.
@@ -192,12 +220,13 @@ export function CircuitPreviewMap({
     });
 
     return () => {
+      clearTimeout(timeout);
       map.remove();
       mapRef.current = null;
       markersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basemapKey]);
+  }, [basemapKey, attempt]);
 
   // Marqueurs : recalculés à chaque changement de points (temps réel), sans
   // recréer la carte — on retire les anciens marqueurs et on recadre.
@@ -294,7 +323,29 @@ export function CircuitPreviewMap({
       {/* Conteneur en hauteur réelle (h-full) et non absolute : MapLibre mesure
           ainsi correctement le conteneur à l'init (sinon canvas blanc). */}
       <div ref={containerRef} className="h-full w-full" />
-      {geoPoints.length === 0 && (
+      {!loaded && !loadError && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-muted/40">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {loadError && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-muted px-6 text-center">
+          <MapPinOff className="size-6 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Impossible de charger la carte
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="cursor-pointer"
+            onClick={() => setAttempt((a) => a + 1)}
+          >
+            Réessayer
+          </Button>
+        </div>
+      )}
+      {loaded && !loadError && geoPoints.length === 0 && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-muted/30 px-6 text-center text-sm text-muted-foreground">
           Sélectionnez une adresse pour prévisualiser les points.
         </div>

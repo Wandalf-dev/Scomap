@@ -33,18 +33,22 @@ export function TrajetMapDialog({ trajetId, trajetName }: TrajetMapDialogProps) 
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
 
-  const { data: trajet } = useQuery({
+  const { data: trajet, isLoading: trajetLoading } = useQuery({
     ...trpc.trajets.getById.queryOptions({ id: trajetId }),
     enabled: open,
   });
-  const { data: arretsList } = useQuery({
+  const { data: arretsList, isLoading: arretsLoading } = useQuery({
     ...trpc.arrets.list.queryOptions({ trajetId }),
     enabled: open,
   });
-  const { data: basemap } = useQuery({
+  const { data: basemap, isLoading: basemapLoading } = useQuery({
     ...trpc.basemap.getStyle.queryOptions(),
     enabled: open,
   });
+
+  // Tant que les données ne sont pas arrivées, on montre un squelette plutôt
+  // que de passer arrets=[] à la carte (faux message « aucun arrêt »).
+  const isLoading = trajetLoading || arretsLoading || basemapLoading;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -67,21 +71,25 @@ export function TrajetMapDialog({ trajetId, trajetName }: TrajetMapDialogProps) 
         <DialogHeader>
           <DialogTitle>{trajetName}</DialogTitle>
         </DialogHeader>
-        <TrajetMap
-          arrets={
-            arretsList?.map((a) => ({
-              id: a.id,
-              name: a.name,
-              latitude: a.latitude,
-              longitude: a.longitude,
-              orderIndex: a.orderIndex,
-              type: a.type,
-            })) ?? []
-          }
-          routeGeometry={trajet?.routeGeometry ?? undefined}
-          basemap={basemap}
-          className="h-[460px] w-full"
-        />
+        {isLoading ? (
+          <Skeleton className="h-[460px] w-full" />
+        ) : (
+          <TrajetMap
+            arrets={
+              arretsList?.map((a) => ({
+                id: a.id,
+                name: a.name,
+                latitude: a.latitude,
+                longitude: a.longitude,
+                orderIndex: a.orderIndex,
+                type: a.type,
+              })) ?? []
+            }
+            routeGeometry={trajet?.routeGeometry ?? undefined}
+            basemap={basemap}
+            className="h-[460px] w-full"
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

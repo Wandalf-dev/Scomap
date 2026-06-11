@@ -172,7 +172,7 @@ export function PlanningClient() {
           <div className="mt-4 flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-8">
             <CalendarDateRangeIcon size={40} className="text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
-              Aucune occurrence pour cette periode.
+              Aucune occurrence pour cette période.
             </p>
           </div>
         </div>

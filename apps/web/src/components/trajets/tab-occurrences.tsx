@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Pencil, XCircle, RefreshCw } from "lucide-react";
 import { CalendarDateRangeIcon } from "@/components/ui/calendar-date-range-icon";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,7 @@ const STATUS_CONFIG: Record<
   { label: string; variant: "default" | "secondary" | "outline" | "destructive"; className?: string }
 > = {
   planifie: {
-    label: "Planifie",
+    label: "Planifié",
     variant: "outline",
   },
   en_cours: {
@@ -35,12 +36,12 @@ const STATUS_CONFIG: Record<
     className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
   },
   termine: {
-    label: "Termine",
+    label: "Terminé",
     variant: "default",
     className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   },
   annule: {
-    label: "Annule",
+    label: "Annulé",
     variant: "destructive",
   },
 };
@@ -95,10 +96,10 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listOccurrences.queryKey(),
         });
-        toast.success(`${data.inserted} occurrence(s) generee(s)`);
+        toast.success(`${data.inserted} occurrence(s) générée(s)`);
       },
       onError: (err) => {
-        toast.error(err.message || "Erreur lors de la generation");
+        toastTrpcError(err, "Erreur lors de la génération");
       },
     }),
   );
@@ -109,11 +110,11 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listOccurrences.queryKey(),
         });
-        toast.success("Occurrence modifiee");
+        toast.success("Occurrence modifiée");
         setEditingOccurrence(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -124,10 +125,10 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listOccurrences.queryKey(),
         });
-        toast.success("Occurrence annulee");
+        toast.success("Occurrence annulée");
       },
-      onError: () => {
-        toast.error("Erreur lors de l'annulation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'annulation");
       },
     }),
   );
@@ -141,7 +142,7 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
     <div className="space-y-6">
       {/* Generate occurrences */}
       <div className="rounded-[0.3rem] border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-medium">Generer des occurrences</h3>
+        <h3 className="mb-3 text-sm font-medium">Générer des occurrences</h3>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted-foreground">Du</label>
@@ -174,7 +175,7 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
                 generateMutation.isPending ? "animate-spin" : ""
               }`}
             />
-            {generateMutation.isPending ? "Generation..." : "Generer"}
+            {generateMutation.isPending ? "Génération..." : "Générer"}
           </Button>
         </div>
       </div>
@@ -190,7 +191,7 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-12">
           <CalendarDateRangeIcon size={40} className="text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
-            Aucune occurrence. Generez des occurrences a partir de la recurrence.
+            Aucune occurrence. Générez des occurrences à partir de la récurrence.
           </p>
         </div>
       ) : (
@@ -208,7 +209,7 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
                   Chauffeur
                 </TableHead>
                 <TableHead className="h-10 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Vehicule
+                  Véhicule
                 </TableHead>
                 <TableHead className="h-10 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Horaire

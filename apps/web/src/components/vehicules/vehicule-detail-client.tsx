@@ -6,14 +6,16 @@ import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { TabInformations } from "./tab-informations";
 import { TabMaintenance } from "./tab-maintenance";
 
 interface VehiculeDetailClientProps {
   id: string;
+  initialTab?: string;
 }
 
-export function VehiculeDetailClient({ id }: VehiculeDetailClientProps) {
+export function VehiculeDetailClient({ id, initialTab }: VehiculeDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -28,11 +30,11 @@ export function VehiculeDetailClient({ id }: VehiculeDetailClientProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success("Vehicule supprime");
+        toast.success("Véhicule supprimé");
         router.push("/vehicules");
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -42,7 +44,7 @@ export function VehiculeDetailClient({ id }: VehiculeDetailClientProps) {
       isLoading={isLoading}
       entity={vehicule}
       backHref="/vehicules"
-      entityName="Vehicule"
+      entityName="Véhicule"
       title={vehicule?.name ?? ""}
       badges={
         vehicule && (
@@ -60,8 +62,9 @@ export function VehiculeDetailClient({ id }: VehiculeDetailClientProps) {
       }
       onDelete={() => vehicule && deleteMutation.mutate({ id: vehicule.id })}
       isDeleting={deleteMutation.isPending}
-      deleteEntityName="le vehicule"
+      deleteEntityName="le véhicule"
       deleteLabel={vehicule?.name ?? ""}
+      defaultTab={initialTab}
       tabs={[
         {
           value: "informations",

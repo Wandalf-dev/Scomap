@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   vehiculeMaintenanceSchema,
   type VehiculeMaintenanceFormValues,
@@ -39,6 +44,9 @@ interface TabMaintenanceProps {
 export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const formId = "vehicule-maintenance-form";
 
   const form = useForm<VehiculeMaintenanceFormValues>({
     resolver: zodResolver(vehiculeMaintenanceSchema),
@@ -50,14 +58,16 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
 
   const mutation = useMutation(
     trpc.vehicules.updateMaintenance.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.getById.queryKey({ id: vehicule.id }),
         });
-        toast.success("Maintenance enregistree");
+        toast.success("Maintenance enregistrée");
+        // Repasse le formulaire en pristine après sauvegarde.
+        form.reset(variables.data);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
       },
     }),
   );
@@ -66,9 +76,35 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
     mutation.mutate({ id: vehicule.id, data: values });
   }
 
+  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
+  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setDirty?.("vehicule-maintenance", isDirty);
+    return () => setDirty?.("vehicule-maintenance", false);
+  }, [isDirty, setDirty]);
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      {headerActions?.target &&
+        createPortal(
+          <Button
+            type="submit"
+            form={formId}
+            size="sm"
+            disabled={mutation.isPending || !form.formState.isDirty}
+            className="cursor-pointer"
+          >
+            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
+          </Button>,
+          headerActions.target,
+        )}
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-6"
+      >
         {/* Assurance */}
         <Card>
           <CardHeader>
@@ -91,10 +127,10 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
           </CardContent>
         </Card>
 
-        {/* Controle technique */}
+        {/* Contrôle technique */}
         <Card>
           <CardHeader>
-            <CardTitle>Controle technique</CardTitle>
+            <CardTitle>Contrôle technique</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
@@ -113,11 +149,6 @@ export function TabMaintenance({ vehicule }: TabMaintenanceProps) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
       </form>
     </Form>
   );

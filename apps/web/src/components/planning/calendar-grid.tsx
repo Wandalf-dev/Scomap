@@ -92,6 +92,7 @@ export function CalendarGrid({
               date={date}
               occurrences={occByDate.get(key) ?? []}
               isCurrentMonth={date.getMonth() === currentMonth}
+              view={view}
               onOccurrenceClick={onOccurrenceClick}
             />
           );

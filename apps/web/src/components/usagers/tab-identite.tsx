@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
 import { useHeaderActions } from "@/components/shared/header-actions-context";
 import {
@@ -110,8 +111,8 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
         }
         exitAfterSaveRef.current = false;
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
         exitAfterSaveRef.current = false;
       },
     }),
@@ -123,9 +124,7 @@ export function TabIdentite({ usager }: TabIdentiteProps) {
         form.setValue("distanceKm", km, { shouldDirty: true });
         toast.success(`Distance calculée : ${km} km`);
       },
-      onError: (err) => {
-        toast.error(err.message || "Erreur lors du calcul de la distance");
-      },
+      onError: (err) => toastTrpcError(err, "Erreur lors du calcul de la distance"),
     }),
   );
 

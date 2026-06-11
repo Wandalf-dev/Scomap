@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { ArrowLeft } from "lucide-react";
 import {
   vehiculeDetailSchema,
@@ -55,11 +56,11 @@ export function VehiculeCreateClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success("Vehicule cree");
+        toast.success("Véhicule créé");
         router.push(data?.id ? `/vehicules/${data.id}` : "/vehicules");
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );

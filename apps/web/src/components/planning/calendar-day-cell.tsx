@@ -1,7 +1,17 @@
 "use client";
 
+import { useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { isToday } from "@/lib/utils/date-helpers";
 import { OccurrenceCard } from "./occurrence-card";
+
+// Limite d'occurrences visibles par cellule en vue mois (densité) ;
+// en vue semaine tout est affiché.
+const MONTH_VIEW_LIMIT = 3;
 
 interface OccurrenceItem {
   id: string;
@@ -25,16 +35,46 @@ interface CalendarDayCellProps {
   date: Date;
   occurrences: OccurrenceItem[];
   isCurrentMonth: boolean;
+  view: "week" | "month";
   onOccurrenceClick: (occ: OccurrenceItem) => void;
+}
+
+function renderCard(
+  occ: OccurrenceItem,
+  onOccurrenceClick: (occ: OccurrenceItem) => void,
+) {
+  return (
+    <OccurrenceCard
+      key={occ.id}
+      trajetName={occ.trajetName}
+      direction={occ.trajetDirection}
+      departureTime={occ.overrideDepartureTime ?? occ.trajetDepartureTime}
+      status={occ.status}
+      chauffeurName={
+        occ.chauffeurFirstName
+          ? `${occ.chauffeurFirstName} ${occ.chauffeurLastName}`
+          : null
+      }
+      onClick={() => onOccurrenceClick(occ)}
+    />
+  );
 }
 
 export function CalendarDayCell({
   date,
   occurrences,
   isCurrentMonth,
+  view,
   onOccurrenceClick,
 }: CalendarDayCellProps) {
   const today = isToday(date);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
+  const isWeekView = view === "week";
+  const visibleOccurrences = isWeekView
+    ? occurrences
+    : occurrences.slice(0, MONTH_VIEW_LIMIT);
+  const hiddenCount = occurrences.length - visibleOccurrences.length;
 
   return (
     <div
@@ -60,26 +100,42 @@ export function CalendarDayCell({
           </span>
         )}
       </div>
-      <div className="space-y-1">
-        {occurrences.slice(0, 3).map((occ) => (
-          <OccurrenceCard
-            key={occ.id}
-            trajetName={occ.trajetName}
-            direction={occ.trajetDirection}
-            departureTime={occ.overrideDepartureTime ?? occ.trajetDepartureTime}
-            status={occ.status}
-            chauffeurName={
-              occ.chauffeurFirstName
-                ? `${occ.chauffeurFirstName} ${occ.chauffeurLastName}`
-                : null
-            }
-            onClick={() => onOccurrenceClick(occ)}
-          />
-        ))}
-        {occurrences.length > 3 && (
-          <div className="px-2 text-xs text-muted-foreground">
-            +{occurrences.length - 3} autres
-          </div>
+      <div
+        className={`space-y-1 ${
+          isWeekView ? "max-h-[480px] overflow-y-auto" : ""
+        }`}
+      >
+        {visibleOccurrences.map((occ) => renderCard(occ, onOccurrenceClick))}
+        {hiddenCount > 0 && (
+          <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="w-full rounded-[0.3rem] px-2 py-0.5 text-left text-xs text-muted-foreground transition-colors cursor-pointer hover:bg-accent/50 hover:text-foreground"
+              >
+                +{hiddenCount} autres
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 p-2">
+              <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">
+                {date.toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}{" "}
+                — {occurrences.length} occurrences
+              </p>
+              <div className="max-h-80 space-y-1 overflow-y-auto">
+                {occurrences.map((occ) =>
+                  renderCard(occ, (o) => {
+                    // Ferme le popover avant d'ouvrir le sheet de détail
+                    setOverflowOpen(false);
+                    onOccurrenceClick(o);
+                  }),
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
     </div>

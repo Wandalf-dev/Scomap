@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Pencil, Trash2, ExternalLink } from "lucide-react";
 import { BuildingOffice2Icon } from "@/components/ui/building-office2-icon";
 import { Badge } from "@/components/ui/badge";
@@ -76,11 +77,11 @@ export function EtablissementsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.etablissements.list.queryKey(),
         });
-        toast.success("Etablissement cree avec succes");
+        toast.success("Établissement créé avec succès");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );
@@ -91,12 +92,12 @@ export function EtablissementsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.etablissements.list.queryKey(),
         });
-        toast.success("Etablissement modifie avec succes");
+        toast.success("Établissement modifié avec succès");
         setFormOpen(false);
         setEditingItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -107,11 +108,11 @@ export function EtablissementsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.etablissements.list.queryKey(),
         });
-        toast.success("Etablissement supprime");
+        toast.success("Établissement supprimé");
         setDeleteItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -122,10 +123,10 @@ export function EtablissementsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.etablissements.list.queryKey(),
         });
-        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -145,12 +146,12 @@ export function EtablissementsClient() {
       error={error}
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
-      title="Etablissements"
-      description="Gerez les etablissements scolaires"
+      title="Établissements"
+      description="Gérez les établissements scolaires"
       emptyIcon={BuildingOffice2Icon}
-      emptyTitle="Aucun etablissement"
-      emptyDescription="Commencez par ajouter votre premier etablissement."
-      addButtonLabel="Ajouter un etablissement"
+      emptyTitle="Aucun établissement"
+      emptyDescription="Commencez par ajouter votre premier établissement."
+      addButtonLabel="Ajouter un établissement"
       addHref="/etablissements/new"
       columns={[
         {
@@ -164,6 +165,8 @@ export function EtablissementsClient() {
           key: "type",
           header: "Type",
           className: "w-[120px]",
+          exportValue: (row) =>
+            row.type ? TYPE_LABELS[row.type] ?? row.type : null,
           render: (row) =>
             row.type ? (
               <Badge variant="outline" className="font-normal">
@@ -185,7 +188,7 @@ export function EtablissementsClient() {
         },
         {
           key: "phone",
-          header: "Telephone",
+          header: "Téléphone",
           render: (row) =>
             row.phone ? (
               <span className="text-muted-foreground">{row.phone}</span>
@@ -216,7 +219,7 @@ export function EtablissementsClient() {
           options: TYPE_OPTIONS,
         },
         { key: "city", label: "Ville", type: "text" },
-        { key: "phone", label: "Telephone", type: "text" },
+        { key: "phone", label: "Téléphone", type: "text" },
         { key: "email", label: "Email", type: "text", className: "h-8 w-48 text-sm" },
       ]}
       emptyFilters={EMPTY_FILTERS}

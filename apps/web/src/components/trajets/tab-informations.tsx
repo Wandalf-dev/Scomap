@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   trajetDetailSchema,
   type TrajetDetailFormValues,
@@ -65,6 +70,9 @@ interface TabInformationsProps {
 export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const formId = "trajet-informations-form";
 
   const form = useForm<TrajetDetailFormValues>({
     resolver: zodResolver(trajetDetailSchema),
@@ -98,10 +106,13 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.list.queryKey(),
         });
-        toast.success("Trajet enregistre");
+        toast.success("Trajet enregistré");
+        // Repasse le formulaire en pristine avec les valeurs affichées
+        // (et non les valeurs transformées envoyées au serveur).
+        form.reset(form.getValues());
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
       },
     }),
   );
@@ -126,11 +137,38 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
     });
   }
 
+  // Synchronise l'état dirty du formulaire avec le contexte du layout.
+  // On dépend de `setDirty` (stable) et non de l'objet `unsaved` complet pour
+  // éviter une boucle de re-déclenchement (cf. tab-identite des usagers).
+  const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setDirty?.("trajet-informations", isDirty);
+    return () => setDirty?.("trajet-informations", false);
+  }, [isDirty, setDirty]);
+
   return (
     <Card>
+      {headerActions?.target &&
+        createPortal(
+          <Button
+            type="submit"
+            form={formId}
+            size="sm"
+            disabled={mutation.isPending || !form.formState.isDirty}
+            className="cursor-pointer"
+          >
+            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
+          </Button>,
+          headerActions.target,
+        )}
       <CardContent className="pt-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          <form
+            id={formId}
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-5"
+          >
             {/* Row 1: Identification */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <FormField
@@ -139,14 +177,14 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1.5">
-                      Intitule du trajet
+                      Intitulé du trajet
                       <Lock className="h-3 w-3 text-muted-foreground/60" />
                     </FormLabel>
                     <FormControl>
                       <Input placeholder="Nom du trajet" {...field} disabled />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      Genere automatiquement (sens + jours).
+                      Généré automatiquement (sens + jours).
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -206,7 +244,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Sens du trajet (structure des arrets).
+                      Sens du trajet (structure des arrêts).
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -218,12 +256,12 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="departureTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Heure de depart</FormLabel>
+                    <FormLabel>Heure de départ</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      Heure de reference a l&apos;ecole (arrivee si aller, depart
+                      Heure de référence à l&apos;école (arrivée si aller, départ
                       si retour) : sert d&apos;ancre au calcul des horaires.
                     </p>
                     <FormMessage />
@@ -263,7 +301,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1.5">
-                      Date de debut
+                      Date de début
                       <Lock className="h-3 w-3 text-muted-foreground/60" />
                     </FormLabel>
                     <DatePicker
@@ -275,7 +313,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                     !trajet.startDate &&
                     field.value === circuitStartDate ? (
                       <p className="text-xs text-muted-foreground">
-                        Herite du circuit.
+                        Héritée du circuit.
                       </p>
                     ) : null}
                     <FormMessage />
@@ -301,7 +339,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                     !trajet.endDate &&
                     field.value === circuitEndDate ? (
                       <p className="text-xs text-muted-foreground">
-                        Herite du circuit.
+                        Héritée du circuit.
                       </p>
                     ) : null}
                     <FormMessage />
@@ -334,7 +372,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="vehiculeId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vehicule</FormLabel>
+                    <FormLabel>Véhicule</FormLabel>
                     <FormControl>
                       <VehiculeSelector
                         value={field.value}
@@ -351,7 +389,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="peages"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Peages</FormLabel>
+                    <FormLabel>Péages</FormLabel>
                     <div className="flex items-center gap-2 h-9">
                       <FormControl>
                         <Switch
@@ -374,7 +412,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 name="kmACharge"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Km a charge</FormLabel>
+                    <FormLabel>Km à charge</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -412,16 +450,6 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 </FormItem>
               )}
             />
-
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                disabled={mutation.isPending}
-                className="cursor-pointer"
-              >
-                {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-              </Button>
-            </div>
           </form>
         </Form>
       </CardContent>

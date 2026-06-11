@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { ArrowLeft } from "lucide-react";
 import {
   trajetDetailSchema,
@@ -68,11 +69,11 @@ export function TrajetCreateClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.list.queryKey(),
         });
-        toast.success("Trajet cree");
+        toast.success("Trajet créé");
         router.push(data?.id ? `/trajets/${data.id}` : "/trajets");
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );

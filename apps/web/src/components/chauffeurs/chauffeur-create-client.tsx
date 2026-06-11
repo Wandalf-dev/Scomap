@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { ArrowLeft } from "lucide-react";
 import {
   chauffeurDetailSchema,
@@ -53,11 +54,11 @@ export function ChauffeurCreateClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success("Chauffeur cree");
+        toast.success("Chauffeur créé");
         router.push(data?.id ? `/chauffeurs/${data.id}` : "/chauffeurs");
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );

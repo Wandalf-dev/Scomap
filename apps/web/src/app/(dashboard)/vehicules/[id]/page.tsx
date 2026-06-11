@@ -7,19 +7,22 @@ export const metadata: Metadata = { title: "Fiche véhicule" };
 
 interface VehiculeDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
 export default async function VehiculeDetailPage({
   params,
+  searchParams,
 }: VehiculeDetailPageProps) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const queryClient = getQueryClient();
 
   await queryClient.prefetchQuery(trpc.vehicules.getById.queryOptions({ id }));
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <VehiculeDetailClient id={id} />
+      <VehiculeDetailClient id={id} initialTab={tab} />
     </HydrationBoundary>
   );
 }

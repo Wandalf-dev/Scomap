@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +70,7 @@ export function PreparationClient() {
         invalidate();
         toast.success("Préparation démarrée");
       },
-      onError: (e) => toast.error(e.message || "Erreur au démarrage"),
+      onError: (e) => toastTrpcError(e, "Erreur au démarrage"),
     }),
   );
 
@@ -83,7 +84,7 @@ export function PreparationClient() {
           `Production copiée : ${data.circuits} circuit(s), ${data.usagers} usager(s)`,
         );
       },
-      onError: () => toast.error("Erreur lors de la copie"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de la copie"),
     }),
   );
 
@@ -95,7 +96,7 @@ export function PreparationClient() {
         queryClient.invalidateQueries({ queryKey: trpc.usagers.list.queryKey() });
         toast.success("Préparation activée — elle est devenue la production");
       },
-      onError: (e) => toast.error(e.message || "Erreur lors de l'activation"),
+      onError: (e) => toastTrpcError(e, "Erreur lors de l'activation"),
     }),
   );
 
@@ -105,7 +106,7 @@ export function PreparationClient() {
         invalidate();
         toast.success("Préparation abandonnée");
       },
-      onError: () => toast.error("Erreur lors de l'abandon"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de l'abandon"),
     }),
   );
 

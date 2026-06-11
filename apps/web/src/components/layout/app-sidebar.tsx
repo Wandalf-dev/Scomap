@@ -23,7 +23,6 @@ import { CalendarCogIcon } from "@/components/ui/calendar-cog-icon";
 import { GraduationCapIcon } from "@/components/ui/graduation-cap-icon";
 import { TruckIcon } from "@/components/ui/truck-icon";
 import { UserIcon } from "@/components/ui/user-icon";
-import { DocumentCurrencyEuroIcon } from "@/components/ui/document-currency-euro-icon";
 import { Cog6ToothIcon } from "@/components/ui/cog6-tooth-icon";
 import { UserCogIcon } from "@/components/ui/user-cog-icon";
 
@@ -53,7 +52,6 @@ const data: { navGroups: { label: string; items: NavItem[] }[] } = {
       items: [
         { title: "Véhicules", url: "/vehicules", icon: TruckIcon },
         { title: "Chauffeurs", url: "/chauffeurs", icon: UserIcon },
-        { title: "Facturation", url: "/facturation", icon: DocumentCurrencyEuroIcon },
       ],
     },
     {

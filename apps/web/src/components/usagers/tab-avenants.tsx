@@ -5,6 +5,7 @@ import { useRouter } from "nextjs-toploader/app";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Plus } from "lucide-react";
@@ -90,7 +91,7 @@ export function TabAvenants({ usagerId }: TabAvenantsProps) {
         });
         toast.success("Avenant annulé");
       },
-      onError: () => toast.error("Erreur lors de l'annulation"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de l'annulation"),
     }),
   );
 

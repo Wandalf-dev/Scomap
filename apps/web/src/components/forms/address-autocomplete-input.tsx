@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import {
   useAddressAutocomplete,
   type AddressSuggestion,
@@ -24,7 +24,13 @@ export function AddressAutocompleteInput({
   disabled,
 }: AddressAutocompleteInputProps) {
   const [open, setOpen] = useState(false);
-  const { suggestions, isLoading, clear } = useAddressAutocomplete(value);
+  // Dernière suggestion choisie : si le texte diverge ensuite, la lat/lng en
+  // base ne correspond plus à l'adresse affichée → avertissement.
+  const [lastSelected, setLastSelected] = useState<AddressSuggestion | null>(
+    null,
+  );
+  const { suggestions, isLoading, error, noResults, clear } =
+    useAddressAutocomplete(value);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,9 +45,23 @@ export function AddressAutocompleteInput({
 
   function handleSelect(suggestion: AddressSuggestion) {
     onSelect(suggestion);
+    setLastSelected(suggestion);
     setOpen(false);
     clear();
   }
+
+  // Selon le formulaire, le parent remet le champ à `address` ou à `label`
+  // après sélection : on compare aux deux.
+  const gpsUnverified =
+    lastSelected != null &&
+    value !== lastSelected.address &&
+    value !== lastSelected.label;
+
+  const hasQuery = value.trim().length >= 3;
+  const showError = open && hasQuery && !isLoading && error;
+  const showNoResults =
+    open && hasQuery && !isLoading && !error && noResults &&
+    suggestions.length === 0;
 
   return (
     <div ref={containerRef} className="relative">
@@ -76,6 +96,24 @@ export function AddressAutocompleteInput({
             </button>
           ))}
         </div>
+      )}
+
+      {(showNoResults || showError) && (
+        <div className="absolute z-50 mt-1 w-full rounded-[0.3rem] border border-border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+          {showError
+            ? "Service d'adresses indisponible"
+            : "Aucune adresse trouvée"}
+        </div>
+      )}
+
+      {gpsUnverified && (
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <TriangleAlert className="mt-px size-3.5 shrink-0" />
+          <span>
+            Position GPS non vérifiée — sélectionnez une adresse dans la liste
+            pour la géolocaliser
+          </span>
+        </p>
       )}
     </div>
   );

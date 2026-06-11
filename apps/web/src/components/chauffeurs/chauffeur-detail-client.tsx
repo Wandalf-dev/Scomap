@@ -6,14 +6,16 @@ import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { TabInformations } from "./tab-informations";
 import { TabDocuments } from "./tab-documents";
 
 interface ChauffeurDetailClientProps {
   id: string;
+  initialTab?: string;
 }
 
-export function ChauffeurDetailClient({ id }: ChauffeurDetailClientProps) {
+export function ChauffeurDetailClient({ id, initialTab }: ChauffeurDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -28,11 +30,11 @@ export function ChauffeurDetailClient({ id }: ChauffeurDetailClientProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success("Chauffeur supprime");
+        toast.success("Chauffeur supprimé");
         router.push("/chauffeurs");
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -62,6 +64,7 @@ export function ChauffeurDetailClient({ id }: ChauffeurDetailClientProps) {
       isDeleting={deleteMutation.isPending}
       deleteEntityName="le chauffeur"
       deleteLabel={chauffeur ? `${chauffeur.firstName} ${chauffeur.lastName}` : ""}
+      defaultTab={initialTab}
       tabs={[
         {
           value: "informations",

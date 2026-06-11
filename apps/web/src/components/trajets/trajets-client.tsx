@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Pencil, Trash2, ExternalLink } from "lucide-react";
 import { ArrowPathRoundedSquareIcon } from "@/components/ui/arrow-path-rounded-square-icon";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { DataList } from "@/components/shared/data-list";
 import { EntityDeleteDialog } from "@/components/shared/entity-delete-dialog";
 import { TrajetFormDialog } from "./trajet-form-dialog";
 import { DayBadges } from "@/components/shared/day-badges";
+import { formatDaysShort } from "@/lib/types/day-entry";
 import type { TrajetFormValues } from "@/lib/validators/trajet";
 import type { DayEntry } from "@/lib/types/day-entry";
 
@@ -36,12 +38,23 @@ interface TrajetRow {
 type TrajetFilters = {
   name: string;
   direction: string;
+  etat: string;
+  circuit: string;
+  chauffeur: string;
+  vehicule: string;
 };
 
 const EMPTY_FILTERS: TrajetFilters = {
   name: "",
   direction: "all",
+  etat: "all",
+  circuit: "all",
+  chauffeur: "all",
+  vehicule: "all",
 };
+
+// Valeur sentinelle pour filtrer les trajets sans chauffeur / sans véhicule.
+const UNASSIGNED = "__none__";
 
 export function TrajetsClient() {
   const trpc = useTRPC();
@@ -57,17 +70,61 @@ export function TrajetsClient() {
     trpc.trajets.list.queryOptions(),
   );
 
+  // Options des selects dérivées des données affichées (circuits/chauffeurs/
+  // véhicules réellement présents), triées par libellé.
+  const { circuitOptions, chauffeurOptions, vehiculeOptions } = useMemo(() => {
+    const circuits = new Map<string, string>();
+    const chauffeurs = new Map<string, string>();
+    const vehicules = new Map<string, string>();
+    let hasUnassignedChauffeur = false;
+    let hasUnassignedVehicule = false;
+
+    for (const t of trajetsList ?? []) {
+      if (t.circuitId && t.circuitName) circuits.set(t.circuitId, t.circuitName);
+      if (t.chauffeurId) {
+        chauffeurs.set(
+          t.chauffeurId,
+          `${t.chauffeurFirstName ?? ""} ${t.chauffeurLastName ?? ""}`.trim(),
+        );
+      } else {
+        hasUnassignedChauffeur = true;
+      }
+      if (t.vehiculeId && t.vehiculeName) vehicules.set(t.vehiculeId, t.vehiculeName);
+      else if (!t.vehiculeId) hasUnassignedVehicule = true;
+    }
+
+    const sortByLabel = (a: { label: string }, b: { label: string }) =>
+      a.label.localeCompare(b.label, "fr");
+
+    return {
+      circuitOptions: [
+        { value: "all", label: "Tous" },
+        ...[...circuits].map(([value, label]) => ({ value, label })).sort(sortByLabel),
+      ],
+      chauffeurOptions: [
+        { value: "all", label: "Tous" },
+        ...(hasUnassignedChauffeur ? [{ value: UNASSIGNED, label: "Non assigné" }] : []),
+        ...[...chauffeurs].map(([value, label]) => ({ value, label })).sort(sortByLabel),
+      ],
+      vehiculeOptions: [
+        { value: "all", label: "Tous" },
+        ...(hasUnassignedVehicule ? [{ value: UNASSIGNED, label: "Non assigné" }] : []),
+        ...[...vehicules].map(([value, label]) => ({ value, label })).sort(sortByLabel),
+      ],
+    };
+  }, [trajetsList]);
+
   const createMutation = useMutation(
     trpc.trajets.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.list.queryKey(),
         });
-        toast.success("Trajet cree avec succes");
+        toast.success("Trajet créé avec succès");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );
@@ -78,12 +135,12 @@ export function TrajetsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.list.queryKey(),
         });
-        toast.success("Trajet modifie avec succes");
+        toast.success("Trajet modifié avec succès");
         setFormOpen(false);
         setEditingItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -94,11 +151,11 @@ export function TrajetsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.list.queryKey(),
         });
-        toast.success("Trajet supprime");
+        toast.success("Trajet supprimé");
         setDeleteItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -109,10 +166,10 @@ export function TrajetsClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.list.queryKey(),
         });
-        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -133,7 +190,7 @@ export function TrajetsClient() {
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
       title="Trajets"
-      description="Gerez vos trajets de transport"
+      description="Gérez vos trajets de transport"
       emptyIcon={ArrowPathRoundedSquareIcon}
       emptyTitle="Aucun trajet"
       emptyDescription="Commencez par ajouter votre premier trajet."
@@ -150,6 +207,7 @@ export function TrajetsClient() {
         {
           key: "circuit",
           header: "Circuit",
+          exportValue: (row) => row.circuitName,
           render: (row) =>
             row.circuitName ? (
               <span className="text-muted-foreground">{row.circuitName}</span>
@@ -160,6 +218,7 @@ export function TrajetsClient() {
         {
           key: "direction",
           header: "Direction",
+          exportValue: (row) => (row.direction === "aller" ? "Aller" : "Retour"),
           render: (row) => (
             <Badge variant="outline">
               <span
@@ -174,7 +233,11 @@ export function TrajetsClient() {
         },
         {
           key: "etat",
-          header: "Etat",
+          header: "État",
+          exportValue: (row) => {
+            const etat = row.etat || "brouillon";
+            return etat === "ok" ? "Ok" : etat === "anomalie" ? "Anomalie" : "Brouillon";
+          },
           render: (row) => {
             const etat = row.etat || "brouillon";
             const dotColor =
@@ -196,6 +259,10 @@ export function TrajetsClient() {
         {
           key: "chauffeur",
           header: "Chauffeur",
+          exportValue: (row) =>
+            row.chauffeurFirstName
+              ? `${row.chauffeurFirstName} ${row.chauffeurLastName ?? ""}`.trim()
+              : null,
           render: (row) =>
             row.chauffeurFirstName ? (
               <span className="text-muted-foreground">
@@ -207,7 +274,8 @@ export function TrajetsClient() {
         },
         {
           key: "vehicule",
-          header: "Vehicule",
+          header: "Véhicule",
+          exportValue: (row) => row.vehiculeName,
           render: (row) =>
             row.vehiculeName ? (
               <span className="text-muted-foreground">{row.vehiculeName}</span>
@@ -218,6 +286,7 @@ export function TrajetsClient() {
         {
           key: "departure",
           header: "Horaire",
+          exportValue: (row) => row.departureTime,
           render: (row) =>
             row.departureTime ? (
               <span className="font-mono text-sm">{row.departureTime}</span>
@@ -228,6 +297,10 @@ export function TrajetsClient() {
         {
           key: "days",
           header: "Jours",
+          exportValue: (row) =>
+            row.recurrence?.daysOfWeek?.length
+              ? formatDaysShort(row.recurrence.daysOfWeek)
+              : null,
           render: (row) => (
             <DayBadges days={row.recurrence?.daysOfWeek ?? null} />
           ),
@@ -247,6 +320,20 @@ export function TrajetsClient() {
             { value: "retour", label: "Retour" },
           ],
         },
+        {
+          key: "etat",
+          label: "État",
+          type: "select",
+          options: [
+            { value: "all", label: "Tous" },
+            { value: "ok", label: "Ok" },
+            { value: "anomalie", label: "Anomalie" },
+            { value: "brouillon", label: "Brouillon" },
+          ],
+        },
+        { key: "circuit", label: "Circuit", type: "select", options: circuitOptions },
+        { key: "chauffeur", label: "Chauffeur", type: "select", options: chauffeurOptions },
+        { key: "vehicule", label: "Véhicule", type: "select", options: vehiculeOptions },
       ]}
       emptyFilters={EMPTY_FILTERS}
       filterFn={(row, filters) => {
@@ -257,6 +344,24 @@ export function TrajetsClient() {
           return false;
         if (filters.direction !== "all" && row.direction !== filters.direction)
           return false;
+        if (filters.etat !== "all" && (row.etat || "brouillon") !== filters.etat)
+          return false;
+        if (filters.circuit !== "all" && row.circuitId !== filters.circuit)
+          return false;
+        if (filters.chauffeur !== "all") {
+          if (filters.chauffeur === UNASSIGNED) {
+            if (row.chauffeurId) return false;
+          } else if (row.chauffeurId !== filters.chauffeur) {
+            return false;
+          }
+        }
+        if (filters.vehicule !== "all") {
+          if (filters.vehicule === UNASSIGNED) {
+            if (row.vehiculeId) return false;
+          } else if (row.vehiculeId !== filters.vehicule) {
+            return false;
+          }
+        }
         return true;
       }}
       actions={[

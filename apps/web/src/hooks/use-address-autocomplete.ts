@@ -14,11 +14,17 @@ export interface AddressSuggestion {
 export function useAddressAutocomplete(query: string) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  /** Erreur réseau / service indisponible lors de la dernière recherche. */
+  const [error, setError] = useState(false);
+  /** Recherche aboutie (≥ 3 caractères) mais aucune adresse trouvée. */
+  const [noResults, setNoResults] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clear = useCallback(() => {
     setSuggestions([]);
+    setError(false);
+    setNoResults(false);
   }, []);
 
   useEffect(() => {
@@ -29,10 +35,14 @@ export function useAddressAutocomplete(query: string) {
     if (!query || query.length < 3) {
       setSuggestions([]);
       setIsLoading(false);
+      setError(false);
+      setNoResults(false);
       return;
     }
 
     setIsLoading(true);
+    setError(false);
+    setNoResults(false);
 
     debounceRef.current = setTimeout(async () => {
       if (abortRef.current) {
@@ -47,6 +57,7 @@ export function useAddressAutocomplete(query: string) {
           `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=5`,
           { signal: controller.signal },
         );
+        if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
         const data = await res.json();
 
         const results: AddressSuggestion[] = data.features.map(
@@ -69,11 +80,15 @@ export function useAddressAutocomplete(query: string) {
         );
 
         setSuggestions(results);
+        setNoResults(results.length === 0);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setSuggestions([]);
+        setError(true);
       } finally {
-        setIsLoading(false);
+        // Une requête annulée signifie qu'une plus récente est en cours :
+        // on ne coupe pas l'indicateur de chargement dans ce cas.
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }, 300);
 
@@ -83,5 +98,5 @@ export function useAddressAutocomplete(query: string) {
     };
   }, [query]);
 
-  return { suggestions, isLoading, clear };
+  return { suggestions, isLoading, error, noResults, clear };
 }

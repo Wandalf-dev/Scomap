@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Loader2, MapPinOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { StyleSpecification } from "maplibre-gl";
 import type { BasemapStyle } from "@/lib/maps/basemap-types";
 
@@ -29,6 +31,10 @@ interface TrajetMapProps {
 
 const FALLBACK_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
+// Délai au-delà duquel un style/des tuiles qui ne répondent pas sont
+// considérés en échec (réseau coupé, provider down).
+const LOAD_TIMEOUT_MS = 15000;
+
 export function TrajetMap({
   arrets,
   routeGeometry,
@@ -37,6 +43,11 @@ export function TrajetMap({
 }: TrajetMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  // Incrémenté par « Réessayer » pour relancer l'init complète de la carte.
+  const [attempt, setAttempt] = useState(0);
 
   const geoArrets = arrets.filter(
     (a) => a.latitude != null && a.longitude != null,
@@ -57,6 +68,7 @@ export function TrajetMap({
     if (mapRef.current) {
       mapRef.current.remove();
     }
+    setStatus("loading");
 
     const style: string | StyleSpecification =
       basemap?.kind === "rasterStyle"
@@ -72,7 +84,25 @@ export function TrajetMap({
 
     mapRef.current = map;
 
+    let loaded = false;
+    const timeout = setTimeout(() => {
+      if (!loaded) setStatus("error");
+    }, LOAD_TIMEOUT_MS);
+
+    // Erreur fatale uniquement avant le premier rendu (style indisponible) ;
+    // les erreurs de tuiles isolées après le `load` sont ignorées.
+    map.on("error", () => {
+      if (!loaded) {
+        clearTimeout(timeout);
+        setStatus("error");
+      }
+    });
+
     map.on("load", () => {
+      loaded = true;
+      clearTimeout(timeout);
+      setStatus("ready");
+
       geoArrets.forEach((arret) => {
         const el = document.createElement("div");
         el.className = "trajet-marker";
@@ -135,26 +165,50 @@ export function TrajetMap({
     });
 
     return () => {
+      clearTimeout(timeout);
       map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoArretsKey, geometryKey, basemapKey]);
+  }, [geoArretsKey, geometryKey, basemapKey, attempt]);
 
   if (geoArrets.length === 0) {
     return (
       <div
         className={`flex items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 bg-muted/30 text-sm text-muted-foreground ${className ?? ""}`}
       >
-        Aucun arret avec coordonnees GPS
+        Aucun arrêt avec coordonnées GPS
       </div>
     );
   }
 
   return (
     <div
-      ref={containerRef}
-      className={`rounded-[0.3rem] border border-border ${className ?? ""}`}
-    />
+      className={`relative overflow-hidden rounded-[0.3rem] border border-border ${className ?? ""}`}
+    >
+      <div ref={containerRef} className="h-full w-full" />
+      {status === "loading" && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-muted/40">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {status === "error" && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-muted px-6 text-center">
+          <MapPinOff className="size-6 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Impossible de charger la carte
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="cursor-pointer"
+            onClick={() => setAttempt((a) => a + 1)}
+          >
+            Réessayer
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

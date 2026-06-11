@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   Pencil,
   Trash2,
@@ -116,7 +117,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
           `${data.copied} circuit${data.copied > 1 ? "s" : ""} copié${data.copied > 1 ? "s" : ""} en préparation`,
         );
       },
-      onError: () => toast.error("Erreur lors de la copie en préparation"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de la copie en préparation"),
     }),
   );
 
@@ -131,11 +132,11 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
         });
-        toast.success("Circuit cree avec succes");
+        toast.success("Circuit créé avec succès");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );
@@ -146,12 +147,12 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
         });
-        toast.success("Circuit modifie avec succes");
+        toast.success("Circuit modifié avec succès");
         setFormOpen(false);
         setEditingItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -162,11 +163,11 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
         });
-        toast.success("Circuit supprime");
+        toast.success("Circuit supprimé");
         setDeleteItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -177,10 +178,10 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.circuits.list.queryKey(),
         });
-        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -193,8 +194,8 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         });
         toast.success(variables.archived ? "Circuit archivé" : "Circuit désarchivé");
       },
-      onError: () => {
-        toast.error("Erreur lors de l'archivage");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'archivage");
       },
     }),
   );
@@ -211,8 +212,8 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
           }${data.updated > 1 ? "s" : ""}`,
         );
       },
-      onError: () => {
-        toast.error("Erreur lors de l'archivage");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'archivage");
       },
     }),
   );
@@ -238,8 +239,8 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         }
         setDatesDialogOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la mise à jour des dates");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la mise à jour des dates");
       },
     }),
   );
@@ -334,7 +335,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
           : []),
       ]}
       title="Circuits"
-      description="Gerez vos circuits de transport"
+      description="Gérez vos circuits de transport"
       emptyIcon={ShareIcon}
       emptyTitle={
         activeTab === "archived" ? "Aucun circuit archivé" : "Aucun circuit"
@@ -381,10 +382,20 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
           key: "status",
           header: "Statut",
           render: (row) => <CircuitStatusBadge status={row.status} />,
+          exportValue: (row) =>
+            CIRCUIT_STATUS_LABELS[
+              row.status as (typeof CIRCUIT_STATUSES)[number]
+            ] ?? row.status,
         },
         {
           key: "etablissement",
-          header: "Etablissement",
+          header: "Établissement",
+          exportValue: (row) =>
+            row.etablissementName
+              ? row.etablissementCity
+                ? `${row.etablissementName} (${row.etablissementCity})`
+                : row.etablissementName
+              : null,
           render: (row) =>
             row.etablissementName ? (
               <span className="text-foreground">
@@ -401,7 +412,11 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         },
         {
           key: "periode",
-          header: "Periode",
+          header: "Période",
+          exportValue: (row) =>
+            row.startDate || row.endDate
+              ? `${formatCircuitDate(row.startDate)} → ${formatCircuitDate(row.endDate)}`
+              : null,
           render: (row) =>
             row.startDate || row.endDate ? (
               <span className="whitespace-nowrap text-sm tabular-nums">
@@ -415,6 +430,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         {
           key: "trajets",
           header: "Trajets",
+          exportValue: (row) => row.trajetCount,
           render: (row) => (
             <span className="tabular-nums text-foreground">
               {row.trajetCount}
@@ -424,6 +440,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         {
           key: "km",
           header: "Km",
+          exportValue: (row) => (row.totalKm > 0 ? row.totalKm : null),
           render: (row) =>
             row.totalKm > 0 ? (
               <span className="tabular-nums text-foreground">
@@ -436,6 +453,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         {
           key: "avenants",
           header: "Avenants",
+          exportValue: (row) => row.avenantCount,
           render: (row) =>
             row.avenantCount > 0 ? (
               <Badge
@@ -467,8 +485,8 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
             })),
           ],
         },
-        { key: "etablissement", label: "Etablissement", type: "text" },
-        { key: "periode", label: "Periode", type: "daterange" },
+        { key: "etablissement", label: "Établissement", type: "text" },
+        { key: "periode", label: "Période", type: "daterange" },
       ]}
       emptyFilters={EMPTY_FILTERS}
       filterFn={(row, filters) => {

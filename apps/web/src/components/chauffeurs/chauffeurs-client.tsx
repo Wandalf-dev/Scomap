@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Pencil, Trash2, ExternalLink } from "lucide-react";
 import { UserIcon } from "@/components/ui/user-icon";
 import { Badge } from "@/components/ui/badge";
@@ -55,11 +56,11 @@ export function ChauffeursClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success("Chauffeur cree avec succes");
+        toast.success("Chauffeur créé avec succès");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );
@@ -70,12 +71,12 @@ export function ChauffeursClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success("Chauffeur modifie avec succes");
+        toast.success("Chauffeur modifié avec succès");
         setFormOpen(false);
         setEditingItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -86,11 +87,11 @@ export function ChauffeursClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success("Chauffeur supprime");
+        toast.success("Chauffeur supprimé");
         setDeleteItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -101,10 +102,10 @@ export function ChauffeursClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -125,7 +126,7 @@ export function ChauffeursClient() {
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
       title="Chauffeurs"
-      description="Gerez vos chauffeurs"
+      description="Gérez vos chauffeurs"
       emptyIcon={UserIcon}
       emptyTitle="Aucun chauffeur"
       emptyDescription="Commencez par ajouter votre premier chauffeur."
@@ -141,14 +142,14 @@ export function ChauffeursClient() {
         },
         {
           key: "firstName",
-          header: "Prenom",
+          header: "Prénom",
           render: (row) => (
             <span className="text-foreground">{row.firstName}</span>
           ),
         },
         {
           key: "phone",
-          header: "Telephone",
+          header: "Téléphone",
           render: (row) =>
             row.phone ? (
               <span className="text-muted-foreground">{row.phone}</span>
@@ -169,6 +170,7 @@ export function ChauffeursClient() {
         {
           key: "status",
           header: "Statut",
+          exportValue: (row) => (row.isActive ? "Actif" : "Inactif"),
           render: (row) => (
             <Badge variant="outline">
               <span
@@ -186,7 +188,7 @@ export function ChauffeursClient() {
       onRowClick={(row) => router.push(`/chauffeurs/${row.id}`)}
       filters={[
         { key: "lastName", label: "Nom", type: "text" },
-        { key: "firstName", label: "Prenom", type: "text" },
+        { key: "firstName", label: "Prénom", type: "text" },
         {
           key: "status",
           label: "Statut",

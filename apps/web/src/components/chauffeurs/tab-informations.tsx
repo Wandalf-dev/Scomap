@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   chauffeurDetailSchema,
   type ChauffeurDetailFormValues,
@@ -45,6 +50,9 @@ interface TabInformationsProps {
 export function TabInformations({ chauffeur }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const formId = "chauffeur-informations-form";
 
   const form = useForm<ChauffeurDetailFormValues>({
     resolver: zodResolver(chauffeurDetailSchema),
@@ -61,17 +69,19 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
 
   const mutation = useMutation(
     trpc.chauffeurs.updateDetail.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.getById.queryKey({ id: chauffeur.id }),
         });
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.list.queryKey(),
         });
-        toast.success("Chauffeur enregistre");
+        toast.success("Chauffeur enregistré");
+        // Repasse le formulaire en pristine après sauvegarde.
+        form.reset(variables.data);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
       },
     }),
   );
@@ -80,13 +90,39 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
     mutation.mutate({ id: chauffeur.id, data: values });
   }
 
+  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
+  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setDirty?.("chauffeur-informations", isDirty);
+    return () => setDirty?.("chauffeur-informations", false);
+  }, [isDirty, setDirty]);
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Identite */}
+      {headerActions?.target &&
+        createPortal(
+          <Button
+            type="submit"
+            form={formId}
+            size="sm"
+            disabled={mutation.isPending || !form.formState.isDirty}
+            className="cursor-pointer"
+          >
+            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
+          </Button>,
+          headerActions.target,
+        )}
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-6"
+      >
+        {/* Identité */}
         <Card>
           <CardHeader>
-            <CardTitle>Identite</CardTitle>
+            <CardTitle>Identité</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
@@ -108,9 +144,9 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prenom</FormLabel>
+                    <FormLabel>Prénom</FormLabel>
                     <FormControl>
-                      <Input placeholder="Prenom" {...field} />
+                      <Input placeholder="Prénom" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,7 +172,7 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telephone</FormLabel>
+                    <FormLabel>Téléphone</FormLabel>
                     <FormControl>
                       <Input placeholder="06 12 34 56 78" {...field} />
                     </FormControl>
@@ -161,7 +197,7 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
                 <FormItem>
                   <FormControl>
                     <Textarea
-                      placeholder="Adresse complete..."
+                      placeholder="Adresse complète..."
                       rows={3}
                       {...field}
                     />
@@ -220,11 +256,6 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
       </form>
     </Form>
   );

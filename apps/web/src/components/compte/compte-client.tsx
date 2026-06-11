@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   userProfileUpdateSchema,
   USER_ROLE_LABELS,
@@ -220,7 +221,7 @@ function ProfilTab({
       onSaved();
       form.reset(values);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'enregistrement");
+      toastTrpcError(err, "Erreur lors de l'enregistrement");
     }
   }
 

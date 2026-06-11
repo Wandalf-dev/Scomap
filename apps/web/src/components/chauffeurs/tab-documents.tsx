@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   chauffeurDocumentsSchema,
   type ChauffeurDocumentsFormValues,
@@ -40,6 +45,9 @@ interface TabDocumentsProps {
 export function TabDocuments({ chauffeur }: TabDocumentsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const formId = "chauffeur-documents-form";
 
   const form = useForm<ChauffeurDocumentsFormValues>({
     resolver: zodResolver(chauffeurDocumentsSchema),
@@ -52,14 +60,16 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
 
   const mutation = useMutation(
     trpc.chauffeurs.updateDocuments.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({
           queryKey: trpc.chauffeurs.getById.queryKey({ id: chauffeur.id }),
         });
-        toast.success("Documents enregistres");
+        toast.success("Documents enregistrés");
+        // Repasse le formulaire en pristine après sauvegarde.
+        form.reset(variables.data);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
       },
     }),
   );
@@ -68,9 +78,35 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
     mutation.mutate({ id: chauffeur.id, data: values });
   }
 
+  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
+  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setDirty?.("chauffeur-documents", isDirty);
+    return () => setDirty?.("chauffeur-documents", false);
+  }, [isDirty, setDirty]);
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      {headerActions?.target &&
+        createPortal(
+          <Button
+            type="submit"
+            form={formId}
+            size="sm"
+            disabled={mutation.isPending || !form.formState.isDirty}
+            className="cursor-pointer"
+          >
+            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
+          </Button>,
+          headerActions.target,
+        )}
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-6"
+      >
         {/* Permis de conduire */}
         <Card>
           <CardHeader>
@@ -82,9 +118,9 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
               name="licenseNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Numero de permis</FormLabel>
+                  <FormLabel>Numéro de permis</FormLabel>
                   <FormControl>
-                    <Input placeholder="Numero de permis" {...field} />
+                    <Input placeholder="Numéro de permis" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -106,10 +142,10 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
           </CardContent>
         </Card>
 
-        {/* Certificat medical */}
+        {/* Certificat médical */}
         <Card>
           <CardHeader>
-            <CardTitle>Certificat medical</CardTitle>
+            <CardTitle>Certificat médical</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
@@ -128,11 +164,6 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
       </form>
     </Form>
   );

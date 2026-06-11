@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText } from "lucide-react";
 import {
@@ -75,7 +76,7 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
         invalidateAll();
         toast.success("Avenant annulé");
       },
-      onError: () => toast.error("Erreur lors de l'annulation"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de l'annulation"),
     }),
   );
 
@@ -85,7 +86,7 @@ export function TabAvenantsCircuit({ circuitId }: TabAvenantsCircuitProps) {
         invalidateAll();
         toast.success("Composition initiale supprimée — usagers dissociés");
       },
-      onError: (e) => toast.error(e.message || "Erreur lors de la suppression"),
+      onError: (e) => toastTrpcError(e, "Erreur lors de la suppression"),
     }),
   );
 

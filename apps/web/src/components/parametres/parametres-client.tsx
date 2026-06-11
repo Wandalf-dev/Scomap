@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { z } from "zod";
 import {
   Form,
@@ -206,8 +207,8 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
         queryKey: trpc.basemap.getStyle.queryKey(),
       });
       toast.success("Paramètres enregistrés");
-    } catch {
-      toast.error("Erreur lors de l'enregistrement");
+    } catch (err) {
+      toastTrpcError(err, "Erreur lors de l'enregistrement");
     }
   }
 
@@ -226,7 +227,7 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
           );
         }
       },
-      onError: () => toast.error("Test indisponible"),
+      onError: (err) => toastTrpcError(err, "Test indisponible"),
     });
   }
 

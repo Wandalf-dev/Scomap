@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Pencil, Trash2, ExternalLink } from "lucide-react";
 import { TruckIcon } from "@/components/ui/truck-icon";
 import { Badge } from "@/components/ui/badge";
@@ -56,11 +57,11 @@ export function VehiculesClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success("Vehicule cree avec succes");
+        toast.success("Véhicule créé avec succès");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );
@@ -71,12 +72,12 @@ export function VehiculesClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success("Vehicule modifie avec succes");
+        toast.success("Véhicule modifié avec succès");
         setFormOpen(false);
         setEditingItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -87,11 +88,11 @@ export function VehiculesClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success("Vehicule supprime");
+        toast.success("Véhicule supprimé");
         setDeleteItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -102,10 +103,10 @@ export function VehiculesClient() {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -125,12 +126,12 @@ export function VehiculesClient() {
       error={error}
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
-      title="Vehicules"
-      description="Gerez votre flotte de vehicules"
+      title="Véhicules"
+      description="Gérez votre flotte de véhicules"
       emptyIcon={TruckIcon}
-      emptyTitle="Aucun vehicule"
-      emptyDescription="Commencez par ajouter votre premier vehicule."
-      addButtonLabel="Ajouter un vehicule"
+      emptyTitle="Aucun véhicule"
+      emptyDescription="Commencez par ajouter votre premier véhicule."
+      addButtonLabel="Ajouter un véhicule"
       addHref="/vehicules/new"
       columns={[
         {
@@ -152,7 +153,9 @@ export function VehiculesClient() {
         },
         {
           key: "brandModel",
-          header: "Marque / Modele",
+          header: "Marque / Modèle",
+          exportValue: (row) =>
+            [row.brand, row.model].filter(Boolean).join(" ") || null,
           render: (row) =>
             row.brand || row.model ? (
               <span className="text-muted-foreground">
@@ -164,7 +167,7 @@ export function VehiculesClient() {
         },
         {
           key: "capacity",
-          header: "Capacite",
+          header: "Capacité",
           render: (row) =>
             row.capacity != null ? (
               <span className="text-muted-foreground">{row.capacity}</span>
@@ -175,6 +178,7 @@ export function VehiculesClient() {
         {
           key: "status",
           header: "Statut",
+          exportValue: (row) => (row.isActive ? "Actif" : "Inactif"),
           render: (row) => (
             <Badge variant="outline">
               <span

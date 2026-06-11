@@ -1,11 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MoreVertical } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { DeleteIcon, type DeleteIconHandle } from "@/components/ui/delete-icon";
+import { DeleteIcon } from "@/components/ui/delete-icon";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tabs,
   TabsContent,
@@ -21,7 +29,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   UnsavedChangesProvider,
@@ -36,6 +43,62 @@ interface Tab {
   value: string;
   label: string;
   content: React.ReactNode;
+}
+
+/** Entrée du menu « ⋯ » (ex. Archiver), affichée au-dessus de Supprimer.
+ *  L'icône accepte aussi bien les icônes lucide que nos icônes animées. */
+export interface DetailMenuAction {
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+interface AnimatedIconHandle {
+  startAnimation: () => void;
+  stopAnimation: () => void;
+}
+
+/** Item de menu dont l'icône animée se déclenche au survol/focus de toute la
+ *  ligne (et non de l'icône seule). Les icônes lucide ignorent simplement le
+ *  ref (les appels start/stopAnimation sont alors des no-op). */
+function MenuActionItem({
+  icon: Icon,
+  label,
+  onSelect,
+  disabled,
+  destructive,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  onSelect: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+}) {
+  const iconRef = useRef<AnimatedIconHandle>(null);
+  const IconWithRef = Icon as unknown as React.ForwardRefExoticComponent<
+    { size?: number; className?: string } & React.RefAttributes<AnimatedIconHandle>
+  >;
+  const animate = () => iconRef.current?.startAnimation?.();
+  const stop = () => iconRef.current?.stopAnimation?.();
+
+  return (
+    <DropdownMenuItem
+      onSelect={onSelect}
+      disabled={disabled}
+      onMouseEnter={animate}
+      onMouseLeave={stop}
+      onFocus={animate}
+      onBlur={stop}
+      className={cn(
+        "cursor-pointer",
+        destructive && "text-destructive focus:text-destructive",
+      )}
+    >
+      <IconWithRef ref={iconRef} size={16} className="mr-2" />
+      {label}
+    </DropdownMenuItem>
+  );
 }
 
 interface EntityDetailLayoutProps {
@@ -54,11 +117,52 @@ interface EntityDetailLayoutProps {
   defaultTab?: string;
   /** Actions supplémentaires dans le bandeau (ex. Archiver), avant Supprimer. */
   headerExtra?: React.ReactNode;
+  /** Actions placées dans le menu « ⋯ », au-dessus de Supprimer. */
+  menuActions?: DetailMenuAction[];
 }
 
 function HeaderActionsSlot() {
   const ctx = useHeaderActions();
   return <div ref={ctx?.setTarget} className="flex items-center gap-2" />;
+}
+
+interface UnsavedChangesDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  description: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+}
+
+/** Dialog de confirmation partagé (bouton Retour + changement d'onglet). */
+function UnsavedChangesDialog({
+  open,
+  onOpenChange,
+  description,
+  cancelLabel,
+  onConfirm,
+}: UnsavedChangesDialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="cursor-pointer">
+            {cancelLabel}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Quitter sans enregistrer
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 function BackButton({ backHref }: { backHref: string }) {
@@ -85,28 +189,16 @@ function BackButton({ backHref }: { backHref: string }) {
         <ArrowLeft className="size-4" />
         Retour
       </Button>
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vous avez des modifications non enregistrées. Si vous quittez
-              maintenant, elles seront perdues. Voulez-vous vraiment continuer ?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">
-              Rester sur la page
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => router.push(backHref)}
-              className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Quitter sans enregistrer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <UnsavedChangesDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        description="Vous avez des modifications non enregistrées. Si vous quittez maintenant, elles seront perdues. Voulez-vous vraiment continuer ?"
+        cancelLabel="Rester sur la page"
+        onConfirm={() => {
+          unsaved?.resetDirty();
+          router.push(backHref);
+        }}
+      />
     </>
   );
 }
@@ -135,13 +227,39 @@ function EntityDetailLayoutInner({
   tabs,
   defaultTab,
   headerExtra,
+  menuActions,
 }: EntityDetailLayoutProps) {
   const router = useRouter();
-  const deleteIconRef = useRef<DeleteIconHandle>(null);
+  const unsaved = useUnsavedChanges();
   const activeDefault =
     defaultTab && tabs.some((t) => t.value === defaultTab)
       ? defaultTab
       : tabs[0]?.value;
+  const [activeTab, setActiveTab] = useState(activeDefault);
+  // Onglet demandé en attente de confirmation (formulaire dirty)
+  const [pendingTab, setPendingTab] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Change d'onglet et réécrit ?tab= dans l'URL (en préservant les autres params, ex. ?back=)
+  const applyTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value);
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", value);
+      router.replace(`${window.location.pathname}?${params.toString()}`, {
+        scroll: false,
+      });
+    },
+    [router],
+  );
+
+  function handleTabChange(value: string) {
+    if (unsaved?.isDirty) {
+      setPendingTab(value);
+    } else {
+      applyTabChange(value);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -189,30 +307,53 @@ function EntityDetailLayoutInner({
           {badges}
         </div>
 
-        {/* Actions */}
+        {/* Actions — Enregistrer (portal) à gauche du cluster ; Supprimer
+            isolé dans un menu « ⋯ » à l'extrême droite pour éviter le
+            missclick destructif à côté de la sauvegarde. */}
         <div className="flex shrink-0 items-center gap-2">
           {headerExtra}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          <HeaderActionsSlot />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size="sm"
-                onMouseEnter={() => deleteIconRef.current?.startAnimation()}
-                onMouseLeave={() => deleteIconRef.current?.stopAnimation()}
-                className="cursor-pointer gap-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                size="icon"
+                aria-label="Plus d'actions"
+                className="cursor-pointer text-muted-foreground hover:text-foreground"
               >
-                <DeleteIcon ref={deleteIconRef} size={16} />
-                Supprimer
+                <MoreVertical className="size-4" />
               </Button>
-            </AlertDialogTrigger>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {menuActions?.map((action) => (
+                <MenuActionItem
+                  key={action.label}
+                  icon={action.icon}
+                  label={action.label}
+                  onSelect={action.onClick}
+                  disabled={action.disabled}
+                />
+              ))}
+              {menuActions && menuActions.length > 0 && <DropdownMenuSeparator />}
+              <MenuActionItem
+                icon={DeleteIcon}
+                label="Supprimer"
+                onSelect={() => setDeleteOpen(true)}
+                destructive
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
                   Supprimer {deleteEntityName}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Etes-vous sur de vouloir supprimer{" "}
-                  <strong>{deleteLabel}</strong> ? Cette action est irreversible.
+                  Êtes-vous sûr de vouloir supprimer{" "}
+                  <strong>{deleteLabel}</strong> ? Cette action est irréversible.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -232,31 +373,52 @@ function EntityDetailLayoutInner({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-
-          <HeaderActionsSlot />
         </div>
       </div>
 
-      {/* Tabs — contrôle segmenté soigné */}
-      <Tabs defaultValue={activeDefault}>
-        <TabsList className="h-9 gap-1 rounded-lg border border-border bg-muted/60 p-1">
-          {tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              className="cursor-pointer rounded-md px-3.5 text-[0.8125rem] font-medium text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-primary/30 dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* Tabs — contrôle segmenté soigné. Avec un seul onglet (fiche mono-vue),
+          la barre est masquée : le contenu s'affiche directement. */}
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        {tabs.length > 1 && (
+          <TabsList className="h-9 gap-1 rounded-lg border border-border bg-muted/60 p-1">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="cursor-pointer rounded-md px-3.5 text-[0.8125rem] font-medium text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=active]:shadow-primary/30 dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        )}
 
         {tabs.map((tab) => (
-          <TabsContent key={tab.value} value={tab.value} className="mt-6">
+          <TabsContent
+            key={tab.value}
+            value={tab.value}
+            className={tabs.length > 1 ? "mt-6" : ""}
+          >
             {tab.content}
           </TabsContent>
         ))}
       </Tabs>
+
+      <UnsavedChangesDialog
+        open={pendingTab !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingTab(null);
+        }}
+        description="Si vous quittez cet onglet, vos modifications seront perdues. Voulez-vous vraiment continuer ?"
+        cancelLabel="Continuer la saisie"
+        onConfirm={() => {
+          if (pendingTab) {
+            unsaved?.resetDirty();
+            applyTabChange(pendingTab);
+          }
+          setPendingTab(null);
+        }}
+      />
     </div>
   );
 }

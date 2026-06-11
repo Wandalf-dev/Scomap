@@ -42,7 +42,6 @@ export function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/preparation") ||
     request.nextUrl.pathname.startsWith("/vehicules") ||
     request.nextUrl.pathname.startsWith("/chauffeurs") ||
-    request.nextUrl.pathname.startsWith("/facturation") ||
     request.nextUrl.pathname.startsWith("/utilisateurs") ||
     request.nextUrl.pathname.startsWith("/compte");
 

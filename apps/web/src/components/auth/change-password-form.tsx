@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { changePasswordSchema } from "@/lib/validators/user";
 import {
   Form,
@@ -57,9 +58,7 @@ export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps) {
       form.reset();
       onSuccess?.();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Erreur lors de la modification",
-      );
+      toastTrpcError(err, "Erreur lors de la modification");
     }
   }
 

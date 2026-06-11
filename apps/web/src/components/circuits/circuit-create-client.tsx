@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { ArrowLeft, Tag, CalendarDays, School, FileText } from "lucide-react";
 import {
   circuitDetailSchema,
@@ -63,8 +64,8 @@ export function CircuitCreateClient() {
         toast.success("Circuit créé");
         router.push(data?.id ? `/circuits/${data.id}` : "/circuits");
       },
-      onError: () => {
-        toast.error("Erreur lors de la création");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );

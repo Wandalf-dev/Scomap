@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 
 export interface SidebarConfig {
   variant: "sidebar" | "floating" | "inset";
@@ -57,6 +58,8 @@ export function SidebarConfigProvider({
         });
         setHasUnsavedChanges(false);
       },
+      onError: (err) =>
+        toastTrpcError(err, "Impossible d'enregistrer vos préférences"),
     })
   );
 

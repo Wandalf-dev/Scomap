@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   arretSchema,
   type ArretFormValues,
@@ -163,17 +164,22 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
     trpc.arrets.list.queryOptions({ trajetId, all: true }),
   );
 
+  // Clé EXACTE de la query affichée ci-dessus : les mises à jour optimistes
+  // doivent écrire sur cette entrée (un input différent = autre entrée de
+  // cache → l'UI ne bougerait qu'après le refetch serveur).
+  const listQueryKey = trpc.arrets.list.queryKey({ trajetId, all: true });
+
   const createMutation = useMutation(
     trpc.arrets.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: trpc.arrets.list.queryKey({ trajetId }),
         });
-        toast.success("Arret ajoute");
+        toast.success("Arrêt ajouté");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'ajout");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'ajout");
       },
     }),
   );
@@ -184,12 +190,12 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.arrets.list.queryKey({ trajetId }),
         });
-        toast.success("Arret modifie");
+        toast.success("Arrêt modifié");
         setFormOpen(false);
         setEditingArret(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -200,11 +206,11 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
         queryClient.invalidateQueries({
           queryKey: trpc.arrets.list.queryKey({ trajetId }),
         });
-        toast.success("Arret supprime");
+        toast.success("Arrêt supprimé");
         setDeleteArret(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -212,7 +218,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
   const toggleLockMutation = useMutation(
     trpc.arrets.toggleTimeLock.mutationOptions({
       onMutate: async ({ id }) => {
-        const queryKey = trpc.arrets.list.queryKey({ trajetId });
+        const queryKey = listQueryKey;
         await queryClient.cancelQueries({ queryKey });
         const previous = queryClient.getQueryData(queryKey);
         queryClient.setQueryData(queryKey, (old) => {
@@ -223,14 +229,11 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
         });
         return { previous };
       },
-      onError: (_err, _vars, context) => {
+      onError: (err, _vars, context) => {
         if (context?.previous) {
-          queryClient.setQueryData(
-            trpc.arrets.list.queryKey({ trajetId }),
-            context.previous,
-          );
+          queryClient.setQueryData(listQueryKey, context.previous);
         }
-        toast.error("Erreur lors du verrouillage");
+        toastTrpcError(err, "Erreur lors du verrouillage");
       },
       onSettled: () => {
         queryClient.invalidateQueries({
@@ -243,7 +246,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
   const reorderMutation = useMutation(
     trpc.arrets.reorder.mutationOptions({
       onMutate: async ({ items }) => {
-        const queryKey = trpc.arrets.list.queryKey({ trajetId });
+        const queryKey = listQueryKey;
         await queryClient.cancelQueries({ queryKey });
         const previous = queryClient.getQueryData(queryKey);
         queryClient.setQueryData(queryKey, (old) => {
@@ -255,14 +258,11 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
         });
         return { previous };
       },
-      onError: (_err, _vars, context) => {
+      onError: (err, _vars, context) => {
         if (context?.previous) {
-          queryClient.setQueryData(
-            trpc.arrets.list.queryKey({ trajetId }),
-            context.previous,
-          );
+          queryClient.setQueryData(listQueryKey, context.previous);
         }
-        toast.error("Erreur lors du reordonnancement");
+        toastTrpcError(err, "Erreur lors du réordonnancement");
       },
       onSettled: () => {
         queryClient.invalidateQueries({
@@ -275,7 +275,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
   const setTimeMutation = useMutation(
     trpc.arrets.setArrivalTime.mutationOptions({
       onMutate: async ({ id, arrivalTime }) => {
-        const queryKey = trpc.arrets.list.queryKey({ trajetId });
+        const queryKey = listQueryKey;
         await queryClient.cancelQueries({ queryKey });
         const previous = queryClient.getQueryData(queryKey);
         queryClient.setQueryData(queryKey, (old) => {
@@ -286,14 +286,11 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
         });
         return { previous };
       },
-      onError: (_err, _vars, context) => {
+      onError: (err, _vars, context) => {
         if (context?.previous) {
-          queryClient.setQueryData(
-            trpc.arrets.list.queryKey({ trajetId }),
-            context.previous,
-          );
+          queryClient.setQueryData(listQueryKey, context.previous);
         }
-        toast.error("Erreur lors de la mise a jour de l'horaire");
+        toastTrpcError(err, "Erreur lors de la mise à jour de l'horaire");
       },
       onSettled: () => {
         queryClient.invalidateQueries({
@@ -369,7 +366,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-          Arrets ({arretsList?.length ?? 0})
+          Arrêts ({arretsList?.length ?? 0})
         </h3>
         <div className="flex items-center gap-2">
           <Button
@@ -395,10 +392,10 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-16">
           <MapPin className="h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
-            Aucun arret
+            Aucun arrêt
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ajoutez un premier arret pour ce trajet.
+            Ajoutez un premier arrêt pour ce trajet.
           </p>
         </div>
       ) : (
@@ -420,7 +417,7 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
                   <TableHead className="w-[140px]">Horaire</TableHead>
                   <TableHead
                     className="w-[44px] text-center"
-                    title="Verrouiller l'horaire : il ne sera pas recalcule lors du calcul des horaires"
+                    title="Verrouiller l'horaire : il ne sera pas recalculé lors du calcul des horaires"
                   >
                     <Lock className="h-3.5 w-3.5 mx-auto text-muted-foreground" />
                   </TableHead>
@@ -490,9 +487,9 @@ export function TrajetArrets({ trajetId }: TabArretsProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer l&apos;arret</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer l&apos;arrêt</AlertDialogTitle>
             <AlertDialogDescription>
-              Etes-vous sur de vouloir supprimer{" "}
+              Êtes-vous sûr de vouloir supprimer{" "}
               <strong>{deleteArret?.name}</strong> ?
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -561,7 +558,7 @@ function SortableArretRow({
           {...attributes}
           {...listeners}
           className="flex h-7 w-6 items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground/40 hover:text-foreground"
-          aria-label="Reordonner l'arret"
+          aria-label="Réordonner l'arrêt"
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -607,7 +604,7 @@ function SortableArretRow({
               variant="outline"
               className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400 text-xs shrink-0"
             >
-              Ecole
+              École
             </Badge>
           )}
         </div>
@@ -624,7 +621,7 @@ function SortableArretRow({
           checked={arret.timeLocked}
           onCheckedChange={() => onToggleLock(arret)}
           className="cursor-pointer"
-          title="Verrouiller cet horaire : ignore lors du calcul des horaires"
+          title="Verrouiller cet horaire : ignoré lors du calcul des horaires"
         />
       </TableCell>
       <TableCell className="text-right font-mono text-sm text-muted-foreground">
@@ -703,7 +700,7 @@ function ArretTimeInput({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      title={locked ? "Horaire verrouille" : undefined}
+      title={locked ? "Horaire verrouillé" : undefined}
       className={`h-7 w-[7.5rem] rounded-[0.3rem] border bg-background px-2 text-sm tabular-nums outline-none transition-colors focus:border-ring ${
         locked ? "border-primary/50 text-primary" : "border-input"
       }`}
@@ -791,7 +788,7 @@ function ArretFormDialog({
       <DialogContent className="sm:max-w-[540px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Ajouter un arret" : "Modifier l'arret"}
+            {mode === "create" ? "Ajouter un arrêt" : "Modifier l'arrêt"}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -819,7 +816,7 @@ function ArretFormDialog({
                 className="cursor-pointer"
               >
                 <School className="mr-2 h-4 w-4" />
-                Etablissement
+                Établissement
               </Button>
             </div>
 
@@ -859,7 +856,7 @@ function ArretFormDialog({
                   <FormLabel>Nom</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Nom de l'arret"
+                      placeholder="Nom de l'arrêt"
                       className="bg-muted"
                       readOnly
                       {...field}
@@ -896,7 +893,7 @@ function ArretFormDialog({
                 name="arrivalTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Heure d&apos;arrivee</FormLabel>
+                    <FormLabel>Heure d&apos;arrivée</FormLabel>
                     <FormControl>
                       <Input type="time" {...field} />
                     </FormControl>

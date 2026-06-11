@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   etablissementContactSchema,
   type EtablissementContactFormValues,
@@ -93,8 +94,8 @@ export function TabInterlocuteurs({ etablissementId }: TabInterlocuteursProps) {
         toast.success("Interlocuteur ajouté");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'ajout");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'ajout");
       },
     }),
   );
@@ -109,8 +110,8 @@ export function TabInterlocuteurs({ etablissementId }: TabInterlocuteursProps) {
         setFormOpen(false);
         setEditingContact(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -124,8 +125,8 @@ export function TabInterlocuteurs({ etablissementId }: TabInterlocuteursProps) {
         toast.success("Interlocuteur supprimé");
         setDeleteContact(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );

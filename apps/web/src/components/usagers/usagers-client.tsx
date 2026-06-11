@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { Pencil, Trash2, ExternalLink, Archive, ArchiveRestore, Copy, CalendarClock } from "lucide-react";
 import { UsersIcon } from "@/components/ui/users-icon";
 import { Badge } from "@/components/ui/badge";
@@ -154,7 +155,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           `${data.copied} usager${data.copied > 1 ? "s" : ""} copié${data.copied > 1 ? "s" : ""} en préparation`,
         );
       },
-      onError: () => toast.error("Erreur lors de la copie en préparation"),
+      onError: (err) => toastTrpcError(err, "Erreur lors de la copie en préparation"),
     }),
   );
 
@@ -195,11 +196,11 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.list.queryKey(),
         });
-        toast.success("Usager cree avec succes");
+        toast.success("Usager créé avec succès");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de la creation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la création");
       },
     }),
   );
@@ -210,12 +211,12 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.list.queryKey(),
         });
-        toast.success("Usager modifie avec succes");
+        toast.success("Usager modifié avec succès");
         setFormOpen(false);
         setEditingItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -226,11 +227,11 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.list.queryKey(),
         });
-        toast.success("Usager supprime");
+        toast.success("Usager supprimé");
         setDeleteItem(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -241,10 +242,10 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         queryClient.invalidateQueries({
           queryKey: trpc.usagers.list.queryKey(),
         });
-        toast.success(`${data.deleted} element${data.deleted > 1 ? "s" : ""} supprime${data.deleted > 1 ? "s" : ""}`);
+        toast.success(`${data.deleted} élément${data.deleted > 1 ? "s" : ""} supprimé${data.deleted > 1 ? "s" : ""}`);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -260,8 +261,8 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         );
         setBulkDatesIds(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la mise à jour des dates");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la mise à jour des dates");
       },
     }),
   );
@@ -274,8 +275,8 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
         });
         toast.success(variables.archived ? "Usager archivé" : "Usager désarchivé");
       },
-      onError: () => {
-        toast.error("Erreur lors de l'archivage");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'archivage");
       },
     }),
   );
@@ -372,7 +373,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
       }
       rowAccent={(row) => TRANSPORT_ACCENT[row.transportType ?? ""] ?? null}
       title="Usagers"
-      description="Gerez les eleves transportes"
+      description="Gérez les élèves transportés"
       emptyIcon={UsersIcon}
       emptyTitle={
         activeTab === "archived" ? "Aucun usager archivé" : "Aucun usager"
@@ -436,6 +437,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           key: "birthDate",
           header: "Date de naissance",
           sortable: true,
+          exportValue: (row) => formatDate(row.birthDate),
           render: (row) =>
             formatDate(row.birthDate) ? (
               <span className="text-muted-foreground">{formatDate(row.birthDate)}</span>
@@ -458,12 +460,18 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           key: "status",
           header: "Statut",
           sortable: true,
+          exportValue: (row) =>
+            USAGER_STATUS_LABELS[row.status as keyof typeof USAGER_STATUS_LABELS] ?? row.status,
           render: (row) => <UsagerStatusBadge status={row.status} />,
         },
         {
           key: "regime",
           header: "Régime",
           sortable: true,
+          exportValue: (row) =>
+            row.regime
+              ? USAGER_REGIME_LABELS[row.regime as keyof typeof USAGER_REGIME_LABELS] ?? row.regime
+              : null,
           render: (row) =>
             row.regime ? (
               <span className="text-muted-foreground">
@@ -477,6 +485,8 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           key: "classe",
           header: "Classe",
           sortable: true,
+          exportValue: (row) =>
+            row.classe ? CLASSE_LABEL_MAP[row.classe] ?? row.classe : null,
           render: (row) =>
             row.classe ? (
               <span className="text-muted-foreground">
@@ -490,6 +500,12 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           key: "transportType",
           header: "Type de transport",
           sortable: true,
+          exportValue: (row) =>
+            row.transportType
+              ? USAGER_TRANSPORT_TYPE_LABELS[
+                  row.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS
+                ] ?? row.transportType
+              : null,
           render: (row) =>
             row.transportType ? (
               <span className="text-muted-foreground">
@@ -536,6 +552,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           key: "transportStartDate",
           header: "Début transport",
           sortable: true,
+          exportValue: (row) => formatDate(row.transportStartDate),
           render: (row) =>
             formatDate(row.transportStartDate) ? (
               <span className="text-muted-foreground">{formatDate(row.transportStartDate)}</span>
@@ -547,6 +564,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           key: "transportEndDate",
           header: "Fin transport",
           sortable: true,
+          exportValue: (row) => formatDate(row.transportEndDate),
           render: (row) =>
             formatDate(row.transportEndDate) ? (
               <span className="text-muted-foreground">{formatDate(row.transportEndDate)}</span>

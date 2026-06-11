@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   DndContext,
   closestCenter,
@@ -143,8 +144,8 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
         toast.success("Adresse ajoutée");
         setFormOpen(false);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'ajout");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'ajout");
       },
     }),
   );
@@ -157,8 +158,8 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
         setFormOpen(false);
         setEditingAddress(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la modification");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la modification");
       },
     }),
   );
@@ -170,8 +171,8 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
         toast.success("Adresse supprimée");
         setDeleteAddress(null);
       },
-      onError: () => {
-        toast.error("Erreur lors de la suppression");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de la suppression");
       },
     }),
   );
@@ -205,11 +206,11 @@ export function TabAdresses({ usagerId }: TabAdressesProps) {
       onSuccess: () => {
         toast.success("Ordre des adresses mis à jour");
       },
-      onError: (_err, _vars, context) => {
+      onError: (err, _vars, context) => {
         if (context?.previous) {
           queryClient.setQueryData(listQueryKey, context.previous);
         }
-        toast.error("Erreur lors du réordonnancement");
+        toastTrpcError(err, "Erreur lors du réordonnancement");
       },
       onSettled: () => {
         invalidateAddresses();

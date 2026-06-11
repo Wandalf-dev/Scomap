@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
+import { useHeaderActions } from "@/components/shared/header-actions-context";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   vehiculeDetailSchema,
   type VehiculeDetailFormValues,
@@ -47,6 +52,9 @@ interface TabInformationsProps {
 export function TabInformations({ vehicule }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const unsaved = useUnsavedChanges();
+  const headerActions = useHeaderActions();
+  const formId = "vehicule-informations-form";
 
   const form = useForm<VehiculeDetailFormValues>({
     resolver: zodResolver(vehiculeDetailSchema),
@@ -64,17 +72,19 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
 
   const mutation = useMutation(
     trpc.vehicules.updateDetail.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.getById.queryKey({ id: vehicule.id }),
         });
         queryClient.invalidateQueries({
           queryKey: trpc.vehicules.list.queryKey(),
         });
-        toast.success("Vehicule enregistre");
+        toast.success("Véhicule enregistré");
+        // Repasse le formulaire en pristine après sauvegarde.
+        form.reset(variables.data);
       },
-      onError: () => {
-        toast.error("Erreur lors de l'enregistrement");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'enregistrement");
       },
     }),
   );
@@ -83,9 +93,35 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
     mutation.mutate({ id: vehicule.id, data: values });
   }
 
+  // Synchronise l'état dirty avec le contexte du layout (dépendance sur
+  // `setDirty` stable uniquement, cf. tab-identite des usagers).
+  const isDirty = form.formState.isDirty;
+  const setDirty = unsaved?.setDirty;
+  useEffect(() => {
+    setDirty?.("vehicule-informations", isDirty);
+    return () => setDirty?.("vehicule-informations", false);
+  }, [isDirty, setDirty]);
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      {headerActions?.target &&
+        createPortal(
+          <Button
+            type="submit"
+            form={formId}
+            size="sm"
+            disabled={mutation.isPending || !form.formState.isDirty}
+            className="cursor-pointer"
+          >
+            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
+          </Button>,
+          headerActions.target,
+        )}
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-6"
+      >
         {/* Identification */}
         <Card>
           <CardHeader>
@@ -99,7 +135,7 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
                 <FormItem>
                   <FormLabel>Nom</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nom du vehicule" {...field} />
+                    <Input placeholder="Nom du véhicule" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -124,7 +160,7 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
                 name="capacity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Capacite</FormLabel>
+                    <FormLabel>Capacité</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -157,9 +193,9 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
                 name="model"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Modele</FormLabel>
+                    <FormLabel>Modèle</FormLabel>
                     <FormControl>
-                      <Input placeholder="Modele" {...field} />
+                      <Input placeholder="Modèle" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -170,7 +206,7 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
                 name="year"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Annee</FormLabel>
+                    <FormLabel>Année</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -187,10 +223,10 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
           </CardContent>
         </Card>
 
-        {/* Accessibilite */}
+        {/* Accessibilité */}
         <Card>
           <CardHeader>
-            <CardTitle>Accessibilite</CardTitle>
+            <CardTitle>Accessibilité</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
@@ -241,11 +277,6 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </div>
       </form>
     </Form>
   );

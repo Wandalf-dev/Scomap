@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { useRouter } from "nextjs-toploader/app";
 import {
   Sheet,
@@ -18,19 +19,19 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; className: string }
 > = {
-  planifie: { label: "Planifie", className: "border-muted-foreground" },
+  planifie: { label: "Planifié", className: "border-muted-foreground" },
   en_cours: {
     label: "En cours",
     className:
       "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
   },
   termine: {
-    label: "Termine",
+    label: "Terminé",
     className:
       "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   },
   annule: {
-    label: "Annule",
+    label: "Annulé",
     className:
       "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
   },
@@ -92,11 +93,11 @@ export function OccurrenceDetailSheet({
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listOccurrences.queryKey(),
         });
-        toast.success("Occurrence annulee");
+        toast.success("Occurrence annulée");
         onClose();
       },
-      onError: () => {
-        toast.error("Erreur lors de l'annulation");
+      onError: (err) => {
+        toastTrpcError(err, "Erreur lors de l'annulation");
       },
     }),
   );
@@ -138,7 +139,7 @@ export function OccurrenceDetailSheet({
               {(occurrence.overrideDepartureTime ||
                 occurrence.trajetDepartureTime) && (
                 <div>
-                  <dt className="text-muted-foreground">Heure de depart</dt>
+                  <dt className="text-muted-foreground">Heure de départ</dt>
                   <dd className="font-mono font-medium">
                     {occurrence.overrideDepartureTime ??
                       occurrence.trajetDepartureTime}
@@ -162,7 +163,7 @@ export function OccurrenceDetailSheet({
               )}
               {occurrence.vehiculeName && (
                 <div>
-                  <dt className="text-muted-foreground">Vehicule</dt>
+                  <dt className="text-muted-foreground">Véhicule</dt>
                   <dd>{occurrence.vehiculeName}</dd>
                 </div>
               )}
