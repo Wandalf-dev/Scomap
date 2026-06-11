@@ -7,32 +7,16 @@ import {
   formatDateISO,
 } from "@/lib/utils/date-helpers";
 import { CalendarDayCell } from "./calendar-day-cell";
+import { resolvedDepartureTime, type OccurrenceItem } from "./types";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-
-interface OccurrenceItem {
-  id: string;
-  trajetId: string;
-  date: string;
-  status: string;
-  trajetName: string;
-  trajetDirection: string;
-  trajetDepartureTime: string | null;
-  overrideDepartureTime: string | null;
-  circuitName: string | null;
-  chauffeurFirstName: string | null;
-  chauffeurLastName: string | null;
-  vehiculeName: string | null;
-  overrideNotes: string | null;
-  overrideChauffeurId: string | null;
-  overrideVehiculeId: string | null;
-}
 
 interface CalendarGridProps {
   currentDate: Date;
   view: "week" | "month";
   occurrences: OccurrenceItem[];
   onOccurrenceClick: (occ: OccurrenceItem) => void;
+  onOccurrenceDoubleClick: (occ: OccurrenceItem) => void;
 }
 
 export function CalendarGrid({
@@ -40,6 +24,7 @@ export function CalendarGrid({
   view,
   occurrences,
   onOccurrenceClick,
+  onOccurrenceDoubleClick,
 }: CalendarGridProps) {
   // Group occurrences by date
   const occByDate = new Map<string, OccurrenceItem[]>();
@@ -52,8 +37,8 @@ export function CalendarGrid({
   // Sort each day's occurrences by departure time
   for (const [, dayOccs] of occByDate) {
     dayOccs.sort((a, b) => {
-      const timeA = a.overrideDepartureTime ?? a.trajetDepartureTime ?? "";
-      const timeB = b.overrideDepartureTime ?? b.trajetDepartureTime ?? "";
+      const timeA = resolvedDepartureTime(a) ?? "";
+      const timeB = resolvedDepartureTime(b) ?? "";
       return timeA.localeCompare(timeB);
     });
   }
@@ -94,6 +79,7 @@ export function CalendarGrid({
               isCurrentMonth={date.getMonth() === currentMonth}
               view={view}
               onOccurrenceClick={onOccurrenceClick}
+              onOccurrenceDoubleClick={onOccurrenceDoubleClick}
             />
           );
         })}

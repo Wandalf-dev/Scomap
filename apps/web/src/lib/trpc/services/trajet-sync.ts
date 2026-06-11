@@ -1,4 +1,15 @@
-import { eq, and, isNull, inArray, or, lte, gte } from "drizzle-orm";
+import {
+  eq,
+  and,
+  isNull,
+  isNotNull,
+  inArray,
+  notInArray,
+  or,
+  ne,
+  lte,
+  gte,
+} from "drizzle-orm";
 import {
   circuits,
   etablissements,
@@ -8,6 +19,7 @@ import {
   trajets,
   arrets,
   avenantChanges,
+  trajetOccurrences,
 } from "@scomap/db/schema";
 import {
   normalizeDays,
@@ -33,6 +45,23 @@ export type TrajetSyncCtx = {
 export function buildTrajetName(direction: string, days: DayEntry[]): string {
   const label = direction === "aller" ? "Aller" : "Retour";
   return `${label} ${formatDaysShort(days)}`;
+}
+
+/**
+ * Signature (sens × jeu de jours) d'un trajet : clé de correspondance entre
+ * versions successives d'un même trajet à travers les avenants. Permet de
+ * migrer les occurrences (et leurs personnalisations ponctuelles) de l'ancienne
+ * version vers la nouvelle.
+ */
+function trajetSignature(direction: string, days: DayEntry[]): string {
+  const sorted = [...days].sort((a, b) => a.day - b.day);
+  return `${direction}|${formatDaysShort(sorted)}`;
+}
+
+/** Jours de récurrence d'un trajet tels que stockés (JSON), normalisés. */
+function recurrenceDays(recurrence: unknown): DayEntry[] {
+  const days = (recurrence as { daysOfWeek?: unknown } | null)?.daysOfWeek;
+  return normalizeDays(days as DayEntry[] | null | undefined);
 }
 
 // jour ISO (1=lundi … 7=dimanche) -> clé des horaires établissement.
@@ -351,8 +380,14 @@ export async function regenerateCircuitTrajets(
     );
 
   // 2. Clôt les trajets actifs à J (endDate = J-1) + borne leurs arrêts ouverts.
+  // direction/recurrence sont capturées pour retrouver le successeur de chaque
+  // trajet (même signature) et lui migrer ses occurrences.
   const activeTrajets = await ctx.db
-    .select({ id: trajets.id })
+    .select({
+      id: trajets.id,
+      direction: trajets.direction,
+      recurrence: trajets.recurrence,
+    })
     .from(trajets)
     .where(
       and(
@@ -424,6 +459,7 @@ export async function regenerateCircuitTrajets(
   const schedules = (etabRows[0]?.schedules as EtablissementSchedules) ?? null;
 
   // 4. Crée chaque trajet daté (startDate = J) + arrêt établissement + arrêts usagers.
+  const newBySignature = new Map<string, string>();
   for (const g of groups.values()) {
     const name = buildTrajetName(g.direction, g.days);
     const displayId = await nextDisplayId(ctx.db, ctx.tenantId, "trajets");
@@ -444,10 +480,33 @@ export async function regenerateCircuitTrajets(
       .returning();
     const created = inserted[0];
     if (!created) continue;
+    newBySignature.set(trajetSignature(g.direction, g.days), created.id);
     await autoCreateEtablissementArret(ctx, created.id, circuitId, departureTime);
     for (const addressId of g.addressIds) {
       await addUsagerArret(ctx, created.id, addressId, effectiveDate);
     }
+  }
+
+  // 5. Migre les occurrences à venir (date ≥ J) de chaque trajet clôturé vers
+  // son successeur de même signature : les personnalisations ponctuelles
+  // (chauffeur, véhicule, horaire, statut, notes) survivent ainsi à l'avenant.
+  // Sans successeur (composition disparue), les occurrences restent sur le
+  // trajet clôturé — hors fenêtre d'effectivité, donc invisibles au planning.
+  for (const old of activeTrajets) {
+    const successorId = newBySignature.get(
+      trajetSignature(old.direction, recurrenceDays(old.recurrence)),
+    );
+    if (!successorId || successorId === old.id) continue;
+    await ctx.db
+      .update(trajetOccurrences)
+      .set({ trajetId: successorId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(trajetOccurrences.trajetId, old.id),
+          eq(trajetOccurrences.tenantId, ctx.tenantId),
+          gte(trajetOccurrences.date, effectiveDate),
+        ),
+      );
   }
 }
 
@@ -477,7 +536,11 @@ export async function revertAvenantVersioning(
   // syncTrajetForDirection ont startDate null → exclus (sinon on stranderait
   // l'usager). Rend la réversion no-op sûr pour les avenants non versionnés.
   const created = await ctx.db
-    .select({ id: trajets.id })
+    .select({
+      id: trajets.id,
+      direction: trajets.direction,
+      recurrence: trajets.recurrence,
+    })
     .from(trajets)
     .where(
       and(
@@ -523,7 +586,11 @@ export async function revertAvenantVersioning(
         isNull(trajets.deletedAt),
       ),
     )
-    .returning({ id: trajets.id });
+    .returning({
+      id: trajets.id,
+      direction: trajets.direction,
+      recurrence: trajets.recurrence,
+    });
   const reopenedIds = reopened.map((t) => t.id);
   if (reopenedIds.length > 0) {
     await ctx.db
@@ -535,6 +602,83 @@ export async function revertAvenantVersioning(
           eq(arrets.tenantId, ctx.tenantId),
           eq(arrets.validTo, endOld),
           isNull(arrets.deletedAt),
+        ),
+      );
+  }
+
+  // 3. Re-migre les occurrences (date ≥ J) des trajets de l'avenant vers le
+  // trajet rouvert de même signature, pour que les personnalisations
+  // ponctuelles survivent aussi à l'annulation. En cas de collision de date
+  // (le trajet rouvert avait déjà une occurrence) : une source personnalisée
+  // remplace une cible vierge ; sinon la cible existante est conservée et la
+  // source reste sur le trajet supprimé (invisible).
+  const reopenedBySignature = new Map<string, string>();
+  for (const t of reopened) {
+    reopenedBySignature.set(
+      trajetSignature(t.direction, recurrenceDays(t.recurrence)),
+      t.id,
+    );
+  }
+  for (const source of created) {
+    const targetId = reopenedBySignature.get(
+      trajetSignature(source.direction, recurrenceDays(source.recurrence)),
+    );
+    if (!targetId || targetId === source.id) continue;
+
+    const personalized = or(
+      isNotNull(trajetOccurrences.chauffeurId),
+      isNotNull(trajetOccurrences.vehiculeId),
+      isNotNull(trajetOccurrences.departureTime),
+      isNotNull(trajetOccurrences.notes),
+      ne(trajetOccurrences.status, "planifie"),
+    );
+
+    const personalizedSources = await ctx.db
+      .select({ date: trajetOccurrences.date })
+      .from(trajetOccurrences)
+      .where(
+        and(
+          eq(trajetOccurrences.trajetId, source.id),
+          eq(trajetOccurrences.tenantId, ctx.tenantId),
+          gte(trajetOccurrences.date, effectiveDate),
+          personalized,
+        ),
+      );
+    const personalizedDates = personalizedSources.map((o) => o.date);
+    if (personalizedDates.length > 0) {
+      await ctx.db
+        .delete(trajetOccurrences)
+        .where(
+          and(
+            eq(trajetOccurrences.trajetId, targetId),
+            eq(trajetOccurrences.tenantId, ctx.tenantId),
+            inArray(trajetOccurrences.date, personalizedDates),
+          ),
+        );
+    }
+
+    const remaining = await ctx.db
+      .select({ date: trajetOccurrences.date })
+      .from(trajetOccurrences)
+      .where(
+        and(
+          eq(trajetOccurrences.trajetId, targetId),
+          eq(trajetOccurrences.tenantId, ctx.tenantId),
+          gte(trajetOccurrences.date, effectiveDate),
+        ),
+      );
+    const blockedDates = remaining.map((o) => o.date);
+    await ctx.db
+      .update(trajetOccurrences)
+      .set({ trajetId: targetId, updatedAt: now })
+      .where(
+        and(
+          eq(trajetOccurrences.trajetId, source.id),
+          eq(trajetOccurrences.tenantId, ctx.tenantId),
+          gte(trajetOccurrences.date, effectiveDate),
+          ...(blockedDates.length > 0
+            ? [notInArray(trajetOccurrences.date, blockedDates)]
+            : []),
         ),
       );
   }

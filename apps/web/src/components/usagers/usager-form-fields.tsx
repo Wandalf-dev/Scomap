@@ -39,6 +39,7 @@ import {
   MessageSquareText,
   Route,
   ExternalLink,
+  MapPin,
 } from "lucide-react";
 import {
   Tooltip,
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/tooltip";
 import { QuestionMarkCircleIcon } from "@/components/ui/question-mark-circle-icon";
 import { FieldLock } from "@/components/shared/field-lock";
+import { AddressMapDialog } from "@/components/shared/address-map-dialog";
 
 const GENDERS = [
   { value: "M", label: "Masculin" },
@@ -116,7 +118,25 @@ function EtabLinkButton({
   );
 }
 
-type EtabOption = { id: string; name: string; type: string | null };
+type EtabOption = {
+  id: string;
+  name: string;
+  type: string | null;
+  address?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+/** Adresse formatée d'un établissement sur une ligne, ou null si vide. */
+function formatEtabAddress(etab: EtabOption | undefined): string | null {
+  if (!etab) return null;
+  const line = [etab.address, [etab.postalCode, etab.city].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  return line || null;
+}
 
 interface UsagerFormFieldsProps {
   form: UseFormReturn<UsagerDetailFormValues>;
@@ -319,8 +339,21 @@ export function UsagerFormFields({
                           ))}
                         </SelectContent>
                       </Select>
+                      {selectedEtab && (
+                        <AddressMapDialog
+                          latitude={selectedEtab.latitude}
+                          longitude={selectedEtab.longitude}
+                          label={selectedEtab.name}
+                        />
+                      )}
                       <EtabLinkButton etablissementId={field.value} />
                     </div>
+                    {formatEtabAddress(selectedEtab) && (
+                      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                        <MapPin className="mt-0.5 size-3 shrink-0" />
+                        {formatEtabAddress(selectedEtab)}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 );

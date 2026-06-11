@@ -8,28 +8,11 @@ import {
 } from "@/components/ui/popover";
 import { isToday } from "@/lib/utils/date-helpers";
 import { OccurrenceCard } from "./occurrence-card";
+import { hasOverride, resolvedDepartureTime, type OccurrenceItem } from "./types";
 
 // Limite d'occurrences visibles par cellule en vue mois (densité) ;
 // en vue semaine tout est affiché.
 const MONTH_VIEW_LIMIT = 3;
-
-interface OccurrenceItem {
-  id: string;
-  trajetId: string;
-  date: string;
-  status: string;
-  trajetName: string;
-  trajetDirection: string;
-  trajetDepartureTime: string | null;
-  overrideDepartureTime: string | null;
-  circuitName: string | null;
-  chauffeurFirstName: string | null;
-  chauffeurLastName: string | null;
-  vehiculeName: string | null;
-  overrideNotes: string | null;
-  overrideChauffeurId: string | null;
-  overrideVehiculeId: string | null;
-}
 
 interface CalendarDayCellProps {
   date: Date;
@@ -37,25 +20,29 @@ interface CalendarDayCellProps {
   isCurrentMonth: boolean;
   view: "week" | "month";
   onOccurrenceClick: (occ: OccurrenceItem) => void;
+  onOccurrenceDoubleClick: (occ: OccurrenceItem) => void;
 }
 
 function renderCard(
   occ: OccurrenceItem,
   onOccurrenceClick: (occ: OccurrenceItem) => void,
+  onOccurrenceDoubleClick: (occ: OccurrenceItem) => void,
 ) {
   return (
     <OccurrenceCard
-      key={occ.id}
+      key={`${occ.trajetId}-${occ.date}`}
       trajetName={occ.trajetName}
       direction={occ.trajetDirection}
-      departureTime={occ.overrideDepartureTime ?? occ.trajetDepartureTime}
+      departureTime={resolvedDepartureTime(occ)}
       status={occ.status}
       chauffeurName={
         occ.chauffeurFirstName
           ? `${occ.chauffeurFirstName} ${occ.chauffeurLastName}`
           : null
       }
+      isCustomized={hasOverride(occ)}
       onClick={() => onOccurrenceClick(occ)}
+      onDoubleClick={() => onOccurrenceDoubleClick(occ)}
     />
   );
 }
@@ -66,6 +53,7 @@ export function CalendarDayCell({
   isCurrentMonth,
   view,
   onOccurrenceClick,
+  onOccurrenceDoubleClick,
 }: CalendarDayCellProps) {
   const today = isToday(date);
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -105,7 +93,9 @@ export function CalendarDayCell({
           isWeekView ? "max-h-[480px] overflow-y-auto" : ""
         }`}
       >
-        {visibleOccurrences.map((occ) => renderCard(occ, onOccurrenceClick))}
+        {visibleOccurrences.map((occ) =>
+          renderCard(occ, onOccurrenceClick, onOccurrenceDoubleClick),
+        )}
         {hiddenCount > 0 && (
           <Popover open={overflowOpen} onOpenChange={setOverflowOpen}>
             <PopoverTrigger asChild>
@@ -127,11 +117,18 @@ export function CalendarDayCell({
               </p>
               <div className="max-h-80 space-y-1 overflow-y-auto">
                 {occurrences.map((occ) =>
-                  renderCard(occ, (o) => {
-                    // Ferme le popover avant d'ouvrir le sheet de détail
-                    setOverflowOpen(false);
-                    onOccurrenceClick(o);
-                  }),
+                  renderCard(
+                    occ,
+                    (o) => {
+                      // Ferme le popover avant d'ouvrir le sheet de détail
+                      setOverflowOpen(false);
+                      onOccurrenceClick(o);
+                    },
+                    (o) => {
+                      setOverflowOpen(false);
+                      onOccurrenceDoubleClick(o);
+                    },
+                  ),
                 )}
               </div>
             </PopoverContent>

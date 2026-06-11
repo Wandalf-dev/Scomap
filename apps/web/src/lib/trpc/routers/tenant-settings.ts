@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { tenantSettings } from "@scomap/db/schema";
+import { tenants, tenantSettings } from "@scomap/db/schema";
 import { createTRPCRouter, tenantProcedure, adminProcedure } from "../init";
 import {
   upsertProviderKey,
@@ -41,6 +41,9 @@ const DEFAULTS = {
   basemapStyle: null as string | null,
 };
 
+const tenantTypes = ["departement", "transporteur"] as const;
+export type TenantType = (typeof tenantTypes)[number];
+
 export const tenantSettingsRouter = createTRPCRouter({
   get: tenantProcedure.query(async ({ ctx }) => {
     const result = await ctx.db
@@ -56,11 +59,33 @@ export const tenantSettingsRouter = createTRPCRouter({
       .where(eq(tenantSettings.tenantId, ctx.tenantId))
       .limit(1);
 
+    const tenant = await ctx.db
+      .select({ type: tenants.type })
+      .from(tenants)
+      .where(eq(tenants.id, ctx.tenantId))
+      .limit(1);
+
     // Présence/masque des clés (jamais la clé en clair).
     const keyStatus = await getProviderKeyStatus(ctx.db, ctx.tenantId);
 
-    return { ...DEFAULTS, ...(result[0] ?? {}), keyStatus };
+    return {
+      ...DEFAULTS,
+      ...(result[0] ?? {}),
+      keyStatus,
+      tenantType: (tenant[0]?.type ?? "departement") as TenantType,
+    };
   }),
+
+  /** Profil métier du client (département / transporteur). */
+  setType: adminProcedure
+    .input(z.object({ type: z.enum(tenantTypes) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(tenants)
+        .set({ type: input.type, updatedAt: new Date() })
+        .where(eq(tenants.id, ctx.tenantId));
+      return { ok: true };
+    }),
 
   update: adminProcedure
     .input(tenantSettingsSchema)

@@ -11,9 +11,28 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, XCircle, User, School, MapPin } from "lucide-react";
+import {
+  ExternalLink,
+  XCircle,
+  User,
+  School,
+  MapPin,
+  SlidersHorizontal,
+} from "lucide-react";
+import { hasOverride, type OccurrenceItem } from "./types";
 
 const STATUS_CONFIG: Record<
   string,
@@ -37,25 +56,11 @@ const STATUS_CONFIG: Record<
   },
 };
 
-interface OccurrenceData {
-  id: string;
-  trajetId: string;
-  date: string;
-  status: string;
-  trajetName: string;
-  trajetDirection: string;
-  trajetDepartureTime: string | null;
-  overrideDepartureTime: string | null;
-  circuitName: string | null;
-  chauffeurFirstName: string | null;
-  chauffeurLastName: string | null;
-  vehiculeName: string | null;
-  overrideNotes: string | null;
-}
-
 interface OccurrenceDetailSheetProps {
-  occurrence: OccurrenceData | null;
+  occurrence: OccurrenceItem | null;
   onClose: () => void;
+  /** Ouvre le dialog de personnalisation de l'occurrence affichée. */
+  onCustomize?: () => void;
 }
 
 function formatDate(dateStr: string) {
@@ -71,6 +76,7 @@ function formatDate(dateStr: string) {
 export function OccurrenceDetailSheet({
   occurrence,
   onClose,
+  onCustomize,
 }: OccurrenceDetailSheetProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -115,7 +121,7 @@ export function OccurrenceDetailSheet({
 
         {occurrence && (
           <div className="mt-6 space-y-4">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className={statusConf.className}>
                 {statusConf.label}
               </Badge>
@@ -129,6 +135,15 @@ export function OccurrenceDetailSheet({
               >
                 {occurrence.trajetDirection === "aller" ? "Aller" : "Retour"}
               </Badge>
+              {hasOverride(occurrence) && (
+                <Badge
+                  variant="outline"
+                  className="border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+                >
+                  <SlidersHorizontal className="mr-1 size-3" />
+                  Personnalisé
+                </Badge>
+              )}
             </div>
 
             <dl className="space-y-3 text-sm">
@@ -208,7 +223,7 @@ export function OccurrenceDetailSheet({
               </div>
             )}
 
-            <div className="flex gap-2 pt-4">
+            <div className="flex flex-wrap gap-2 pt-4">
               <Button
                 variant="outline"
                 size="sm"
@@ -220,19 +235,58 @@ export function OccurrenceDetailSheet({
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Voir le trajet
               </Button>
-              {occurrence.status !== "annule" && (
+              {onCustomize && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    cancelMutation.mutate({ id: occurrence.id })
-                  }
-                  disabled={cancelMutation.isPending}
-                  className="cursor-pointer text-destructive hover:text-destructive"
+                  onClick={onCustomize}
+                  className="cursor-pointer"
                 >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Annuler
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Personnaliser
                 </Button>
+              )}
+              {occurrence.status !== "annule" && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={cancelMutation.isPending}
+                      className="cursor-pointer text-destructive hover:text-destructive"
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Annuler
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Annuler cette occurrence ?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Le trajet «&nbsp;{occurrence.trajetName}&nbsp;» du{" "}
+                        {formatDate(occurrence.date)} sera marqué comme annulé.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="cursor-pointer">
+                        Retour
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() =>
+                          cancelMutation.mutate({
+                            trajetId: occurrence.trajetId,
+                            date: occurrence.date,
+                          })
+                        }
+                        className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Confirmer l&apos;annulation
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </div>
           </div>

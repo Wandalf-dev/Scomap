@@ -239,6 +239,13 @@
       "when": 1771230000000,
       "tag": "0033_usager_circuit_avenant_link",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1771320000000,
+      "tag": "0034_tenant_type",
+      "breakpoints": true
     }
   ]
 }

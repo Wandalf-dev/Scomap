@@ -280,7 +280,11 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4">
-                  <TabOccurrences trajetId={id} />
+                  <TabOccurrences
+                    trajetId={id}
+                    windowStart={trajet.effectiveStartDate ?? null}
+                    windowEnd={trajet.effectiveEndDate ?? null}
+                  />
                 </CollapsibleContent>
               </Collapsible>
             </div>

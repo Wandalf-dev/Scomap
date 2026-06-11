@@ -33,7 +33,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CalendarDays, Route, Map as MapIcon, Loader2 } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  Route,
+  Map as MapIcon,
+  Loader2,
+} from "lucide-react";
 
 const routingProviderValues = [
   "osrm",
@@ -169,6 +175,18 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
   const testMutation = useMutation(
     trpc.tenantSettings.testRouting.mutationOptions(),
   );
+  const setTypeMutation = useMutation(
+    trpc.tenantSettings.setType.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.tenantSettings.get.queryKey(),
+        });
+        toast.success("Type d'organisation enregistré");
+      },
+      onError: (err) =>
+        toastTrpcError(err, "Erreur lors de l'enregistrement du type"),
+    }),
+  );
 
   const routingProvider = form.watch("routingProvider");
   const basemapProvider = form.watch("basemapProvider");
@@ -266,6 +284,44 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
           {/* Le serveur refuse déjà les écritures non-admin (adminProcedure) :
               le fieldset aligne simplement l'UI sur cette règle */}
           <fieldset disabled={!isAdmin} className="space-y-6">
+          {/* Type d'organisation */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <CardTitle>Type d&apos;organisation</CardTitle>
+              </div>
+              <CardDescription>
+                Profil métier de votre structure. Il adapte certains écrans,
+                notamment la vue par défaut du planning (timeline pour les
+                transporteurs).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={settings?.tenantType ?? "departement"}
+                onValueChange={(v) =>
+                  setTypeMutation.mutate({
+                    type: v as "departement" | "transporteur",
+                  })
+                }
+                disabled={setTypeMutation.isPending}
+              >
+                <SelectTrigger className="max-w-lg cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="departement" className="cursor-pointer">
+                    Département / Autorité organisatrice
+                  </SelectItem>
+                  <SelectItem value="transporteur" className="cursor-pointer">
+                    Transporteur
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
           {/* Année scolaire */}
           <Card>
             <CardHeader>

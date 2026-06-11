@@ -5,11 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
 import { toastTrpcError } from "@/lib/utils/trpc-errors";
-import { Pencil, XCircle, RefreshCw } from "lucide-react";
+import { Pencil, XCircle } from "lucide-react";
 import { CalendarDateRangeIcon } from "@/components/ui/calendar-date-range-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -56,24 +55,38 @@ function formatDate(dateStr: string) {
   });
 }
 
-interface TabOccurrencesProps {
-  trajetId: string;
+/** Décale une date ISO (yyyy-MM-dd) de `days` jours. */
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0]!;
 }
 
-export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
+interface TabOccurrencesProps {
+  trajetId: string;
+  /** Fenêtre d'effectivité du trajet (repli : autour d'aujourd'hui). */
+  windowStart?: string | null;
+  windowEnd?: string | null;
+}
+
+export function TabOccurrences({
+  trajetId,
+  windowStart,
+  windowEnd,
+}: TabOccurrencesProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  // Date range for generation
+  // Les occurrences sont dérivées de la récurrence du trajet : on liste la
+  // fenêtre d'effectivité quand elle est connue, sinon une plage glissante.
   const today = new Date().toISOString().split("T")[0]!;
-  const threeMonths = new Date();
-  threeMonths.setMonth(threeMonths.getMonth() + 3);
-  const defaultTo = threeMonths.toISOString().split("T")[0]!;
+  const fromDate = windowStart ?? addDaysISO(today, -60);
+  const rawToDate = windowEnd ?? addDaysISO(today, 300);
+  // Garde serveur : 400 jours max.
+  const maxToDate = addDaysISO(fromDate, 399);
+  const toDate = rawToDate > maxToDate ? maxToDate : rawToDate;
 
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(defaultTo);
   const [editingOccurrence, setEditingOccurrence] = useState<{
-    id: string;
     date: string;
     chauffeurId: string | null;
     vehiculeId: string | null;
@@ -85,22 +98,8 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
   const { data: occurrences, isLoading } = useQuery(
     trpc.trajets.listOccurrences.queryOptions({
       trajetId,
-      fromDate: "2000-01-01",
-      toDate: "2100-12-31",
-    }),
-  );
-
-  const generateMutation = useMutation(
-    trpc.trajets.generateOccurrences.mutationOptions({
-      onSuccess: (data) => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.trajets.listOccurrences.queryKey(),
-        });
-        toast.success(`${data.inserted} occurrence(s) générée(s)`);
-      },
-      onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la génération");
-      },
+      fromDate,
+      toDate,
     }),
   );
 
@@ -135,51 +134,15 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
 
   function handleEditSubmit(values: OccurrenceOverrideFormValues) {
     if (!editingOccurrence) return;
-    updateMutation.mutate({ id: editingOccurrence.id, data: values });
+    updateMutation.mutate({
+      trajetId,
+      date: editingOccurrence.date,
+      data: values,
+    });
   }
 
   return (
     <div className="space-y-6">
-      {/* Generate occurrences */}
-      <div className="rounded-[0.3rem] border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-medium">Générer des occurrences</h3>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Du</label>
-            <Input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="h-9 w-40"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Au</label>
-            <Input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="h-9 w-40"
-            />
-          </div>
-          <Button
-            onClick={() =>
-              generateMutation.mutate({ trajetId, fromDate, toDate })
-            }
-            disabled={generateMutation.isPending}
-            size="sm"
-            className="cursor-pointer"
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${
-                generateMutation.isPending ? "animate-spin" : ""
-              }`}
-            />
-            {generateMutation.isPending ? "Génération..." : "Générer"}
-          </Button>
-        </div>
-      </div>
-
       {/* Occurrences table */}
       {isLoading ? (
         <div className="space-y-3">
@@ -191,7 +154,8 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-muted-foreground/25 py-12">
           <CalendarDateRangeIcon size={40} className="text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
-            Aucune occurrence. Générez des occurrences à partir de la récurrence.
+            Aucune occurrence sur la période : vérifiez la récurrence et les
+            dates du trajet.
           </p>
         </div>
       ) : (
@@ -221,7 +185,7 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
               {occurrences.map((occ) => {
                 const statusConf = STATUS_CONFIG[occ.status] ?? STATUS_CONFIG.planifie!;
                 return (
-                  <TableRow key={occ.id} className="group">
+                  <TableRow key={occ.date} className="group">
                     <TableCell className="px-4 py-3">
                       <span className="font-medium">
                         {formatDate(occ.date)}
@@ -280,7 +244,6 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
                           className="h-8 w-8 cursor-pointer"
                           onClick={() =>
                             setEditingOccurrence({
-                              id: occ.id,
                               date: occ.date,
                               chauffeurId: occ.overrideChauffeurId,
                               vehiculeId: occ.overrideVehiculeId,
@@ -298,7 +261,7 @@ export function TabOccurrences({ trajetId }: TabOccurrencesProps) {
                             size="icon"
                             className="h-8 w-8 cursor-pointer text-destructive hover:text-destructive"
                             onClick={() =>
-                              cancelMutation.mutate({ id: occ.id })
+                              cancelMutation.mutate({ trajetId, date: occ.date })
                             }
                             disabled={cancelMutation.isPending}
                           >

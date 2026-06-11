@@ -743,182 +743,247 @@ export const trajetsRouter = createTRPCRouter({
 
   // --- Occurrences ---
 
-  generateOccurrences: tenantProcedure
-    .input(
-      z.object({
-        trajetId: z.string().uuid(),
-        fromDate: z.string(),
-        toDate: z.string(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      // Fetch the trajet with circuit fallback data
-      const trajet = await ctx.db
-        .select({
-          id: trajets.id,
-          startDate: trajets.startDate,
-          endDate: trajets.endDate,
-          recurrence: trajets.recurrence,
-          circuitStartDate: circuits.startDate,
-          circuitEndDate: circuits.endDate,
-        })
-        .from(trajets)
-        .leftJoin(circuits, eq(trajets.circuitId, circuits.id))
-        .where(
-          and(
-            eq(trajets.id, input.trajetId),
-            eq(trajets.tenantId, ctx.tenantId),
-            isNull(trajets.deletedAt),
-          ),
-        )
-        .limit(1);
-
-      const t = trajet[0];
-      if (!t) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
-      }
-
-      // Effective days: trajet override or circuit fallback
-      const recurrence = t.recurrence as {
-        frequency: string;
-        daysOfWeek: unknown;
-      } | null;
-      const normalizedRecDays = normalizeDays(recurrence?.daysOfWeek);
-      const effectiveDays: DayEntry[] = normalizedRecDays;
-
-      if (effectiveDays.length === 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Ce trajet n'a pas de recurrence configuree",
-        });
-      }
-
-      // Effective dates: trajet override or circuit fallback
-      const effectiveStartDate = t.startDate ?? t.circuitStartDate ?? null;
-      const effectiveEndDate = t.endDate ?? t.circuitEndDate ?? null;
-
-      // Calculate dates
-      const startMs = effectiveStartDate
-        ? Math.max(new Date(input.fromDate).getTime(), new Date(effectiveStartDate).getTime())
-        : new Date(input.fromDate).getTime();
-      const start = new Date(startMs);
-      const end = effectiveEndDate
-        ? new Date(Math.min(new Date(input.toDate).getTime(), new Date(effectiveEndDate).getTime()))
-        : new Date(input.toDate);
-
-      const dates: string[] = [];
-      const current = new Date(start);
-      while (current <= end) {
-        if (isAnyDayActiveForDate(effectiveDays, current)) {
-          dates.push(current.toISOString().split("T")[0]!);
-        }
-        current.setDate(current.getDate() + 1);
-      }
-
-      if (dates.length === 0) {
-        return { inserted: 0 };
-      }
-
-      // Bulk insert with ON CONFLICT DO NOTHING
-      const values = dates.map((d) => ({
-        tenantId: ctx.tenantId,
-        trajetId: input.trajetId,
-        date: d,
-        status: "planifie" as const,
-      }));
-
-      const result = await ctx.db
-        .insert(trajetOccurrences)
-        .values(values)
-        .onConflictDoNothing({
-          target: [trajetOccurrences.trajetId, trajetOccurrences.date],
-        })
-        .returning();
-
-      return { inserted: result.length };
-    }),
-
+  /**
+   * Occurrences DÉRIVÉES à la volée des trajets (récurrence × fenêtre de
+   * validité, repli sur les dates du circuit) : le planning reflète toujours
+   * l'état réel des circuits/trajets, sans étape de génération. La table
+   * trajet_occurrences ne stocke que les EXCEPTIONS (personnalisations,
+   * statuts), superposées ici aux dates calculées. Une exception
+   * personnalisée dont le jour est sorti de la récurrence (ex. avenant)
+   * reste affichée tant qu'elle est dans la fenêtre du trajet.
+   */
   listOccurrences: tenantProcedure
     .input(
       z.object({
-        fromDate: z.string(),
-        toDate: z.string(),
+        fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         trajetId: z.string().uuid().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const conditions = [
-        eq(trajetOccurrences.tenantId, ctx.tenantId),
-        gte(trajetOccurrences.date, input.fromDate),
-        lte(trajetOccurrences.date, input.toDate),
-      ];
-
-      if (input.trajetId) {
-        conditions.push(eq(trajetOccurrences.trajetId, input.trajetId));
+      const rangeDays = Math.round(
+        (new Date(input.toDate).getTime() - new Date(input.fromDate).getTime()) /
+          86400000,
+      );
+      // 400 jours : couvre une année scolaire complète (fiche trajet).
+      if (Number.isNaN(rangeDays) || rangeDays < 0 || rangeDays > 400) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Plage de dates invalide (400 jours maximum)",
+        });
       }
 
-      return ctx.db
+      const trajetConditions = [
+        eq(trajets.tenantId, ctx.tenantId),
+        isNull(trajets.deletedAt),
+      ];
+      if (input.trajetId) {
+        trajetConditions.push(eq(trajets.id, input.trajetId));
+      }
+
+      const activeTrajets = await ctx.db
         .select({
-          id: trajetOccurrences.id,
-          trajetId: trajetOccurrences.trajetId,
-          date: trajetOccurrences.date,
-          status: trajetOccurrences.status,
-          overrideChauffeurId: trajetOccurrences.chauffeurId,
-          overrideVehiculeId: trajetOccurrences.vehiculeId,
-          overrideDepartureTime: trajetOccurrences.departureTime,
-          overrideNotes: trajetOccurrences.notes,
-          // Trajet parent info
-          trajetName: trajets.name,
-          trajetDirection: trajets.direction,
-          trajetDepartureTime: trajets.departureTime,
-          trajetChauffeurId: trajets.chauffeurId,
-          trajetVehiculeId: trajets.vehiculeId,
-          // Joined info
+          id: trajets.id,
+          name: trajets.name,
+          direction: trajets.direction,
+          departureTime: trajets.departureTime,
+          chauffeurId: trajets.chauffeurId,
+          vehiculeId: trajets.vehiculeId,
+          recurrence: trajets.recurrence,
+          startDate: trajets.startDate,
+          endDate: trajets.endDate,
           circuitName: circuits.name,
-          chauffeurFirstName: chauffeurs.firstName,
-          chauffeurLastName: chauffeurs.lastName,
-          vehiculeName: vehicules.name,
+          circuitStartDate: circuits.startDate,
+          circuitEndDate: circuits.endDate,
         })
-        .from(trajetOccurrences)
-        .innerJoin(trajets, eq(trajetOccurrences.trajetId, trajets.id))
-        // Re-filtre tenant sur les jointures (anti-IDOR via FK injectée)
+        .from(trajets)
         .leftJoin(
           circuits,
           and(eq(trajets.circuitId, circuits.id), eq(circuits.tenantId, ctx.tenantId)),
         )
-        .leftJoin(
-          chauffeurs,
-          and(
-            eq(
-              sql`COALESCE(${trajetOccurrences.chauffeurId}, ${trajets.chauffeurId})`,
-              chauffeurs.id,
+        .where(and(...trajetConditions));
+
+      // Exceptions stockées (personnalisations / statuts) sur la plage.
+      const trajetIds = activeTrajets.map((t) => t.id);
+      const exceptionRows =
+        trajetIds.length > 0
+          ? await ctx.db
+              .select()
+              .from(trajetOccurrences)
+              .where(
+                and(
+                  eq(trajetOccurrences.tenantId, ctx.tenantId),
+                  inArray(trajetOccurrences.trajetId, trajetIds),
+                  gte(trajetOccurrences.date, input.fromDate),
+                  lte(trajetOccurrences.date, input.toDate),
+                ),
+              )
+          : [];
+      const exceptionByKey = new Map(
+        exceptionRows.map((r) => [`${r.trajetId}|${r.date}`, r]),
+      );
+
+      type ExceptionRow = (typeof exceptionRows)[number];
+      type ActiveTrajet = (typeof activeTrajets)[number];
+
+      const items: {
+        id: string | null;
+        trajetId: string;
+        date: string;
+        status: string;
+        overrideChauffeurId: string | null;
+        overrideVehiculeId: string | null;
+        overrideDepartureTime: string | null;
+        overrideNotes: string | null;
+        trajetName: string;
+        trajetDirection: string;
+        trajetDepartureTime: string | null;
+        trajetChauffeurId: string | null;
+        trajetVehiculeId: string | null;
+        circuitName: string | null;
+      }[] = [];
+
+      const pushItem = (
+        t: ActiveTrajet,
+        date: string,
+        ex: ExceptionRow | undefined,
+      ) => {
+        items.push({
+          id: ex?.id ?? null,
+          trajetId: t.id,
+          date,
+          status: ex?.status ?? "planifie",
+          overrideChauffeurId: ex?.chauffeurId ?? null,
+          overrideVehiculeId: ex?.vehiculeId ?? null,
+          overrideDepartureTime: ex?.departureTime ?? null,
+          overrideNotes: ex?.notes ?? null,
+          trajetName: t.name,
+          trajetDirection: t.direction,
+          trajetDepartureTime: t.departureTime,
+          trajetChauffeurId: t.chauffeurId,
+          trajetVehiculeId: t.vehiculeId,
+          circuitName: t.circuitName,
+        });
+      };
+
+      for (const t of activeTrajets) {
+        const recDays = normalizeDays(
+          (t.recurrence as { daysOfWeek?: unknown } | null)?.daysOfWeek as
+            | DayEntry[]
+            | null
+            | undefined,
+        );
+        const windowStart = t.startDate ?? t.circuitStartDate ?? null;
+        const windowEnd = t.endDate ?? t.circuitEndDate ?? null;
+        const inWindow = (d: string) =>
+          (!windowStart || windowStart <= d) && (!windowEnd || windowEnd >= d);
+
+        const derivedDates = new Set<string>();
+        if (recDays.length > 0) {
+          const current = new Date(input.fromDate);
+          const end = new Date(input.toDate);
+          while (current <= end) {
+            const dateStr = current.toISOString().split("T")[0]!;
+            if (inWindow(dateStr) && isAnyDayActiveForDate(recDays, current)) {
+              derivedDates.add(dateStr);
+              pushItem(t, dateStr, exceptionByKey.get(`${t.id}|${dateStr}`));
+            }
+            current.setDate(current.getDate() + 1);
+          }
+        }
+
+        for (const r of exceptionRows) {
+          if (r.trajetId !== t.id || derivedDates.has(r.date)) continue;
+          const personalized =
+            r.chauffeurId != null ||
+            r.vehiculeId != null ||
+            r.departureTime != null ||
+            r.notes != null ||
+            r.status !== "planifie";
+          if (personalized && inWindow(r.date)) pushItem(t, r.date, r);
+        }
+      }
+
+      // Résolution des noms chauffeur/véhicule (override prioritaire).
+      const chauffeurIds = new Set<string>();
+      const vehiculeIds = new Set<string>();
+      for (const it of items) {
+        const c = it.overrideChauffeurId ?? it.trajetChauffeurId;
+        if (c) chauffeurIds.add(c);
+        const v = it.overrideVehiculeId ?? it.trajetVehiculeId;
+        if (v) vehiculeIds.add(v);
+      }
+      const chauffeurRows =
+        chauffeurIds.size > 0
+          ? await ctx.db
+              .select({
+                id: chauffeurs.id,
+                firstName: chauffeurs.firstName,
+                lastName: chauffeurs.lastName,
+              })
+              .from(chauffeurs)
+              .where(
+                and(
+                  eq(chauffeurs.tenantId, ctx.tenantId),
+                  inArray(chauffeurs.id, [...chauffeurIds]),
+                ),
+              )
+          : [];
+      const vehiculeRows =
+        vehiculeIds.size > 0
+          ? await ctx.db
+              .select({ id: vehicules.id, name: vehicules.name })
+              .from(vehicules)
+              .where(
+                and(
+                  eq(vehicules.tenantId, ctx.tenantId),
+                  inArray(vehicules.id, [...vehiculeIds]),
+                ),
+              )
+          : [];
+      const chauffeurById = new Map(chauffeurRows.map((c) => [c.id, c]));
+      const vehiculeById = new Map(vehiculeRows.map((v) => [v.id, v]));
+
+      return items
+        .map((it) => {
+          const c = chauffeurById.get(
+            it.overrideChauffeurId ?? it.trajetChauffeurId ?? "",
+          );
+          const v = vehiculeById.get(
+            it.overrideVehiculeId ?? it.trajetVehiculeId ?? "",
+          );
+          return {
+            ...it,
+            chauffeurFirstName: c?.firstName ?? null,
+            chauffeurLastName: c?.lastName ?? null,
+            vehiculeName: v?.name ?? null,
+          };
+        })
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) ||
+            (a.overrideDepartureTime ?? a.trajetDepartureTime ?? "99:99").localeCompare(
+              b.overrideDepartureTime ?? b.trajetDepartureTime ?? "99:99",
             ),
-            eq(chauffeurs.tenantId, ctx.tenantId),
-          ),
-        )
-        .leftJoin(
-          vehicules,
-          and(
-            eq(
-              sql`COALESCE(${trajetOccurrences.vehiculeId}, ${trajets.vehiculeId})`,
-              vehicules.id,
-            ),
-            eq(vehicules.tenantId, ctx.tenantId),
-          ),
-        )
-        .where(and(...conditions))
-        .limit(1000);
+        );
     }),
 
+  /**
+   * Personnalise une occurrence, identifiée par (trajet, date) puisque les
+   * occurrences sont dérivées : la ligne d'exception est créée à la première
+   * personnalisation (upsert), puis mise à jour.
+   */
   updateOccurrence: tenantProcedure
     .input(
       z.object({
-        id: z.string().uuid(),
+        trajetId: z.string().uuid(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         data: occurrenceOverrideSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
       await Promise.all([
+        assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet"),
         input.data.chauffeurId
           ? assertTenantOwned(ctx.db, chauffeurs, input.data.chauffeurId, ctx.tenantId, "Chauffeur")
           : null,
@@ -926,42 +991,66 @@ export const trajetsRouter = createTRPCRouter({
           ? assertTenantOwned(ctx.db, vehicules, input.data.vehiculeId, ctx.tenantId, "Vehicule")
           : null,
       ]);
+
+      // En cas de mise à jour, seuls les champs réellement fournis écrasent
+      // l'existant (un champ absent du payload reste intact).
+      const updateSet = {
+        ...(input.data.status !== undefined ? { status: input.data.status } : {}),
+        ...(input.data.chauffeurId !== undefined
+          ? { chauffeurId: input.data.chauffeurId }
+          : {}),
+        ...(input.data.vehiculeId !== undefined
+          ? { vehiculeId: input.data.vehiculeId }
+          : {}),
+        ...(input.data.departureTime !== undefined
+          ? { departureTime: input.data.departureTime }
+          : {}),
+        ...(input.data.notes !== undefined ? { notes: input.data.notes } : {}),
+        updatedAt: new Date(),
+      };
+
       const result = await ctx.db
-        .update(trajetOccurrences)
-        .set({
-          chauffeurId: input.data.chauffeurId,
-          vehiculeId: input.data.vehiculeId,
-          departureTime: input.data.departureTime,
-          status: input.data.status,
-          notes: input.data.notes,
-          updatedAt: new Date(),
+        .insert(trajetOccurrences)
+        .values({
+          tenantId: ctx.tenantId,
+          trajetId: input.trajetId,
+          date: input.date,
+          status: input.data.status ?? "planifie",
+          chauffeurId: input.data.chauffeurId ?? null,
+          vehiculeId: input.data.vehiculeId ?? null,
+          departureTime: input.data.departureTime ?? null,
+          notes: input.data.notes ?? null,
         })
-        .where(
-          and(
-            eq(trajetOccurrences.id, input.id),
-            eq(trajetOccurrences.tenantId, ctx.tenantId),
-          ),
-        )
+        .onConflictDoUpdate({
+          target: [trajetOccurrences.trajetId, trajetOccurrences.date],
+          set: updateSet,
+        })
         .returning();
 
       return result[0] ?? null;
     }),
 
   cancelOccurrence: tenantProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(
+      z.object({
+        trajetId: z.string().uuid(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet");
       const result = await ctx.db
-        .update(trajetOccurrences)
-        .set({
+        .insert(trajetOccurrences)
+        .values({
+          tenantId: ctx.tenantId,
+          trajetId: input.trajetId,
+          date: input.date,
           status: "annule",
-          updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(trajetOccurrences.id, input.id),
-            eq(trajetOccurrences.tenantId, ctx.tenantId),
-          ),
-        )
+        .onConflictDoUpdate({
+          target: [trajetOccurrences.trajetId, trajetOccurrences.date],
+          set: { status: "annule", updatedAt: new Date() },
+        })
         .returning();
 
       return result[0] ?? null;
