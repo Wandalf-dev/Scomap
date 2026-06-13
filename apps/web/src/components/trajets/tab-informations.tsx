@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { format, isValid, parse } from "date-fns";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
@@ -22,27 +24,22 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-import { CircuitSelector } from "./circuit-selector";
+import { Card, CardContent } from "@/components/ui/card";
 import { ChauffeurSelector } from "./chauffeur-selector";
 import { VehiculeSelector } from "./vehicule-selector";
 import { DayBadges } from "@/components/shared/day-badges";
-import { Lock } from "lucide-react";
+import { DirectionBadge } from "@/components/shared/direction-badge";
+import {
+  CalendarDays,
+  ExternalLink,
+  Lock,
+  MoveRight,
+  Route,
+} from "lucide-react";
 import type { DayEntry } from "@/lib/types/day-entry";
 
 interface TrajetData {
@@ -63,11 +60,45 @@ interface TrajetData {
 
 interface TabInformationsProps {
   trajet: TrajetData;
+  circuitName: string | null;
+  etablissementName: string | null;
   circuitStartDate: string | null;
   circuitEndDate: string | null;
 }
 
-export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: TabInformationsProps) {
+// ISO (yyyy-MM-dd) -> "dd/mm/yyyy" for the recap strip.
+function formatDateFr(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = parse(iso, "yyyy-MM-dd", new Date());
+  return isValid(d) ? format(d, "dd/MM/yyyy") : iso;
+}
+
+function RecapItem({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div title={hint}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <div className="mt-1.5 flex min-h-5 items-center text-sm">{children}</div>
+    </div>
+  );
+}
+
+export function TabInformations({
+  trajet,
+  circuitName,
+  etablissementName,
+  circuitStartDate,
+  circuitEndDate,
+}: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const unsaved = useUnsavedChanges();
@@ -76,6 +107,9 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
 
   const form = useForm<TrajetDetailFormValues>({
     resolver: zodResolver(trajetDetailSchema),
+    // Locked fields (name, circuitId, direction, recurrence, dates) are kept
+    // in the form state so the update payload stays complete — they are
+    // displayed in the recap strip, not as inputs.
     defaultValues: {
       name: trajet.name,
       circuitId: trajet.circuitId,
@@ -147,8 +181,14 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
     return () => setDirty?.("trajet-informations", false);
   }, [isDirty, setDirty]);
 
+  const startLabel = formatDateFr(trajet.startDate ?? circuitStartDate);
+  const endLabel = formatDateFr(trajet.endDate ?? circuitEndDate);
+  const periodInherited =
+    (!trajet.startDate && !!circuitStartDate) ||
+    (!trajet.endDate && !!circuitEndDate);
+
   return (
-    <Card>
+    <Card className="gap-0 overflow-hidden py-0">
       {headerActions?.target &&
         createPortal(
           <Button
@@ -162,95 +202,84 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
           </Button>,
           headerActions.target,
         )}
-      <CardContent className="pt-6">
+
+      {/* Derived identity of the trajet — read-only, changes go through avenants */}
+      <div className="border-b border-border bg-gradient-to-r from-primary/[0.08] to-transparent px-6 py-4">
+        <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
+          <RecapItem label="Circuit" hint="Circuit de rattachement du trajet.">
+            {circuitName ? (
+              <Link
+                href={`/circuits/${trajet.circuitId}`}
+                className="group inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-medium text-foreground transition-colors hover:text-primary"
+              >
+                <Route className="size-3.5 shrink-0 text-muted-foreground/70 transition-colors group-hover:text-primary" />
+                <span>{circuitName}</span>
+                {etablissementName && (
+                  <span className="font-normal text-muted-foreground">
+                    — {etablissementName}
+                  </span>
+                )}
+                <ExternalLink className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
+              </Link>
+            ) : (
+              <span className="text-muted-foreground/60">—</span>
+            )}
+          </RecapItem>
+
+          <RecapItem
+            label="Direction"
+            hint="Sens du trajet (structure des arrêts)."
+          >
+            <DirectionBadge direction={trajet.direction} />
+          </RecapItem>
+
+          <RecapItem
+            label="Jours"
+            hint="Suivent les jours de PEC des usagers."
+          >
+            <DayBadges days={trajet.recurrence?.daysOfWeek ?? null} />
+          </RecapItem>
+
+          <RecapItem
+            label="Période"
+            hint={periodInherited ? "Héritée du circuit." : undefined}
+          >
+            {startLabel || endLabel ? (
+              <span className="flex flex-wrap items-center gap-1.5 font-medium tabular-nums">
+                <CalendarDays className="size-3.5 shrink-0 text-muted-foreground/70" />
+                {startLabel ?? "…"}
+                <MoveRight className="size-3.5 text-muted-foreground/50" />
+                {endLabel ?? "…"}
+                {periodInherited && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    · héritée du circuit
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/60">—</span>
+            )}
+          </RecapItem>
+        </div>
+
+        <p className="mt-4 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Lock className="size-3 shrink-0" />
+          Intitulé, jours et période sont dérivés des usagers et du circuit —
+          modifiables via un avenant.
+        </p>
+      </div>
+
+      <CardContent className="py-6">
         <Form {...form}>
           <form
             id={formId}
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-5"
           >
-            {/* Row 1: Identification */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      Intitulé du trajet
-                      <Lock className="h-3 w-3 text-muted-foreground/60" />
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nom du trajet" {...field} disabled />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Généré automatiquement (sens + jours).
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="circuitId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      Circuit
-                      <Lock className="h-3 w-3 text-muted-foreground/60" />
-                    </FormLabel>
-                    <FormControl>
-                      <CircuitSelector
-                        value={field.value}
-                        onChange={field.onChange}
-                        disabled
-                      />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Circuit de rattachement du trajet.
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="direction"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      Direction
-                      <Lock className="h-3 w-3 text-muted-foreground/60" />
-                    </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled
-                    >
-                      <FormControl>
-                        <SelectTrigger className="cursor-pointer">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="aller" className="cursor-pointer">
-                          Aller
-                        </SelectItem>
-                        <SelectItem value="retour" className="cursor-pointer">
-                          Retour
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Sens du trajet (structure des arrêts).
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+            {/* Row 1: Exploitation. items-start: columns keep their natural
+                height so labels/inputs stay top-aligned even when a sibling
+                column is taller (helper text). */}
+            <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <FormField
                 control={form.control}
                 name="departureTime"
@@ -268,88 +297,7 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                   </FormItem>
                 )}
               />
-            </div>
 
-            {/* Row 2: Planification */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="lg:col-span-2">
-                <FormField
-                  control={form.control}
-                  name="recurrence"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        Jours
-                        <Lock className="h-3 w-3 text-muted-foreground/60" />
-                      </FormLabel>
-                      <div className="flex min-h-9 items-center">
-                        <DayBadges days={field.value?.daysOfWeek ?? null} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Suit les jours de PEC des usagers &mdash; modifiable via
-                        un avenant.
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      Date de début
-                      <Lock className="h-3 w-3 text-muted-foreground/60" />
-                    </FormLabel>
-                    <DatePicker
-                      value={field.value}
-                      onChange={field.onChange}
-                      disabled
-                    />
-                    {circuitStartDate &&
-                    !trajet.startDate &&
-                    field.value === circuitStartDate ? (
-                      <p className="text-xs text-muted-foreground">
-                        Héritée du circuit.
-                      </p>
-                    ) : null}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      Date de fin
-                      <Lock className="h-3 w-3 text-muted-foreground/60" />
-                    </FormLabel>
-                    <DatePicker
-                      value={field.value}
-                      onChange={field.onChange}
-                      disabled
-                    />
-                    {circuitEndDate &&
-                    !trajet.endDate &&
-                    field.value === circuitEndDate ? (
-                      <p className="text-xs text-muted-foreground">
-                        Héritée du circuit.
-                      </p>
-                    ) : null}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Row 3: Affectation + options */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <FormField
                 control={form.control}
                 name="chauffeurId"
@@ -386,11 +334,44 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
 
               <FormField
                 control={form.control}
+                name="kmACharge"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Km à charge</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          placeholder="0.00"
+                          className="pr-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          value={field.value ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            field.onChange(v === "" ? null : parseFloat(v));
+                          }}
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                          km
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Row 2: Péages + notes */}
+            <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <FormField
+                control={form.control}
                 name="peages"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Péages</FormLabel>
-                    <div className="flex items-center gap-2 h-9">
+                    <div className="flex h-9 items-center gap-2">
                       <FormControl>
                         <Switch
                           checked={field.value}
@@ -409,21 +390,15 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
 
               <FormField
                 control={form.control}
-                name="kmACharge"
+                name="notes"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Km à charge</FormLabel>
+                  <FormItem className="sm:col-span-2 lg:col-span-3">
+                    <FormLabel>Notes</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        placeholder="0.00"
-                        value={field.value ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          field.onChange(v === "" ? null : parseFloat(v));
-                        }}
+                      <Textarea
+                        placeholder="Observations sur le trajet..."
+                        rows={2}
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -431,25 +406,6 @@ export function TabInformations({ trajet, circuitStartDate, circuitEndDate }: Ta
                 )}
               />
             </div>
-
-            {/* Row 4: Notes */}
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Observations sur le trajet..."
-                      rows={2}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </form>
         </Form>
       </CardContent>

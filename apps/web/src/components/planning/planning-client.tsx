@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
@@ -11,80 +11,158 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   getWeekRange,
+  getMonthRange,
   getMonthCalendarDates,
   addWeeks,
   addMonths,
   formatDateISO,
   formatDateRange,
 } from "@/lib/utils/date-helpers";
-import { OccurrenceEditDialog } from "@/components/trajets/occurrence-edit-dialog";
 import { CalendarGrid } from "./calendar-grid";
-import { TimelineView } from "./timeline-view";
-import { OccurrenceDetailSheet } from "./occurrence-detail-sheet";
+import { SchedulerView } from "./scheduler/scheduler-view";
+import { OccurrenceFicheDialog } from "./occurrence-fiche-dialog";
 import type { OccurrenceItem } from "./types";
-import type { OccurrenceOverrideFormValues } from "@/lib/validators/trajet";
+import type {
+  SchedulerViewMode,
+  OccurrenceMoveData,
+} from "./scheduler/types";
 
 type PeriodMode = "week" | "month";
-type DisplayMode = "calendar" | "timeline";
+type DisplayMode = "planning" | "calendar";
 
-const DISPLAY_STORAGE_KEY = "planning:view";
+// New key on purpose: the legacy "planning:view" values ("calendar"/"timeline")
+// predate the Transcolaire-style scheduler and must not override its default.
+const DISPLAY_STORAGE_KEY = "planning:display";
 
-// Delay before opening the sheet on single click: gives double-click
-// enough time to cancel the pending single click (otherwise the sheet would flash).
-const SINGLE_CLICK_DELAY_MS = 250;
-
-function formatOccurrenceDate(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
+// Session-scoped navigation state (date + views): survives a page refresh,
+// resets to "today" in a new tab/session.
+const SESSION_STATE_KEY = "planning:session-state";
 
 export function PlanningClient() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [period, setPeriod] = useState<PeriodMode>("week");
-  const [selectedOccurrence, setSelectedOccurrence] =
-    useState<OccurrenceItem | null>(null);
-  const [editingOccurrence, setEditingOccurrence] =
+  // "jour" is the legacy Transcolaire default view.
+  const [schedulerView, setSchedulerView] = useState<SchedulerViewMode>("jour");
+  // "Fiche trajet du jour": opens on click, read mode first then
+  // "Personnaliser" switches to edit (Transcolaire-style).
+  const [ficheOccurrence, setFicheOccurrence] =
     useState<OccurrenceItem | null>(null);
 
-  // Calendar/Timeline view — SSR-safe: we render "calendar" on first
-  // render, then apply the localStorage choice post-mount (takes priority)
-  // or the business default (transporteur → timeline).
-  const [display, setDisplay] = useState<DisplayMode>("calendar");
-  const hasStoredChoice = useRef(false);
-  const { data: settings } = useQuery(trpc.tenantSettings.get.queryOptions());
+  // Planning (resource scheduler) is the default view; the stored
+  // choice is applied post-mount (SSR-safe). Legacy "timeline" values
+  // map to the scheduler that replaced it.
+  const [display, setDisplay] = useState<DisplayMode>("planning");
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DISPLAY_STORAGE_KEY);
-      if (saved === "calendar" || saved === "timeline") {
-        hasStoredChoice.current = true;
-        setDisplay(saved);
+      if (saved === "calendar" || saved === "planning") setDisplay(saved);
+    } catch {}
+  }, []);
+
+  // Restore the session navigation state (SSR-safe: applied post-mount).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_STATE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        date?: string;
+        view?: string;
+        period?: string;
+      };
+      if (saved.date && /^\d{4}-\d{2}-\d{2}$/.test(saved.date)) {
+        const d = new Date(saved.date + "T00:00:00");
+        if (!Number.isNaN(d.getTime())) setCurrentDate(d);
+      }
+      if (
+        saved.view === "jour" ||
+        saved.view === "semaine" ||
+        saved.view === "mois" ||
+        saved.view === "trimestre"
+      ) {
+        setSchedulerView(saved.view);
+      }
+      if (saved.period === "week" || saved.period === "month") {
+        setPeriod(saved.period);
       }
     } catch {}
   }, []);
 
   useEffect(() => {
-    if (hasStoredChoice.current) return;
-    if (settings?.tenantType === "transporteur") setDisplay("timeline");
-  }, [settings?.tenantType]);
+    try {
+      sessionStorage.setItem(
+        SESSION_STATE_KEY,
+        JSON.stringify({
+          date: formatDateISO(currentDate),
+          view: schedulerView,
+          period,
+        }),
+      );
+    } catch {}
+  }, [currentDate, schedulerView, period]);
 
   function chooseDisplay(mode: DisplayMode) {
-    hasStoredChoice.current = true;
     setDisplay(mode);
     try {
       localStorage.setItem(DISPLAY_STORAGE_KEY, mode);
     } catch {}
   }
 
-  // Compute date range based on period
+  // Date range to fetch + label, depending on the active view.
   const { fromDate, toDate, rangeLabel } = useMemo(() => {
+    if (display === "planning") {
+      switch (schedulerView) {
+        case "jour": {
+          const iso = formatDateISO(currentDate);
+          return {
+            fromDate: iso,
+            toDate: iso,
+            rangeLabel: currentDate.toLocaleDateString("fr-FR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }),
+          };
+        }
+        case "semaine": {
+          const { start, end } = getWeekRange(currentDate);
+          return {
+            fromDate: formatDateISO(start),
+            toDate: formatDateISO(end),
+            rangeLabel: formatDateRange(start, end),
+          };
+        }
+        case "mois": {
+          const { start, end } = getMonthRange(currentDate);
+          return {
+            fromDate: formatDateISO(start),
+            toDate: formatDateISO(end),
+            rangeLabel: currentDate.toLocaleDateString("fr-FR", {
+              month: "long",
+              year: "numeric",
+            }),
+          };
+        }
+        case "trimestre": {
+          const start = getMonthRange(currentDate).start;
+          const end = addMonths(start, 3);
+          end.setDate(end.getDate() - 1);
+          return {
+            fromDate: formatDateISO(start),
+            toDate: formatDateISO(end),
+            rangeLabel: `${start.toLocaleDateString("fr-FR", {
+              month: "long",
+            })} – ${end.toLocaleDateString("fr-FR", {
+              month: "long",
+              year: "numeric",
+            })}`,
+          };
+        }
+      }
+    }
     if (period === "week") {
       const { start, end } = getWeekRange(currentDate);
       return {
@@ -105,80 +183,62 @@ export function PlanningClient() {
         year: "numeric",
       }),
     };
-  }, [currentDate, period]);
+  }, [display, schedulerView, currentDate, period]);
 
-  const { data: occurrences, isLoading, isError } = useQuery(
-    trpc.trajets.listOccurrences.queryOptions({
-      fromDate,
-      toDate,
-    }),
-  );
+  const { data: occurrences, isLoading, isError, isFetching, refetch } =
+    useQuery(
+      trpc.trajets.listOccurrences.queryOptions({
+        fromDate,
+        toDate,
+      }),
+    );
 
-  const updateMutation = useMutation(
+  // Drag & drop in the scheduler (reassignment / time move).
+  const moveMutation = useMutation(
     trpc.trajets.updateOccurrence.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({
           queryKey: trpc.trajets.listOccurrences.queryKey(),
         });
-        toast.success("Occurrence personnalisée");
-        setEditingOccurrence(null);
+        toast.success("Occurrence déplacée");
       },
       onError: (err) => {
-        toastTrpcError(err, "Erreur lors de la personnalisation");
+        toastTrpcError(err, "Erreur lors du déplacement");
       },
     }),
   );
 
-  // Single click = detail sheet (deferred), double-click = customization dialog
-  // (cancels the pending single click).
-  const clickTimerRef = useRef<number | null>(null);
-  useEffect(() => {
-    return () => {
-      if (clickTimerRef.current) window.clearTimeout(clickTimerRef.current);
-    };
-  }, []);
-
+  // Click (single or double) opens the fiche directly.
   const handleOccurrenceClick = useCallback((occ: OccurrenceItem) => {
-    if (clickTimerRef.current) window.clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = window.setTimeout(() => {
-      clickTimerRef.current = null;
-      setSelectedOccurrence(occ);
-    }, SINGLE_CLICK_DELAY_MS);
+    setFicheOccurrence(occ);
   }, []);
 
-  const handleOccurrenceDoubleClick = useCallback((occ: OccurrenceItem) => {
-    if (clickTimerRef.current) {
-      window.clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
-    setSelectedOccurrence(null);
-    setEditingOccurrence(occ);
-  }, []);
-
-  function handleEditSubmit(values: OccurrenceOverrideFormValues) {
-    if (!editingOccurrence) return;
-    updateMutation.mutate({
-      trajetId: editingOccurrence.trajetId,
-      date: editingOccurrence.date,
-      data: values,
-    });
-  }
-
-  function handleEditReset() {
-    if (!editingOccurrence) return;
-    updateMutation.mutate({
-      trajetId: editingOccurrence.trajetId,
-      date: editingOccurrence.date,
-      data: {
-        chauffeurId: null,
-        vehiculeId: null,
-        departureTime: null,
-        notes: null,
-      },
-    });
-  }
+  const handleMoveOccurrence = useCallback(
+    (occ: OccurrenceItem, data: OccurrenceMoveData) => {
+      moveMutation.mutate({
+        trajetId: occ.trajetId,
+        date: occ.date,
+        data,
+      });
+    },
+    [moveMutation],
+  );
 
   function navigate(direction: -1 | 1) {
+    if (display === "planning") {
+      if (schedulerView === "jour") {
+        setCurrentDate((d) => {
+          const next = new Date(d);
+          next.setDate(next.getDate() + direction);
+          return next;
+        });
+      } else if (schedulerView === "semaine") {
+        setCurrentDate((d) => addWeeks(d, direction));
+      } else {
+        setCurrentDate((d) => addMonths(d, direction));
+      }
+      return;
+    }
     if (period === "week") {
       setCurrentDate((d) => addWeeks(d, direction));
     } else {
@@ -195,68 +255,68 @@ export function PlanningClient() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Planning</h1>
           <p className="text-sm text-muted-foreground">
-            {display === "calendar"
-              ? "Vue calendrier des trajets"
-              : "Vue timeline par ressource"}
+            {display === "planning"
+              ? "Planning par ressource (chauffeurs / véhicules)"
+              : "Vue calendrier des trajets"}
           </p>
+        </div>
+
+        {/* Planning / Calendar display switch */}
+        <div className="flex items-center rounded-[0.3rem] border border-border">
+          <Button
+            variant={display === "planning" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => chooseDisplay("planning")}
+            className="cursor-pointer rounded-none rounded-l-[0.3rem]"
+          >
+            Planning
+          </Button>
+          <Button
+            variant={display === "calendar" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => chooseDisplay("calendar")}
+            className="cursor-pointer rounded-none rounded-r-[0.3rem]"
+          >
+            Calendrier
+          </Button>
         </div>
       </div>
 
-      {/* Navigation bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="cursor-pointer"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={goToday}
-            className="cursor-pointer"
-          >
-            Aujourd&apos;hui
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(1)}
-            className="cursor-pointer"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <span className="ml-2 text-sm font-medium capitalize">
-            {rangeLabel}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Calendar / Timeline view switch */}
-          <div className="flex items-center rounded-[0.3rem] border border-border">
+      {/* Calendar navigation bar (the scheduler has its own toolbar) */}
+      {display === "calendar" && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <Button
-              variant={display === "calendar" ? "secondary" : "ghost"}
+              variant="outline"
               size="sm"
-              onClick={() => chooseDisplay("calendar")}
-              className="cursor-pointer rounded-none rounded-l-[0.3rem]"
+              onClick={() => navigate(-1)}
+              className="cursor-pointer"
             >
-              Calendrier
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
-              variant={display === "timeline" ? "secondary" : "ghost"}
+              variant="outline"
               size="sm"
-              onClick={() => chooseDisplay("timeline")}
-              className="cursor-pointer rounded-none rounded-r-[0.3rem]"
+              onClick={goToday}
+              className="cursor-pointer"
             >
-              Timeline
+              Aujourd&apos;hui
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(1)}
+              className="cursor-pointer"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <span className="ml-2 text-sm font-medium capitalize">
+              {rangeLabel}
+            </span>
           </div>
 
           {/* Period */}
@@ -279,32 +339,36 @@ export function PlanningClient() {
             </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Content */}
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      ) : isError ? (
+      {isError ? (
         <div className="flex flex-col items-center justify-center rounded-[0.3rem] border border-dashed border-destructive/40 py-12">
           <p className="text-sm text-destructive">
             Erreur lors du chargement des occurrences.
           </p>
         </div>
-      ) : display === "timeline" ? (
-        isEmpty ? (
-          <EmptyState />
-        ) : (
-          <TimelineView
-            currentDate={currentDate}
-            period={period}
-            occurrences={occurrences as OccurrenceItem[]}
-            onOccurrenceClick={handleOccurrenceClick}
-            onOccurrenceDoubleClick={handleOccurrenceDoubleClick}
-          />
-        )
+      ) : display === "planning" ? (
+        <SchedulerView
+          view={schedulerView}
+          onViewChange={setSchedulerView}
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+          onNavigate={navigate}
+          onToday={goToday}
+          rangeLabel={rangeLabel}
+          occurrences={(occurrences ?? []) as OccurrenceItem[]}
+          isFetching={isFetching}
+          onRefresh={() => refetch()}
+          onOccurrenceClick={handleOccurrenceClick}
+          onOccurrenceDoubleClick={handleOccurrenceClick}
+          onMoveOccurrence={handleMoveOccurrence}
+        />
+      ) : isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       ) : isEmpty ? (
         <div>
           <CalendarGrid
@@ -312,7 +376,7 @@ export function PlanningClient() {
             view={period}
             occurrences={[]}
             onOccurrenceClick={handleOccurrenceClick}
-            onOccurrenceDoubleClick={handleOccurrenceDoubleClick}
+            onOccurrenceDoubleClick={handleOccurrenceClick}
           />
           <div className="mt-4">
             <EmptyState />
@@ -324,47 +388,14 @@ export function PlanningClient() {
           view={period}
           occurrences={occurrences as OccurrenceItem[]}
           onOccurrenceClick={handleOccurrenceClick}
-          onOccurrenceDoubleClick={handleOccurrenceDoubleClick}
+          onOccurrenceDoubleClick={handleOccurrenceClick}
         />
       )}
 
-      {/* Detail sheet */}
-      <OccurrenceDetailSheet
-        occurrence={selectedOccurrence}
-        onClose={() => setSelectedOccurrence(null)}
-        onCustomize={() => {
-          const occ = selectedOccurrence;
-          setSelectedOccurrence(null);
-          setEditingOccurrence(occ);
-        }}
-      />
-
-      {/* One-off customization dialog */}
-      <OccurrenceEditDialog
-        open={!!editingOccurrence}
-        onOpenChange={(open) => !open && setEditingOccurrence(null)}
-        onSubmit={handleEditSubmit}
-        onReset={handleEditReset}
-        hideStatus
-        defaultValues={
-          editingOccurrence
-            ? {
-                chauffeurId: editingOccurrence.overrideChauffeurId,
-                vehiculeId: editingOccurrence.overrideVehiculeId,
-                departureTime: editingOccurrence.overrideDepartureTime,
-                status: editingOccurrence.status as
-                  | "planifie"
-                  | "en_cours"
-                  | "termine"
-                  | "annule",
-                notes: editingOccurrence.overrideNotes,
-              }
-            : undefined
-        }
-        isPending={updateMutation.isPending}
-        occurrenceDate={
-          editingOccurrence ? formatOccurrenceDate(editingOccurrence.date) : ""
-        }
+      {/* Fiche trajet du jour (read first, then "Personnaliser") */}
+      <OccurrenceFicheDialog
+        occurrence={ficheOccurrence}
+        onClose={() => setFicheOccurrence(null)}
       />
     </div>
   );

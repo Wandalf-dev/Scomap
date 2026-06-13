@@ -36,3 +36,6 @@ drizzle/meta/
 
 # Misc
 *.tsbuildinfo
+
+# Design assets (local reference exports, not source)
+/Scomap-Design*

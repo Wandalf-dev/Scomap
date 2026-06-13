@@ -1,18 +1,35 @@
 import { z } from "zod";
-import { eq, and, isNull, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, or, isNull, inArray, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   trajets,
   trajetOccurrences,
+  trajetOccurrenceArrets,
   circuits,
   chauffeurs,
   vehicules,
+  usagers,
+  usagerAddresses,
+  etablissements,
 } from "@scomap/db/schema";
 import { tenantProcedure } from "../../init";
 import { assertTenantOwned } from "../../ownership";
-import { occurrenceOverrideSchema } from "@/lib/validators/trajet";
+import { resolveArretsForDate } from "../../services/arrets-for-date";
+import {
+  resolveRoutingConfig,
+  computeSegmentForTenant,
+} from "../../services/routing/resolve";
+import {
+  occurrenceOverrideSchema,
+  occurrenceArretAddSchema,
+} from "@/lib/validators/trajet";
 import { normalizeDays, isAnyDayActiveForDate, type DayEntry } from "@/lib/types/day-entry";
 import type { TRPCRouterRecord } from "@trpc/server";
+
+const occurrenceKeySchema = z.object({
+  trajetId: z.string().uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
 export const occurrenceProcedures = {
   /**
@@ -64,9 +81,12 @@ export const occurrenceProcedures = {
           recurrence: trajets.recurrence,
           startDate: trajets.startDate,
           endDate: trajets.endDate,
+          totalDurationSeconds: trajets.totalDurationSeconds,
+          circuitId: trajets.circuitId,
           circuitName: circuits.name,
           circuitStartDate: circuits.startDate,
           circuitEndDate: circuits.endDate,
+          etablissementId: circuits.etablissementId,
         })
         .from(trajets)
         .leftJoin(
@@ -112,7 +132,10 @@ export const occurrenceProcedures = {
         trajetDepartureTime: string | null;
         trajetChauffeurId: string | null;
         trajetVehiculeId: string | null;
+        trajetDurationSeconds: number | null;
+        circuitId: string;
         circuitName: string | null;
+        etablissementId: string | null;
       }[] = [];
 
       const pushItem = (
@@ -134,7 +157,10 @@ export const occurrenceProcedures = {
           trajetDepartureTime: t.departureTime,
           trajetChauffeurId: t.chauffeurId,
           trajetVehiculeId: t.vehiculeId,
+          trajetDurationSeconds: t.totalDurationSeconds,
+          circuitId: t.circuitId,
           circuitName: t.circuitName,
+          etablissementId: t.etablissementId,
         });
       };
 
@@ -327,4 +353,595 @@ export const occurrenceProcedures = {
 
       return result[0] ?? null;
     }),
+
+  /**
+   * Stops of the occurrence (fiche trajet du jour). Until the day is
+   * customized, the base arrêts resolved at the date are returned as-is
+   * (with the trajet's route). On first customization they are MATERIALIZED
+   * into trajet_occurrence_arrets so the day's composition can be reordered,
+   * re-timed and routed independently.
+   */
+  listOccurrenceArrets: tenantProcedure
+    .input(occurrenceKeySchema)
+    .query(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet");
+
+      const materialized = await loadMaterializedStops(ctx.db, ctx.tenantId, input.trajetId, input.date);
+
+      if (materialized.length > 0) {
+        const occ = await ctx.db
+          .select({
+            totalDistanceKm: trajetOccurrences.totalDistanceKm,
+            totalDurationSeconds: trajetOccurrences.totalDurationSeconds,
+            routeGeometry: trajetOccurrences.routeGeometry,
+          })
+          .from(trajetOccurrences)
+          .where(
+            and(
+              eq(trajetOccurrences.trajetId, input.trajetId),
+              eq(trajetOccurrences.date, input.date),
+              eq(trajetOccurrences.tenantId, ctx.tenantId),
+            ),
+          )
+          .limit(1);
+        return {
+          materialized: true,
+          stops: materialized,
+          totalDistanceKm: occ[0]?.totalDistanceKm ?? null,
+          totalDurationSeconds: occ[0]?.totalDurationSeconds ?? null,
+          routeGeometry: occ[0]?.routeGeometry ?? null,
+        };
+      }
+
+      // Derived: base composition + the trajet's own route.
+      const [baseStops, trajetRow] = await Promise.all([
+        resolveArretsForDate(ctx.db, ctx.tenantId, input.trajetId, input.date),
+        ctx.db
+          .select({
+            totalDistanceKm: trajets.totalDistanceKm,
+            totalDurationSeconds: trajets.totalDurationSeconds,
+            routeGeometry: trajets.routeGeometry,
+          })
+          .from(trajets)
+          .where(eq(trajets.id, input.trajetId))
+          .limit(1),
+      ]);
+
+      return {
+        materialized: false,
+        stops: baseStops.map((s, i) => ({
+          id: s.id,
+          source: "base" as const,
+          type: s.type,
+          usagerAddressId: s.usagerAddressId,
+          etablissementId: s.etablissementId,
+          name: s.name,
+          address: s.address,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          orderIndex: i,
+          arrivalTime: s.arrivalTime,
+          waitTime: s.waitTime,
+          distanceKm: s.distanceKm,
+          durationSeconds: s.durationSeconds,
+          timeLocked: s.timeLocked,
+          usagerId: s.usagerId,
+        })),
+        totalDistanceKm: trajetRow[0]?.totalDistanceKm ?? null,
+        totalDurationSeconds: trajetRow[0]?.totalDurationSeconds ?? null,
+        routeGeometry: trajetRow[0]?.routeGeometry ?? null,
+      };
+    }),
+
+  /** Adds a one-off stop to the occurrence (usager / établissement / point libre). */
+  addOccurrenceArret: tenantProcedure
+    .input(occurrenceKeySchema.extend({ data: occurrenceArretAddSchema }))
+    .mutation(async ({ ctx, input }) => {
+      await Promise.all([
+        assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet"),
+        input.data.usagerAddressId
+          ? assertTenantOwned(ctx.db, usagerAddresses, input.data.usagerAddressId, ctx.tenantId, "Adresse")
+          : null,
+        input.data.etablissementId
+          ? assertTenantOwned(ctx.db, etablissements, input.data.etablissementId, ctx.tenantId, "Etablissement")
+          : null,
+      ]);
+
+      const rows = await ensureMaterialized(ctx.db, ctx.tenantId, input.trajetId, input.date);
+      const nextOrder = rows.reduce((m, r) => Math.max(m, r.orderIndex), -1) + 1;
+
+      const result = await ctx.db
+        .insert(trajetOccurrenceArrets)
+        .values({
+          tenantId: ctx.tenantId,
+          trajetId: input.trajetId,
+          date: input.date,
+          kind: "add",
+          type: input.data.type,
+          usagerAddressId: input.data.usagerAddressId ?? null,
+          etablissementId: input.data.etablissementId ?? null,
+          name: input.data.name,
+          address: input.data.address ?? null,
+          latitude: input.data.latitude ?? null,
+          longitude: input.data.longitude ?? null,
+          arrivalTime: input.data.arrivalTime ?? null,
+          orderIndex: nextOrder,
+        })
+        .returning();
+
+      return result[0] ?? null;
+    }),
+
+  /** Removes a stop from the day (base stops are removable: day-scoped copy). */
+  removeOccurrenceArret: tenantProcedure
+    .input(occurrenceKeySchema.extend({ stopId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet");
+      await ensureMaterialized(ctx.db, ctx.tenantId, input.trajetId, input.date);
+      // stopId may be either the materialized row id or — right after
+      // materialization — the base arrêt id shown before it.
+      const result = await ctx.db
+        .delete(trajetOccurrenceArrets)
+        .where(
+          and(
+            eq(trajetOccurrenceArrets.tenantId, ctx.tenantId),
+            eq(trajetOccurrenceArrets.trajetId, input.trajetId),
+            eq(trajetOccurrenceArrets.date, input.date),
+            or(
+              eq(trajetOccurrenceArrets.id, input.stopId),
+              eq(trajetOccurrenceArrets.baseArretId, input.stopId),
+            ),
+          ),
+        )
+        .returning({ id: trajetOccurrenceArrets.id });
+      if (!result[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Arrêt non trouvé" });
+      }
+      return result[0];
+    }),
+
+  /** Reorders the day's stops (drag & drop). */
+  reorderOccurrenceArrets: tenantProcedure
+    .input(
+      occurrenceKeySchema.extend({
+        items: z
+          .array(z.object({ id: z.string().uuid(), orderIndex: z.number().int().min(0) }))
+          .min(1)
+          .max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet");
+      await ensureMaterialized(ctx.db, ctx.tenantId, input.trajetId, input.date);
+      await ctx.db.transaction(async (tx) => {
+        for (const item of input.items) {
+          await tx
+            .update(trajetOccurrenceArrets)
+            .set({ orderIndex: item.orderIndex, updatedAt: new Date() })
+            .where(
+              and(
+                eq(trajetOccurrenceArrets.tenantId, ctx.tenantId),
+                eq(trajetOccurrenceArrets.trajetId, input.trajetId),
+                eq(trajetOccurrenceArrets.date, input.date),
+                or(
+                  eq(trajetOccurrenceArrets.id, item.id),
+                  eq(trajetOccurrenceArrets.baseArretId, item.id),
+                ),
+              ),
+            );
+        }
+      });
+      return { ok: true };
+    }),
+
+  /** Sets / locks a stop time for the day. */
+  updateOccurrenceArret: tenantProcedure
+    .input(
+      occurrenceKeySchema.extend({
+        stopId: z.string().uuid(),
+        arrivalTime: z.string().max(16).nullable().optional(),
+        timeLocked: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet");
+      await ensureMaterialized(ctx.db, ctx.tenantId, input.trajetId, input.date);
+      const result = await ctx.db
+        .update(trajetOccurrenceArrets)
+        .set({
+          ...(input.arrivalTime !== undefined ? { arrivalTime: input.arrivalTime } : {}),
+          ...(input.timeLocked !== undefined ? { timeLocked: input.timeLocked } : {}),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(trajetOccurrenceArrets.tenantId, ctx.tenantId),
+            eq(trajetOccurrenceArrets.trajetId, input.trajetId),
+            eq(trajetOccurrenceArrets.date, input.date),
+            or(
+              eq(trajetOccurrenceArrets.id, input.stopId),
+              eq(trajetOccurrenceArrets.baseArretId, input.stopId),
+            ),
+          ),
+        )
+        .returning({ id: trajetOccurrenceArrets.id });
+      if (!result[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Arrêt non trouvé" });
+      }
+      return result[0];
+    }),
+
+  /** Drops the day customization of the stops (back to the base composition). */
+  resetOccurrenceArrets: tenantProcedure
+    .input(occurrenceKeySchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertTenantOwned(ctx.db, trajets, input.trajetId, ctx.tenantId, "Trajet");
+      await ctx.db
+        .delete(trajetOccurrenceArrets)
+        .where(
+          and(
+            eq(trajetOccurrenceArrets.tenantId, ctx.tenantId),
+            eq(trajetOccurrenceArrets.trajetId, input.trajetId),
+            eq(trajetOccurrenceArrets.date, input.date),
+          ),
+        );
+      await ctx.db
+        .update(trajetOccurrences)
+        .set({
+          totalDistanceKm: null,
+          totalDurationSeconds: null,
+          routeGeometry: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(trajetOccurrences.trajetId, input.trajetId),
+            eq(trajetOccurrences.date, input.date),
+            eq(trajetOccurrences.tenantId, ctx.tenantId),
+          ),
+        );
+      return { ok: true };
+    }),
+
+  /** Computes the day's route (segments + totals + geometry for the map). */
+  calculateOccurrenceRoute: tenantProcedure
+    .input(occurrenceKeySchema)
+    .mutation(async ({ ctx, input }) => {
+      const trajet = await ctx.db
+        .select({ id: trajets.id, peages: trajets.peages })
+        .from(trajets)
+        .where(
+          and(
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!trajet[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouvé" });
+      }
+
+      const stops = await ensureMaterialized(ctx.db, ctx.tenantId, input.trajetId, input.date);
+      if (stops.length < 2) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Il faut au moins 2 arrêts pour calculer un trajet",
+        });
+      }
+      if (!stops.every((s) => s.latitude != null && s.longitude != null)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Tous les arrêts doivent avoir des coordonnées GPS",
+        });
+      }
+
+      const avoidTolls = trajet[0].peages === false;
+      const routingConfig = await resolveRoutingConfig(ctx.db, ctx.tenantId);
+
+      let totalDistanceKm = 0;
+      let totalDurationSeconds = 0;
+      const allCoordinates: number[][] = [];
+      const segmentResults: { id: string; distanceKm: number; durationSeconds: number }[] = [];
+
+      for (let i = 1; i < stops.length; i++) {
+        const prev = stops[i - 1]!;
+        const curr = stops[i]!;
+        const outcome = await computeSegmentForTenant(
+          { lat: prev.latitude!, lng: prev.longitude! },
+          { lat: curr.latitude!, lng: curr.longitude! },
+          routingConfig,
+          avoidTolls,
+        );
+        if (!outcome.result) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Calcul d'itinéraire indisponible pour le segment ${i} (${routingConfig.adapter.id}).`,
+          });
+        }
+        const { distanceKm, durationSec, geometry } = outcome.result;
+        totalDistanceKm += distanceKm;
+        totalDurationSeconds += durationSec;
+        segmentResults.push({ id: curr.id, distanceKm, durationSeconds: durationSec });
+        if (geometry.length > 0) {
+          const startIdx = allCoordinates.length > 0 ? 1 : 0;
+          for (let j = startIdx; j < geometry.length; j++) {
+            allCoordinates.push(geometry[j]!);
+          }
+        }
+      }
+
+      let simplified = allCoordinates;
+      if (allCoordinates.length > 1000) {
+        const step = Math.ceil(allCoordinates.length / 1000);
+        simplified = allCoordinates.filter((_, idx) => idx % step === 0);
+        const last = allCoordinates[allCoordinates.length - 1];
+        if (last && simplified[simplified.length - 1] !== last) simplified.push(last);
+      }
+      const routeGeometry =
+        simplified.length >= 2
+          ? { type: "LineString" as const, coordinates: simplified }
+          : null;
+
+      await ctx.db.transaction(async (tx) => {
+        await tx
+          .update(trajetOccurrenceArrets)
+          .set({ distanceKm: 0, durationSeconds: 0, updatedAt: new Date() })
+          .where(eq(trajetOccurrenceArrets.id, stops[0]!.id));
+        for (const seg of segmentResults) {
+          await tx
+            .update(trajetOccurrenceArrets)
+            .set({
+              distanceKm: seg.distanceKm,
+              durationSeconds: seg.durationSeconds,
+              updatedAt: new Date(),
+            })
+            .where(eq(trajetOccurrenceArrets.id, seg.id));
+        }
+        // Upsert the occurrence row with the day's totals + geometry.
+        await tx
+          .insert(trajetOccurrences)
+          .values({
+            tenantId: ctx.tenantId,
+            trajetId: input.trajetId,
+            date: input.date,
+            totalDistanceKm: Math.round(totalDistanceKm * 1000) / 1000,
+            totalDurationSeconds,
+            routeGeometry,
+          })
+          .onConflictDoUpdate({
+            target: [trajetOccurrences.trajetId, trajetOccurrences.date],
+            set: {
+              totalDistanceKm: Math.round(totalDistanceKm * 1000) / 1000,
+              totalDurationSeconds,
+              routeGeometry,
+              updatedAt: new Date(),
+            },
+          });
+      });
+
+      return { totalDistanceKm, totalDurationSeconds };
+    }),
+
+  /** Recomputes the day's stop times (same anchor algorithm as the trajet). */
+  calculateOccurrenceTimes: tenantProcedure
+    .input(occurrenceKeySchema.extend({ waitTimeSeconds: z.number().min(0).default(0) }))
+    .mutation(async ({ ctx, input }) => {
+      const trajet = await ctx.db
+        .select({ direction: trajets.direction, departureTime: trajets.departureTime })
+        .from(trajets)
+        .where(
+          and(
+            eq(trajets.id, input.trajetId),
+            eq(trajets.tenantId, ctx.tenantId),
+            isNull(trajets.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!trajet[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouvé" });
+      }
+
+      const occ = await ctx.db
+        .select({ departureTime: trajetOccurrences.departureTime })
+        .from(trajetOccurrences)
+        .where(
+          and(
+            eq(trajetOccurrences.trajetId, input.trajetId),
+            eq(trajetOccurrences.date, input.date),
+            eq(trajetOccurrences.tenantId, ctx.tenantId),
+          ),
+        )
+        .limit(1);
+
+      const stops = await ensureMaterialized(ctx.db, ctx.tenantId, input.trajetId, input.date);
+      if (stops.length < 2) return { updated: 0 };
+
+      const anchorTime =
+        occ[0]?.departureTime ?? trajet[0].departureTime ?? "08:00";
+      const timeUpdates = computeStopTimes(
+        stops,
+        trajet[0].direction,
+        anchorTime,
+        input.waitTimeSeconds,
+      );
+
+      await ctx.db.transaction(async (tx) => {
+        for (const u of timeUpdates) {
+          await tx
+            .update(trajetOccurrenceArrets)
+            .set({ arrivalTime: u.arrivalTime, updatedAt: new Date() })
+            .where(eq(trajetOccurrenceArrets.id, u.id));
+        }
+      });
+
+      return { updated: stops.length };
+    }),
 } satisfies TRPCRouterRecord;
+
+/* ------------------------------------------------------------------ */
+/* Helpers for the day-scoped (materialized) stop composition          */
+/* ------------------------------------------------------------------ */
+
+type Db = typeof import("@scomap/db").db;
+
+async function loadMaterializedStops(
+  db: Db,
+  tenantId: string,
+  trajetId: string,
+  date: string,
+) {
+  const rows = await db
+    .select({
+      id: trajetOccurrenceArrets.id,
+      kind: trajetOccurrenceArrets.kind,
+      type: trajetOccurrenceArrets.type,
+      usagerAddressId: trajetOccurrenceArrets.usagerAddressId,
+      etablissementId: trajetOccurrenceArrets.etablissementId,
+      name: trajetOccurrenceArrets.name,
+      address: trajetOccurrenceArrets.address,
+      latitude: trajetOccurrenceArrets.latitude,
+      longitude: trajetOccurrenceArrets.longitude,
+      orderIndex: trajetOccurrenceArrets.orderIndex,
+      arrivalTime: trajetOccurrenceArrets.arrivalTime,
+      waitTime: trajetOccurrenceArrets.waitTime,
+      distanceKm: trajetOccurrenceArrets.distanceKm,
+      durationSeconds: trajetOccurrenceArrets.durationSeconds,
+      timeLocked: trajetOccurrenceArrets.timeLocked,
+      usagerId: usagers.id,
+    })
+    .from(trajetOccurrenceArrets)
+    .leftJoin(
+      usagerAddresses,
+      and(
+        eq(trajetOccurrenceArrets.usagerAddressId, usagerAddresses.id),
+        eq(usagerAddresses.tenantId, tenantId),
+      ),
+    )
+    .leftJoin(
+      usagers,
+      and(eq(usagerAddresses.usagerId, usagers.id), eq(usagers.tenantId, tenantId)),
+    )
+    .where(
+      and(
+        eq(trajetOccurrenceArrets.tenantId, tenantId),
+        eq(trajetOccurrenceArrets.trajetId, trajetId),
+        eq(trajetOccurrenceArrets.date, date),
+      ),
+    );
+
+  return rows
+    .map((r) => ({
+      id: r.id,
+      source: r.kind === "add" ? ("ajout" as const) : ("base" as const),
+      type: r.type ?? "libre",
+      usagerAddressId: r.usagerAddressId,
+      etablissementId: r.etablissementId,
+      name: r.name ?? "",
+      address: r.address,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      orderIndex: r.orderIndex ?? 0,
+      arrivalTime: r.arrivalTime,
+      waitTime: r.waitTime,
+      distanceKm: r.distanceKm,
+      durationSeconds: r.durationSeconds,
+      timeLocked: r.timeLocked,
+      usagerId: r.usagerId,
+    }))
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+}
+
+/** Copies the base stops of the day into materialized rows (idempotent). */
+async function ensureMaterialized(
+  db: Db,
+  tenantId: string,
+  trajetId: string,
+  date: string,
+) {
+  const existing = await loadMaterializedStops(db, tenantId, trajetId, date);
+  if (existing.length > 0) return existing;
+
+  const baseStops = await resolveArretsForDate(db, tenantId, trajetId, date);
+  if (baseStops.length > 0) {
+    await db.insert(trajetOccurrenceArrets).values(
+      baseStops.map((s, i) => ({
+        tenantId,
+        trajetId,
+        date,
+        kind: "base",
+        baseArretId: s.id,
+        type: s.type,
+        usagerAddressId: s.usagerAddressId,
+        etablissementId: s.etablissementId,
+        name: s.name,
+        address: s.address,
+        latitude: s.latitude,
+        longitude: s.longitude,
+        orderIndex: i,
+        arrivalTime: s.arrivalTime,
+        waitTime: s.waitTime,
+        distanceKm: s.distanceKm,
+        durationSeconds: s.durationSeconds,
+        timeLocked: s.timeLocked,
+      })),
+    );
+  }
+  return loadMaterializedStops(db, tenantId, trajetId, date);
+}
+
+/** Same anchor-based time propagation as trajets.calculateTimes. */
+function computeStopTimes(
+  stops: Awaited<ReturnType<typeof loadMaterializedStops>>,
+  direction: string,
+  anchorTime: string,
+  extraWaitSeconds: number,
+) {
+  const updates: { id: string; arrivalTime: string }[] = [];
+
+  if (direction === "aller") {
+    const last = stops[stops.length - 1]!;
+    let base = parseTimeToSeconds(last.arrivalTime || anchorTime);
+    if (last.timeLocked && last.arrivalTime) base = parseTimeToSeconds(last.arrivalTime);
+    if (!last.timeLocked) updates.push({ id: last.id, arrivalTime: secondsToTime(base) });
+    let cumul = base;
+    for (let i = stops.length - 2; i >= 0; i--) {
+      const stop = stops[i]!;
+      const next = stops[i + 1]!;
+      if (stop.timeLocked && stop.arrivalTime) {
+        cumul = parseTimeToSeconds(stop.arrivalTime);
+        continue;
+      }
+      cumul -= (next.durationSeconds ?? 0) + (stop.waitTime ?? 0) * 60 + extraWaitSeconds;
+      updates.push({ id: stop.id, arrivalTime: secondsToTime(cumul) });
+    }
+  } else {
+    const first = stops[0]!;
+    let base = parseTimeToSeconds(first.arrivalTime || anchorTime);
+    if (first.timeLocked && first.arrivalTime) base = parseTimeToSeconds(first.arrivalTime);
+    if (!first.timeLocked) updates.push({ id: first.id, arrivalTime: secondsToTime(base) });
+    let cumul = base;
+    for (let i = 1; i < stops.length; i++) {
+      const stop = stops[i]!;
+      if (stop.timeLocked && stop.arrivalTime) {
+        cumul = parseTimeToSeconds(stop.arrivalTime);
+        continue;
+      }
+      cumul += (stop.durationSeconds ?? 0) + (stops[i - 1]!.waitTime ?? 0) * 60 + extraWaitSeconds;
+      updates.push({ id: stop.id, arrivalTime: secondsToTime(cumul) });
+    }
+  }
+  return updates;
+}
+
+function parseTimeToSeconds(time: string): number {
+  const parts = time.split(":");
+  return (parseInt(parts[0] ?? "0", 10) * 3600) + (parseInt(parts[1] ?? "0", 10) * 60);
+}
+
+function secondsToTime(totalSeconds: number): string {
+  const normalized = ((totalSeconds % 86400) + 86400) % 86400;
+  const hours = Math.floor(normalized / 3600) % 24;
+  const minutes = Math.floor((normalized % 3600) / 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}

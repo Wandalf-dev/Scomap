@@ -90,6 +90,13 @@ export const trajetOccurrences = pgTable(
     }),
     departureTime: varchar("departure_time", { length: 5 }),
     notes: text("notes"),
+    // Day-specific computed route (when the day's stops were customized)
+    totalDistanceKm: doublePrecision("total_distance_km"),
+    totalDurationSeconds: integer("total_duration_seconds"),
+    routeGeometry: jsonb("route_geometry").$type<{
+      type: "LineString";
+      coordinates: number[][];
+    }>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -148,9 +155,70 @@ export const arrets = pgTable("arrets", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
+// Day-scoped stops of an occurrence (Transcolaire-style fiche trajet).
+// On first customization the base stops of the day are MATERIALIZED here
+// (kind 'base', baseArretId = origin), then freely reordered / re-timed /
+// removed; 'add' rows are day-only extra points.
+export const trajetOccurrenceArrets = pgTable(
+  "trajet_occurrence_arrets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    trajetId: uuid("trajet_id")
+      .notNull()
+      .references(() => trajets.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    kind: varchar("kind", { length: 10 }).notNull(), // 'base' | 'add'
+    // base: the origin arrêt this row was copied from
+    baseArretId: uuid("base_arret_id").references(() => arrets.id, {
+      onDelete: "cascade",
+    }),
+    type: varchar("type", { length: 20 }), // 'usager' | 'etablissement' | 'libre'
+    usagerAddressId: uuid("usager_address_id").references(
+      () => usagerAddresses.id,
+      { onDelete: "cascade" },
+    ),
+    etablissementId: uuid("etablissement_id").references(
+      () => etablissements.id,
+      { onDelete: "cascade" },
+    ),
+    name: varchar("name", { length: 255 }),
+    address: text("address"),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    orderIndex: integer("order_index"),
+    arrivalTime: varchar("arrival_time", { length: 5 }), // HH:MM
+    waitTime: integer("wait_time"), // minutes
+    distanceKm: doublePrecision("distance_km"),
+    durationSeconds: integer("duration_seconds"),
+    timeLocked: boolean("time_locked").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("toa_trajet_date_idx").on(table.trajetId, table.date),
+    // One materialized row per (trajet, date, base arrêt); NULL baseArretId
+    // ("add" rows) are distinct in Postgres so additions are unaffected.
+    uniqueIndex("toa_exclusion_unique_idx").on(
+      table.trajetId,
+      table.date,
+      table.baseArretId,
+    ),
+  ],
+);
+
 export type Trajet = typeof trajets.$inferSelect;
 export type NewTrajet = typeof trajets.$inferInsert;
 export type TrajetOccurrence = typeof trajetOccurrences.$inferSelect;
 export type NewTrajetOccurrence = typeof trajetOccurrences.$inferInsert;
 export type Arret = typeof arrets.$inferSelect;
 export type NewArret = typeof arrets.$inferInsert;
+export type TrajetOccurrenceArret = typeof trajetOccurrenceArrets.$inferSelect;
+export type NewTrajetOccurrenceArret =
+  typeof trajetOccurrenceArrets.$inferInsert;

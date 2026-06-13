@@ -83,6 +83,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    // Multi-tenant by subdomain: Auth.js rebuilds absolute URLs from the host
+    // it sees, which in dev (and behind some proxies) is the bind address
+    // (localhost:3000) — the post-login redirect would then leave the tenant
+    // subdomain and lose the session cookie. Returning RELATIVE paths keeps
+    // the browser on the subdomain that initiated the sign-in.
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return url;
+      const parsed = new URL(url);
+      if (parsed.origin === baseUrl) return parsed.pathname + parsed.search;
+      return "/";
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

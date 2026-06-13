@@ -36,6 +36,7 @@ import {
 import {
   Building2,
   CalendarDays,
+  CalendarClock,
   Route,
   Map as MapIcon,
   Loader2,
@@ -54,13 +55,20 @@ const basemapProviderValues = [
   "ign",
 ] as const;
 
-const settingsSchema = z.object({
-  schoolYearStart: z.string().nullable(),
-  schoolYearEnd: z.string().nullable(),
-  routingProvider: z.enum(routingProviderValues),
-  basemapProvider: z.enum(basemapProviderValues),
-  basemapStyle: z.string().nullable(),
-});
+const settingsSchema = z
+  .object({
+    schoolYearStart: z.string().nullable(),
+    schoolYearEnd: z.string().nullable(),
+    routingProvider: z.enum(routingProviderValues),
+    basemapProvider: z.enum(basemapProviderValues),
+    basemapStyle: z.string().nullable(),
+    planningDayStart: z.number().int().min(0).max(23),
+    planningDayEnd: z.number().int().min(1).max(24),
+  })
+  .refine((v) => v.planningDayEnd > v.planningDayStart, {
+    message: "La fin de journée doit être après le début",
+    path: ["planningDayEnd"],
+  });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
@@ -163,6 +171,8 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
       routingProvider: settings?.routingProvider ?? "ign",
       basemapProvider: settings?.basemapProvider ?? "openfreemap",
       basemapStyle: settings?.basemapStyle ?? null,
+      planningDayStart: settings?.planningDayStart ?? 5,
+      planningDayEnd: settings?.planningDayEnd ?? 21,
     },
   });
 
@@ -363,6 +373,89 @@ export function ParametresClient({ isAdmin }: ParametresClientProps) {
                         onChange={field.onChange}
                         clearable
                       />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Planning: visible day window of the scheduler */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-primary" />
+                <CardTitle>Planning</CardTitle>
+              </div>
+              <CardDescription>
+                Plage horaire de la journée affichée dans la vue « Jour » du
+                planning. Les trajets en dehors de cette plage sont ramenés aux
+                bornes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid max-w-lg grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="planningDayStart"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Début de journée</FormLabel>
+                      <Select
+                        value={String(field.value)}
+                        onValueChange={(v) => field.onChange(Number(v))}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full cursor-pointer">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <SelectItem
+                              key={h}
+                              value={String(h)}
+                              className="cursor-pointer"
+                            >
+                              {String(h).padStart(2, "0")}:00
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="planningDayEnd"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fin de journée</FormLabel>
+                      <Select
+                        value={String(field.value)}
+                        onValueChange={(v) => field.onChange(Number(v))}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full cursor-pointer">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Array.from({ length: 24 }, (_, i) => i + 1).map(
+                            (h) => (
+                              <SelectItem
+                                key={h}
+                                value={String(h)}
+                                className="cursor-pointer"
+                              >
+                                {String(h).padStart(2, "0")}:00
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

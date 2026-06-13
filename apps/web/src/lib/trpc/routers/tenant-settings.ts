@@ -19,13 +19,20 @@ const basemapProviders = [
   "ign",
 ] as const;
 
-const tenantSettingsSchema = z.object({
-  schoolYearStart: z.string().nullable(),
-  schoolYearEnd: z.string().nullable(),
-  routingProvider: z.enum(routingProviders),
-  basemapProvider: z.enum(basemapProviders),
-  basemapStyle: z.string().max(64).nullable(),
-});
+const tenantSettingsSchema = z
+  .object({
+    schoolYearStart: z.string().nullable(),
+    schoolYearEnd: z.string().nullable(),
+    routingProvider: z.enum(routingProviders),
+    basemapProvider: z.enum(basemapProviders),
+    basemapStyle: z.string().max(64).nullable(),
+    planningDayStart: z.number().int().min(0).max(23),
+    planningDayEnd: z.number().int().min(1).max(24),
+  })
+  .refine((v) => v.planningDayEnd > v.planningDayStart, {
+    message: "La fin de journée doit être après le début",
+    path: ["planningDayEnd"],
+  });
 
 const setProviderKeySchema = z.object({
   category: z.enum(["routing", "basemap"]),
@@ -39,6 +46,8 @@ const DEFAULTS = {
   routingProvider: "ign" as (typeof routingProviders)[number],
   basemapProvider: "openfreemap" as (typeof basemapProviders)[number],
   basemapStyle: null as string | null,
+  planningDayStart: 5,
+  planningDayEnd: 21,
 };
 
 const tenantTypes = ["departement", "transporteur"] as const;
@@ -54,6 +63,8 @@ export const tenantSettingsRouter = createTRPCRouter({
         routingProvider: tenantSettings.routingProvider,
         basemapProvider: tenantSettings.basemapProvider,
         basemapStyle: tenantSettings.basemapStyle,
+        planningDayStart: tenantSettings.planningDayStart,
+        planningDayEnd: tenantSettings.planningDayEnd,
       })
       .from(tenantSettings)
       .where(eq(tenantSettings.tenantId, ctx.tenantId))
@@ -105,6 +116,8 @@ export const tenantSettingsRouter = createTRPCRouter({
             routingProvider: input.routingProvider,
             basemapProvider: input.basemapProvider,
             basemapStyle: input.basemapStyle,
+            planningDayStart: input.planningDayStart,
+            planningDayEnd: input.planningDayEnd,
             updatedAt: new Date(),
           })
           .where(eq(tenantSettings.tenantId, ctx.tenantId))
@@ -122,6 +135,8 @@ export const tenantSettingsRouter = createTRPCRouter({
           routingProvider: input.routingProvider,
           basemapProvider: input.basemapProvider,
           basemapStyle: input.basemapStyle,
+          planningDayStart: input.planningDayStart,
+          planningDayEnd: input.planningDayEnd,
         })
         .returning({ id: tenantSettings.id });
 

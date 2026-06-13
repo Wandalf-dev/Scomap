@@ -1,21 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { extractTenantSlug } from "@/lib/tenant-slug";
 
 export function middleware(request: NextRequest) {
   const host = request.headers.get("host") || "";
 
-  // Extract subdomain
-  let subdomain: string | null = null;
-
-  if (host.includes(".localhost") || host.includes(".scomap.")) {
-    const parts = host.split(".");
-    if (parts.length >= 2) {
-      const potentialSubdomain = parts[0];
-      if (!["www", "app", "localhost"].includes(potentialSubdomain)) {
-        subdomain = potentialSubdomain;
-      }
-    }
-  }
+  // Extract subdomain (shared logic with lib/tenant.ts)
+  const subdomain = extractTenantSlug(host);
 
   // Set tenant header on the REQUEST so server components can read it via headers()
   // Always strip the incoming value: this header is derived from the Host by the

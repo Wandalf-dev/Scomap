@@ -16,7 +16,10 @@ export interface OccurrenceItem {
   overrideChauffeurId: string | null;
   overrideVehiculeId: string | null;
   overrideNotes: string | null;
+  trajetDurationSeconds: number | null;
+  circuitId: string;
   circuitName: string | null;
+  etablissementId: string | null;
   chauffeurFirstName: string | null;
   chauffeurLastName: string | null;
   vehiculeName: string | null;

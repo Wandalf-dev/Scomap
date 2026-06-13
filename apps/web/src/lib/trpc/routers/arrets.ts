@@ -10,6 +10,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "../init";
 import { assertTenantOwned } from "../ownership";
+import { resolveArretsForDate } from "../services/arrets-for-date";
 import { arretSchema } from "@/lib/validators/trajet";
 
 // Anti-IDOR: optional FKs of an arrêt must belong to the tenant
@@ -154,40 +155,12 @@ export const arretsRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Trajet non trouve" });
       }
 
-      return ctx.db
-        .select({
-          id: arrets.id,
-          type: arrets.type,
-          name: arrets.name,
-          address: arrets.address,
-          orderIndex: arrets.orderIndex,
-          arrivalTime: arrets.arrivalTime,
-          usagerId: usagers.id,
-        })
-        .from(arrets)
-        .leftJoin(
-          usagerAddresses,
-          and(
-            eq(arrets.usagerAddressId, usagerAddresses.id),
-            eq(usagerAddresses.tenantId, ctx.tenantId),
-          ),
-        )
-        .leftJoin(
-          usagers,
-          and(
-            eq(usagerAddresses.usagerId, usagers.id),
-            eq(usagers.tenantId, ctx.tenantId),
-          ),
-        )
-        .where(
-          and(
-            eq(arrets.trajetId, input.trajetId),
-            isNull(arrets.deletedAt),
-            or(isNull(arrets.validFrom), lte(arrets.validFrom, input.date)),
-            or(isNull(arrets.validTo), gte(arrets.validTo, input.date)),
-          ),
-        )
-        .orderBy(asc(arrets.orderIndex));
+      return resolveArretsForDate(
+        ctx.db,
+        ctx.tenantId,
+        input.trajetId,
+        input.date,
+      );
     }),
 
   create: tenantProcedure

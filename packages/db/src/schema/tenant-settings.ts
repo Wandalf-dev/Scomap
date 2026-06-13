@@ -4,6 +4,7 @@ import {
   varchar,
   date,
   timestamp,
+  integer,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants";
@@ -43,6 +44,10 @@ export const tenantSettings = pgTable("tenant_settings", {
   // Provider-dependent style identifier: "liberty" | "streets-v2" |
   // "GEOGRAPHICALGRIDSYSTEMS.PLAN.IGN" ...
   basemapStyle: varchar("basemap_style", { length: 64 }),
+  // --- Planning: visible day window of the "jour" scheduler view (hours,
+  // 0-24), like the legacy HEUREDEBJOURNEE / HEUREFINJOURNEE parameters ---
+  planningDayStart: integer("planning_day_start").notNull().default(5),
+  planningDayEnd: integer("planning_day_end").notNull().default(21),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

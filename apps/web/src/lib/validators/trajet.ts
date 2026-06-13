@@ -85,3 +85,30 @@ export const arretSchema = z.object({
 });
 
 export type ArretFormValues = z.infer<typeof arretSchema>;
+
+// One-off stop ADDED to a single occurrence (fiche trajet du jour):
+// usager address, établissement, or free geocoded point.
+export const occurrenceArretAddSchema = z
+  .object({
+    type: z.enum(["usager", "etablissement", "libre"]),
+    usagerAddressId: z.string().uuid().nullable().optional(),
+    etablissementId: z.string().uuid().nullable().optional(),
+    name: z.string().min(1, "Nom requis").max(255),
+    address: z.string().max(500).optional(),
+    latitude: z.number().min(-90).max(90).nullable().optional(),
+    longitude: z.number().min(-180).max(180).nullable().optional(),
+    arrivalTime: z.string().max(16).nullable().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.type === "usager") return !!data.usagerAddressId;
+      if (data.type === "etablissement") return !!data.etablissementId;
+      return true; // libre: name suffices, address optional
+    },
+    {
+      message: "Veuillez sélectionner un usager ou un établissement",
+      path: ["name"],
+    },
+  );
+
+export type OccurrenceArretAddValues = z.infer<typeof occurrenceArretAddSchema>;

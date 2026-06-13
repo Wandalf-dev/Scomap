@@ -8,7 +8,14 @@ import type { NextRequest } from "next/server";
  * cookie's presence) would redirect "/" to /dashboard in an infinite loop.
  */
 export async function GET(request: NextRequest) {
-  const response = NextResponse.redirect(new URL("/", request.url));
+  // RELATIVE redirect: the browser resolves it against the origin it is on,
+  // so the user stays on the tenant subdomain without us trusting any host
+  // header (no open-redirect surface; `request.url` is also unusable here —
+  // in dev it is normalized to the bind address, localhost:3000).
+  const response = new NextResponse(null, {
+    status: 307,
+    headers: { Location: "/" },
+  });
   for (const cookie of request.cookies.getAll()) {
     if (
       cookie.name.startsWith("authjs.session-token") ||

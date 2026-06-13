@@ -6,8 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
-import { Route, Clock, Loader2, CalendarDays, ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Route, Clock, Loader2, ChevronDown } from "lucide-react";
+import { DirectionBadge } from "@/components/shared/direction-badge";
 import { TrajetEtatBadge } from "@/components/shared/trajet-etat-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,11 +106,6 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
   const totalKm = trajet?.totalDistanceKm;
   const totalSeconds = trajet?.totalDurationSeconds;
 
-  const directionClass =
-    trajet?.direction === "aller"
-      ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
-      : "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-400";
-
   // Explicit état (km + horaires). hasTimes: all active arrêts have a time.
   const hasTimes =
     !!arretsList &&
@@ -127,9 +122,7 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
       badges={
         trajet && (
           <span className="flex items-center gap-2">
-            <Badge variant="outline" className={directionClass}>
-              {trajet.direction === "aller" ? "Aller" : "Retour"}
-            </Badge>
+            <DirectionBadge direction={trajet.direction} />
             <TrajetEtatBadge
               etat={trajet.effectiveEtat}
               hasKm={trajet.totalDistanceKm != null}
@@ -150,33 +143,6 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
           label: "Fiche",
           content: trajet ? (
             <div className="space-y-6">
-              {/* Circuit attachment + effective period (avenants included) */}
-              {(trajet.circuitName ||
-                trajet.effectiveStartDate ||
-                trajet.effectiveEndDate) && (
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground">
-                  {trajet.circuitName && (
-                    <span className="flex items-center gap-1.5">
-                      <Route className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                      <span className="text-foreground/80">
-                        {trajet.circuitName}
-                        {trajet.etablissementName &&
-                          ` — ${trajet.etablissementName}`}
-                      </span>
-                    </span>
-                  )}
-                  {(trajet.effectiveStartDate || trajet.effectiveEndDate) && (
-                    <span className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                      <span className="tabular-nums">
-                        {trajet.effectiveStartDate ?? "…"} →{" "}
-                        {trajet.effectiveEndDate ?? "…"}
-                      </span>
-                    </span>
-                  )}
-                </div>
-              )}
-
               <TabInformations
                 trajet={{
                   id: trajet.id,
@@ -196,6 +162,8 @@ export function TrajetDetailClient({ id, backHref }: TrajetDetailClientProps) {
                   peages: trajet.peages,
                   kmACharge: trajet.kmACharge,
                 }}
+                circuitName={trajet.circuitName ?? null}
+                etablissementName={trajet.etablissementName ?? null}
                 circuitStartDate={trajet.circuitStartDate ?? null}
                 circuitEndDate={trajet.circuitEndDate ?? null}
               />

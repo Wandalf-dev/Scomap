@@ -246,6 +246,27 @@
       "when": 1771320000000,
       "tag": "0034_tenant_type",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1771410000000,
+      "tag": "0035_planning_day_window",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1771500000000,
+      "tag": "0036_occurrence_arrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1771590000000,
+      "tag": "0037_occurrence_arrets_materialized",
+      "breakpoints": true
     }
   ]
 }
