@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface UsagerArchiveTabsProps {
+interface ArchiveTabsProps {
   activeTab: "current" | "archived";
   onTabChange: (tab: "current" | "archived") => void;
   isLoading: boolean;
@@ -9,13 +9,15 @@ interface UsagerArchiveTabsProps {
   archivedCount: number;
 }
 
-export function UsagerArchiveTabs({
+/** Courants / Archivés dataset toggle with counts — shared by the usagers and
+ *  circuits lists. Rendered in the DataList toolbar via the `tabsSlot` prop. */
+export function ArchiveTabs({
   activeTab,
   onTabChange,
   isLoading,
   currentCount,
   archivedCount,
-}: UsagerArchiveTabsProps) {
+}: ArchiveTabsProps) {
   return (
     <Tabs
       value={activeTab}
@@ -25,7 +27,10 @@ export function UsagerArchiveTabs({
         <TabsTrigger value="current" className="cursor-pointer">
           Courants
           {!isLoading && (
-            <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
+            <Badge
+              variant="secondary"
+              className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs"
+            >
               {currentCount}
             </Badge>
           )}
@@ -33,7 +38,10 @@ export function UsagerArchiveTabs({
         <TabsTrigger value="archived" className="cursor-pointer">
           Archivés
           {!isLoading && archivedCount > 0 && (
-            <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
+            <Badge
+              variant="secondary"
+              className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs"
+            >
               {archivedCount}
             </Badge>
           )}

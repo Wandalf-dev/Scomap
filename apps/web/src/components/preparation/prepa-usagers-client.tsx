@@ -17,7 +17,7 @@ export function PrepaUsagersClient() {
   if (!campaign) return <NoCampaign />;
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PrepaBanner label={campaign.label} />
       <UsagersClient campaignId={campaign.id} />
     </div>

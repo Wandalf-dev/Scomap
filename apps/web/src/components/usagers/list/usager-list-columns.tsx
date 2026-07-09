@@ -5,6 +5,7 @@ import {
   USAGER_TRANSPORT_TYPE_LABELS,
 } from "@/lib/validators/usager";
 import { CLASSE_LABEL_MAP, formatDate } from "./usager-list-model";
+import { UsagerTransportChip } from "./usager-transport";
 import type { ColumnConfig } from "@/components/shared/data-list";
 import type { UsagerRow } from "./usager-list-model";
 
@@ -120,9 +121,7 @@ export const USAGER_LIST_COLUMNS: ColumnConfig<UsagerRow>[] = [
         : null,
     render: (row) =>
       row.transportType ? (
-        <span className="text-muted-foreground">
-          {USAGER_TRANSPORT_TYPE_LABELS[row.transportType as keyof typeof USAGER_TRANSPORT_TYPE_LABELS] ?? row.transportType}
-        </span>
+        <UsagerTransportChip type={row.transportType} />
       ) : (
         <span className="text-muted-foreground/60">&mdash;</span>
       ),

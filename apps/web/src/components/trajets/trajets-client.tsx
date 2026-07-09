@@ -196,6 +196,7 @@ export function TrajetsClient() {
       emptyDescription="Commencez par ajouter votre premier trajet."
       addButtonLabel="Ajouter un trajet"
       addHref="/trajets/new"
+      storageKey="trajets"
       columns={[
         {
           key: "name",

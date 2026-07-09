@@ -12,28 +12,14 @@ import {
   chauffeurDetailSchema,
   type ChauffeurDetailFormValues,
 } from "@/lib/validators/chauffeur";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { ChauffeurFormFields } from "./chauffeur-form-fields";
 
 export function ChauffeurCreateClient() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const formId = "chauffeur-create-form";
 
   const form = useForm<ChauffeurDetailFormValues>({
     resolver: zodResolver(chauffeurDetailSchema),
@@ -87,152 +73,18 @@ export function ChauffeurCreateClient() {
         </h1>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Identite */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Identite</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nom" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prenom</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Prenom" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="email@exemple.fr" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Telephone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="06 12 34 56 78" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
+      <ChauffeurFormFields form={form} formId={formId} onSubmit={onSubmit} />
 
-          {/* Adresse */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Adresse</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Adresse complete..."
-                        rows={3}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Embauche */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Embauche</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="hireDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date d&apos;embauche</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Notes libres..."
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button type="submit" disabled={mutation.isPending} className="cursor-pointer">
-              {mutation.isPending ? "Creation..." : "Creer le chauffeur"}
-            </Button>
-          </div>
-        </form>
-      </Form>
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          form={formId}
+          disabled={mutation.isPending}
+          className="cursor-pointer"
+        >
+          {mutation.isPending ? "Création..." : "Créer le chauffeur"}
+        </Button>
+      </div>
     </div>
   );
 }

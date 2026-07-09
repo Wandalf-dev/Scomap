@@ -12,7 +12,7 @@ export const CLASSE_LABEL_MAP: Record<string, string> = (() => {
 export const TRANSPORT_ACCENT: Record<string, string> = {
   taxi_collectif_individuel: "bg-blue-500",
   transport_famille: "bg-orange-500",
-  transport_commun: "bg-yellow-400",
+  transport_commun: "bg-amber-500",
 };
 
 export interface UsagerRow {

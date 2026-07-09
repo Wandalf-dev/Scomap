@@ -22,6 +22,13 @@ export function useUsagerListMutations({
   const copyToPrepaMutation = useMutation(
     trpc.preparation.copyUsagers.mutationOptions({
       onSuccess: (data) => {
+        // Keep the campaign counts (switcher badges) and its scoped list in sync.
+        queryClient.invalidateQueries({
+          queryKey: trpc.preparation.getCurrentCampaign.queryKey(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: trpc.usagers.list.queryKey(),
+        });
         toast.success(
           `${data.copied} usager${data.copied > 1 ? "s" : ""} copié${data.copied > 1 ? "s" : ""} en préparation`,
         );

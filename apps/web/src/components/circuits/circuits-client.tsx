@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
@@ -19,7 +19,7 @@ import {
 import { ShareIcon } from "@/components/ui/share-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArchiveTabs } from "@/components/shared/archive-tabs";
 import {
   Dialog,
   DialogContent,
@@ -80,7 +80,15 @@ const EMPTY_FILTERS: CircuitFilters = {
   periode: "",
 };
 
-export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
+export function CircuitsClient({
+  campaignId,
+  prepaTabs,
+  exportTarget,
+}: {
+  campaignId?: string;
+  prepaTabs?: ReactNode;
+  exportTarget?: HTMLElement | null;
+} = {}) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -113,6 +121,13 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
   const copyToPrepaMutation = useMutation(
     trpc.preparation.copyCircuits.mutationOptions({
       onSuccess: (data) => {
+        // Keep the campaign counts (switcher badges) and its scoped list in sync.
+        queryClient.invalidateQueries({
+          queryKey: trpc.preparation.getCurrentCampaign.queryKey(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: trpc.circuits.list.queryKey(),
+        });
         toast.success(
           `${data.copied} circuit${data.copied > 1 ? "s" : ""} copié${data.copied > 1 ? "s" : ""} en préparation`,
         );
@@ -254,34 +269,23 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
   }
 
   return (
-    <div className="space-y-4">
-      {!isPrepa && (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "current" | "archived")}>
-          <TabsList>
-            <TabsTrigger value="current" className="cursor-pointer">
-              Courants
-              {!isLoading && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
-                  {currentCircuits.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="archived" className="cursor-pointer">
-              Archivés
-              {!isLoading && archivedCircuits.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs">
-                  {archivedCircuits.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      )}
-
     <DataList<CircuitRow, CircuitFilters>
       data={displayedCircuits}
       isLoading={isLoading}
       error={error}
+      hideHeader={!!prepaTabs}
+      exportTarget={exportTarget}
+      tabsSlot={
+        isPrepa ? prepaTabs : (
+          <ArchiveTabs
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isLoading={isLoading}
+            currentCount={currentCircuits.length}
+            archivedCount={archivedCircuits.length}
+          />
+        )
+      }
       onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
       isBulkDeleting={deleteManyMutation.isPending}
       bulkActions={[
@@ -349,6 +353,7 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         isPrepa || activeTab === "archived" ? undefined : "Ajouter un circuit"
       }
       addHref={isPrepa || activeTab === "archived" ? undefined : "/circuits/new"}
+      storageKey="circuits"
       columns={[
         {
           key: "displayId",
@@ -622,6 +627,5 @@ export function CircuitsClient({ campaignId }: { campaignId?: string } = {}) {
         </DialogContent>
       </Dialog>
     </DataList>
-    </div>
   );
 }

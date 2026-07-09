@@ -68,8 +68,8 @@ export function VehiculeFormDialog({
         <DialogHeader>
           <DialogTitle>
             {mode === "create"
-              ? "Ajouter un vehicule"
-              : "Modifier le vehicule"}
+              ? "Ajouter un véhicule"
+              : "Modifier le véhicule"}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -84,7 +84,7 @@ export function VehiculeFormDialog({
                 <FormItem>
                   <FormLabel>Nom</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nom du vehicule" {...field} />
+                    <Input placeholder="Nom du véhicule" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -110,7 +110,7 @@ export function VehiculeFormDialog({
                 name="capacity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Capacite</FormLabel>
+                    <FormLabel>Capacité</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

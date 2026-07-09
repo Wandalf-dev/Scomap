@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
-import { Badge } from "@/components/ui/badge";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
 import { toastTrpcError } from "@/lib/utils/trpc-errors";
+import { VehiculeStatusBadge } from "./vehicule-status-badge";
 import { TabInformations } from "./tab-informations";
 import { TabMaintenance } from "./tab-maintenance";
 
@@ -47,18 +47,7 @@ export function VehiculeDetailClient({ id, initialTab }: VehiculeDetailClientPro
       entityName="Véhicule"
       title={vehicule?.name ?? ""}
       badges={
-        vehicule && (
-          <Badge
-            variant={vehicule.isActive ? "default" : "secondary"}
-            className={
-              vehicule.isActive
-                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                : ""
-            }
-          >
-            {vehicule.isActive ? "Actif" : "Inactif"}
-          </Badge>
-        )
+        vehicule && <VehiculeStatusBadge isActive={vehicule.isActive} />
       }
       onDelete={() => vehicule && deleteMutation.mutate({ id: vehicule.id })}
       isDeleting={deleteMutation.isPending}

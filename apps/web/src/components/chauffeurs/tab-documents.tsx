@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "nextjs-toploader/app";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
 import { useHeaderActions } from "@/components/shared/header-actions-context";
-import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   chauffeurDocumentsSchema,
   type ChauffeurDocumentsFormValues,
@@ -23,13 +24,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { IdCard, HeartPulse } from "lucide-react";
+import { SectionHeader } from "@/components/shared/section-header";
 
 interface ChauffeurDocumentsData {
   id: string;
@@ -45,8 +43,10 @@ interface TabDocumentsProps {
 export function TabDocuments({ chauffeur }: TabDocumentsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const unsaved = useUnsavedChanges();
   const headerActions = useHeaderActions();
+  const exitAfterSaveRef = useRef(false);
   const formId = "chauffeur-documents-form";
 
   const form = useForm<ChauffeurDocumentsFormValues>({
@@ -67,9 +67,14 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
         toast.success("Documents enregistrés");
         // Resets the form to pristine state after saving.
         form.reset(variables.data);
+        if (exitAfterSaveRef.current) {
+          router.push("/chauffeurs");
+        }
+        exitAfterSaveRef.current = false;
       },
       onError: (err) => {
         toastTrpcError(err, "Erreur lors de l'enregistrement");
+        exitAfterSaveRef.current = false;
       },
     }),
   );
@@ -88,83 +93,105 @@ export function TabDocuments({ chauffeur }: TabDocumentsProps) {
   }, [isDirty, setDirty]);
 
   return (
-    <Form {...form}>
+    <>
       {headerActions?.target &&
         createPortal(
-          <Button
-            type="submit"
-            form={formId}
-            size="sm"
-            disabled={mutation.isPending || !form.formState.isDirty}
-            className="cursor-pointer"
-          >
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>,
+          <>
+            <Button
+              type="submit"
+              form={formId}
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = false;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && !exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer"}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = true;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer et quitter"}
+            </Button>
+          </>,
           headerActions.target,
         )}
-      <form
-        id={formId}
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-6"
-      >
-        {/* Driver's license */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Permis de conduire</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="licenseNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Numéro de permis</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Numéro de permis" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="licenseExpiry"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date d&apos;expiration</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
 
-        {/* Medical certificate */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Certificat médical</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="medicalCertificateExpiry"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date d&apos;expiration</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+      <Form {...form}>
+        <form
+          id={formId}
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-6"
+        >
+          <div className="grid grid-cols-2 gap-6">
+            {/* Driver's license */}
+            <section className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-xs">
+              <SectionHeader icon={IdCard}>Permis de conduire</SectionHeader>
+              <FormField
+                control={form.control}
+                name="licenseNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Numéro de permis</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Numéro de permis" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="licenseExpiry"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date d&apos;expiration</FormLabel>
+                    <DatePicker
+                      value={field.value || null}
+                      onChange={(v) => field.onChange(v ?? "")}
+                      clearable
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </section>
 
-      </form>
-    </Form>
+            {/* Medical certificate */}
+            <section className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-xs">
+              <SectionHeader icon={HeartPulse}>Certificat médical</SectionHeader>
+              <FormField
+                control={form.control}
+                name="medicalCertificateExpiry"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date d&apos;expiration</FormLabel>
+                    <DatePicker
+                      value={field.value || null}
+                      onChange={(v) => field.onChange(v ?? "")}
+                      clearable
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </section>
+          </div>
+        </form>
+      </Form>
+    </>
   );
 }

@@ -253,7 +253,9 @@ export function PlanningClient() {
   const isEmpty = !occurrences || occurrences.length === 0;
 
   return (
-    <div className="space-y-4">
+    // flex column so the scheduler grid (flex-1) fills and becomes the single
+    // scroll region — preserves its pinned (DayPilot-style) header.
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>

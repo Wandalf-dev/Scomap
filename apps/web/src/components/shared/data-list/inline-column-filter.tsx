@@ -122,7 +122,9 @@ export function InlineColumnFilter({
       <Select value={value || "all"} onValueChange={onChange}>
         <SelectTrigger
           onClick={(e) => e.stopPropagation()}
-          className={`h-7 w-full cursor-pointer text-xs font-normal ${
+          // h-7! overrides the shadcn trigger's data-[size]:h-9 (attribute
+          // selector wins over a plain h-7) so it matches the text inputs.
+          className={`h-7! w-full cursor-pointer py-0 text-xs font-normal ${
             active ? "border-primary/50 text-foreground" : "text-muted-foreground"
           }`}
         >

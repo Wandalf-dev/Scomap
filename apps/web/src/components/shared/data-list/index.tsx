@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "nextjs-toploader/app";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BulkDeleteDialog } from "./bulk-delete-dialog";
 import { DataListTable } from "./data-list-table";
 import { DataListToolbar } from "./data-list-toolbar";
+import { DataListPageNav, DataListPageMeta } from "./data-list-footer";
+import { ExportMenu } from "./export-menu";
+import { BulkActionsMenu } from "./bulk-actions-menu";
 import { exportDataListToXlsx } from "./export-xlsx";
 import { useColumnResize } from "./use-column-resize";
 import { useDataListState } from "./use-data-list-state";
@@ -42,6 +46,9 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   isBulkDeleting,
   bulkActions,
   children,
+  tabsSlot,
+  hideHeader,
+  exportTarget,
   rowAccent,
   storageKey,
   defaultVisibleColumns,
@@ -177,11 +184,17 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
 
   const selectionCount = selectedIds.size;
 
-  async function handleExport(scope: "page" | "all") {
+  // Resolve the toolbar slots (tabs / quick filters); a function form receives
+  // the filter API so quick-filter chips can drive the column-filter state.
+  const headerApi = { filterValues, updateFilter };
+  const resolvedTabs =
+    typeof tabsSlot === "function" ? tabsSlot(headerApi) : tabsSlot;
+
+  async function handleExport(scope: "page" | "all" | "selection") {
     const rowsToExport =
       scope === "all"
         ? filtered
-        : selectionCount > 0
+        : scope === "selection"
           ? filtered.filter((row) => selectedIds.has(getRowId(row)))
           : paginatedRows;
 
@@ -193,31 +206,79 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
+    // Fills the dashboard content area so the table card below becomes the single
+    // scroll region (the page itself doesn't scroll → one scrollbar).
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* Header. When embedded under another header (e.g. the prepa dashboard),
+          the title + page actions are hidden, but the Export action is kept. */}
+      {!hideHeader ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-baseline gap-2.5">
+              <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+              {data && data.length > 0 && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                  {data.length}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {data && data.length > 0 && (
+              <BulkActionsMenu
+                selectionCount={selectionCount}
+                selectedIds={selectedIds}
+                bulkActions={bulkActions}
+                hasBulkDelete={!!onBulkDelete}
+                onBulkDeleteOpen={() => setBulkDeleteOpen(true)}
+                onClearSelection={clearSelection}
+              />
+            )}
+            {data && data.length > 0 && (
+              <ExportMenu
+                pageCount={paginatedRows.length}
+                filteredCount={filtered.length}
+                selectionCount={selectionCount}
+                hasActiveFilters={hasActiveFilters}
+                onExport={handleExport}
+              />
+            )}
+            {addHref && (
+              <Button
+                onClick={() => router.push(addHref)}
+                className="cursor-pointer"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {addButtonLabel ?? "Ajouter"}
+              </Button>
+            )}
+          </div>
         </div>
-        {addHref && (
-          <Button
-            onClick={() => router.push(addHref)}
-            className="cursor-pointer"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Ajouter
-          </Button>
-        )}
-      </div>
+      ) : exportTarget && data && data.length > 0 ? (
+        // Embedded (prepa dashboard): the Export action is portalled into the
+        // page header next to its "Actions" menu, rather than a standalone row.
+        createPortal(
+          <ExportMenu
+            pageCount={paginatedRows.length}
+            filteredCount={filtered.length}
+            selectionCount={selectionCount}
+            hasActiveFilters={hasActiveFilters}
+            onExport={handleExport}
+          />,
+          exportTarget,
+        )
+      ) : null}
 
-      {/* Toolbar — rendered only after mount so SSR and the first client render
-          are identical (a Radix-free skeleton). The toolbar + table hold every
-          useId-bearing component (Popover, per-row DropdownMenu, pagination
-          Select); their tree-id positions depend on persisted column prefs and
-          locale sort order, which only resolve client-side. Deferring them
-          removes the entire useId hydration-mismatch class. */}
-      {colsHydrated && data && data.length > 0 && (
+      {/* Controls toolbar (tabs + column picker + pagination) —
+          rendered only after mount so SSR and the first client render are
+          identical (a Radix-free skeleton). It holds every useId-bearing
+          component (Tabs, Popover, per-row DropdownMenu, pagination Select);
+          their tree-id positions depend on persisted column prefs and locale
+          sort order, which only resolve client-side. Deferring them removes the
+          entire useId hydration-mismatch class. Kept visible on an empty dataset
+          only when there are dataset tabs, so e.g. "Archivés" stays reachable. */}
+      {colsHydrated && !isLoading && data && (data.length > 0 || !!resolvedTabs) && (
         <DataListToolbar
           storageKey={storageKey}
           totalColumnCount={columns.length}
@@ -232,23 +293,34 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           filteredCount={filtered.length}
           totalCount={data.length}
           onClearFilters={clearFilters}
-          selectionCount={selectionCount}
-          selectedIds={selectedIds}
-          onClearSelection={clearSelection}
-          onExport={handleExport}
-          totalPages={totalPages}
-          safePage={safePage}
-          setCurrentPage={setCurrentPage}
-          pageSize={pageSize}
-          setPageSize={setPageSize}
-          bulkActions={bulkActions}
-          hasBulkDelete={!!onBulkDelete}
-          onBulkDeleteOpen={() => setBulkDeleteOpen(true)}
+          tabsSlot={resolvedTabs}
+          pagination={
+            data.length > 0 ? (
+              <DataListPageNav
+                safePage={safePage}
+                totalPages={totalPages}
+                setCurrentPage={setCurrentPage}
+              />
+            ) : undefined
+          }
+          paginationMeta={
+            data.length > 0 ? (
+              <DataListPageMeta
+                filteredCount={filtered.length}
+                safePage={safePage}
+                pageSize={pageSize}
+                setCurrentPage={setCurrentPage}
+                setPageSize={setPageSize}
+              />
+            ) : undefined
+          }
         />
       )}
 
 
-      {/* Table or Loading or Empty */}
+      {/* Available-space wrapper: the table card adapts to its content (short
+          lists stay compact) and fills + scrolls internally for long lists. */}
+      <div className="flex min-h-0 flex-1 flex-col">
       {!colsHydrated || isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -306,6 +378,7 @@ export function DataList<TRow, TFilters extends Record<string, string>>({
           onClearFilters={clearFilters}
         />
       )}
+      </div>
 
       {/* Bulk Delete Dialog */}
       <BulkDeleteDialog

@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -100,10 +99,19 @@ export function DataListTable<TRow>({
   hasActiveFilters,
   onClearFilters,
 }: DataListTableProps<TRow>) {
+  const quickActions = actions.filter((a) => a.quick);
   return (
-    <div className="overflow-x-auto rounded-[0.3rem] border border-border bg-card">
-      <Table
+    <div className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-[0.3rem] border border-border bg-card">
+      {/* THE single scroll region (both axes). The page itself doesn't scroll
+          (app-shell layout), so this is the only scrollbar. The column+filter
+          header sticks to the top of THIS box. NB: a raw <table> is used instead
+          of the <Table> ui wrapper — that wrapper injects an `overflow-x-auto`
+          div which would become the sticky header's scroll container and break
+          the pinning. */}
+      <div className="min-h-0 flex-1 overflow-auto">
+      <table
         ref={tableRef}
+        className="w-full caption-bottom text-sm"
         style={
           hasFixedWidths
             ? { tableLayout: "fixed" as const, width: totalWidth, minWidth: "100%" }
@@ -116,7 +124,7 @@ export function DataListTable<TRow>({
                 shrinks to its content). The checkbox column width therefore
                 comes from the inner <div>'s `w-12`, not from `w-[48px]`. */}
             <TableHead
-              className="w-[48px] px-0"
+              className="sticky top-0 z-20 w-[48px] border-b border-border bg-accent px-0"
               style={hasFixedWidths ? { width: checkboxColWidth } : undefined}
             >
               <div className="mx-auto flex w-12 items-center justify-center">
@@ -133,7 +141,9 @@ export function DataListTable<TRow>({
               return (
                 <TableHead
                   key={col.key}
-                  className={`relative ${
+                  // `sticky` (not `relative`) — it both pins the header and acts
+                  // as the containing block for the absolute resize handle.
+                  className={`sticky top-0 z-20 border-b border-border bg-accent ${
                     col.sortable
                       ? "cursor-pointer select-none hover:text-foreground transition-colors"
                       : ""
@@ -151,7 +161,7 @@ export function DataListTable<TRow>({
                   }
                 >
                   <div
-                    className={`flex flex-col gap-1.5 py-1 pr-1.5 ${fc ? "min-w-[6.5rem]" : ""}`}
+                    className={`flex flex-col gap-1.5 pr-1.5 ${fc ? "min-w-[6.5rem] pt-1.5 pb-3" : "py-1"}`}
                   >
                     {col.sortable && onSort ? (
                       <button
@@ -198,7 +208,7 @@ export function DataListTable<TRow>({
               );
             })}
             <TableHead
-              className="w-[50px]"
+              className="sticky top-0 z-20 w-[50px] border-b border-border bg-accent"
               style={hasFixedWidths ? { width: actionsColWidth } : undefined}
             />
           </TableRow>
@@ -284,7 +294,29 @@ export function DataListTable<TRow>({
                   <TableCell
                     className="px-2 py-3"
                     style={hasFixedWidths ? { width: actionsColWidth } : undefined}
+                    onClick={(e) => e.stopPropagation()}
                   >
+                    <div className="flex items-center justify-end gap-0.5">
+                      {quickActions.length > 0 && (
+                        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          {quickActions.map((action) => (
+                            <Button
+                              key={action.label}
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 cursor-pointer text-muted-foreground hover:text-foreground"
+                              title={action.label}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                action.onClick(row);
+                              }}
+                            >
+                              <action.icon className="h-4 w-4" />
+                              <span className="sr-only">{action.label}</span>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -319,13 +351,15 @@ export function DataListTable<TRow>({
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
             })
           )}
         </TableBody>
-      </Table>
+      </table>
+      </div>
     </div>
   );
 }

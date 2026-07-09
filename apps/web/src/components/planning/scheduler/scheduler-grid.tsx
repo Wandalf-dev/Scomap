@@ -135,7 +135,7 @@ export function SchedulerGrid({
   };
 
   return (
-    <div className="relative max-h-[calc(100vh-260px)] overflow-auto rounded-[0.3rem] border border-border bg-card print:max-h-none print:overflow-visible">
+    <div className="relative min-h-0 flex-1 overflow-auto rounded-[0.3rem] border border-border bg-card print:flex-none print:overflow-visible">
       {view === "jour" ? (
         <TimeScaleGrid
           {...sharedProps}

@@ -19,12 +19,21 @@ export interface FilterConfig {
   className?: string;
 }
 
+/** Filter API handed to the `tabsSlot` / `quickFilters` render functions so
+ *  they can drive the same column-filter state (e.g. quick-filter chips). */
+export interface DataListHeaderApi {
+  filterValues: Record<string, string>;
+  updateFilter: (key: string, value: string) => void;
+}
+
 export interface RowAction<TRow> {
   label: string;
   icon: LucideIcon;
   onClick: (row: TRow) => void;
   variant?: "default" | "destructive";
   separator?: boolean;
+  /** Also surface this action as a hover icon-button on the row (quick access). */
+  quick?: boolean;
 }
 
 /** Bulk action on the selection (the "Actions" menu of the selection bar). */
@@ -65,6 +74,17 @@ export interface DataListProps<TRow, TFilters extends Record<string, string>> {
   /** Bulk actions ("Actions" menu) shown when rows are checked. */
   bulkActions?: BulkAction[];
   children?: React.ReactNode;
+  /**
+   * Dataset/scope tabs (e.g. Courants/Archivés) placed at the START of the
+   * controls toolbar — grouped with the column picker as "view controls".
+   */
+  tabsSlot?: React.ReactNode | ((api: DataListHeaderApi) => React.ReactNode);
+  /** Hide the page header (title + action buttons). Used when the list is
+   *  embedded under another header (e.g. the preparation dashboard). */
+  hideHeader?: boolean;
+  /** When the header is hidden, the Export action is portalled into this element
+   *  (a slot in the embedding page's header) instead of a standalone row. */
+  exportTarget?: HTMLElement | null;
   /** Optional left-edge accent bar per row. Return a Tailwind bg-* class (e.g. "bg-blue-500") or null. */
   rowAccent?: (row: TRow) => string | null | undefined;
   /** localStorage key for persisting column visibility/order. If omitted, picker is hidden. */

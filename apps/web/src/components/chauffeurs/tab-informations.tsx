@@ -1,36 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "nextjs-toploader/app";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
 import { useHeaderActions } from "@/components/shared/header-actions-context";
-import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   chauffeurDetailSchema,
   type ChauffeurDetailFormValues,
 } from "@/lib/validators/chauffeur";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { ChauffeurFormFields } from "./chauffeur-form-fields";
 
 interface ChauffeurData {
   id: string;
@@ -50,8 +36,10 @@ interface TabInformationsProps {
 export function TabInformations({ chauffeur }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const unsaved = useUnsavedChanges();
   const headerActions = useHeaderActions();
+  const exitAfterSaveRef = useRef(false);
   const formId = "chauffeur-informations-form";
 
   const form = useForm<ChauffeurDetailFormValues>({
@@ -79,9 +67,14 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
         toast.success("Chauffeur enregistré");
         // Resets the form to pristine state after saving.
         form.reset(variables.data);
+        if (exitAfterSaveRef.current) {
+          router.push("/chauffeurs");
+        }
+        exitAfterSaveRef.current = false;
       },
       onError: (err) => {
         toastTrpcError(err, "Erreur lors de l'enregistrement");
+        exitAfterSaveRef.current = false;
       },
     }),
   );
@@ -100,163 +93,44 @@ export function TabInformations({ chauffeur }: TabInformationsProps) {
   }, [isDirty, setDirty]);
 
   return (
-    <Form {...form}>
+    <>
       {headerActions?.target &&
         createPortal(
-          <Button
-            type="submit"
-            form={formId}
-            size="sm"
-            disabled={mutation.isPending || !form.formState.isDirty}
-            className="cursor-pointer"
-          >
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>,
+          <>
+            <Button
+              type="submit"
+              form={formId}
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = false;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && !exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer"}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = true;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer et quitter"}
+            </Button>
+          </>,
           headerActions.target,
         )}
-      <form
-        id={formId}
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-6"
-      >
-        {/* Identity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Identité</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="lastName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nom</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nom" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="firstName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Prénom</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Prénom" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="email@exemple.fr" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Téléphone</FormLabel>
-                    <FormControl>
-                      <Input placeholder="06 12 34 56 78" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Adresse */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Adresse</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Adresse complète..."
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Hire date */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Embauche</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="hireDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date d&apos;embauche</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Notes libres..."
-                      rows={4}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-      </form>
-    </Form>
+      <ChauffeurFormFields form={form} formId={formId} onSubmit={onSubmit} />
+    </>
   );
 }

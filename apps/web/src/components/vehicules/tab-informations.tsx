@@ -1,37 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "nextjs-toploader/app";
 import { useTRPC } from "@/lib/trpc/client";
 import { toast } from "@/components/ui/sonner";
+import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import { useUnsavedChanges } from "@/components/shared/unsaved-changes-context";
 import { useHeaderActions } from "@/components/shared/header-actions-context";
-import { toastTrpcError } from "@/lib/utils/trpc-errors";
 import {
   vehiculeDetailSchema,
   type VehiculeDetailFormValues,
 } from "@/lib/validators/vehicule";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { VehiculeFormFields } from "./vehicule-form-fields";
 
 interface VehiculeData {
   id: string;
@@ -52,8 +37,10 @@ interface TabInformationsProps {
 export function TabInformations({ vehicule }: TabInformationsProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const unsaved = useUnsavedChanges();
   const headerActions = useHeaderActions();
+  const exitAfterSaveRef = useRef(false);
   const formId = "vehicule-informations-form";
 
   const form = useForm<VehiculeDetailFormValues>({
@@ -82,9 +69,14 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
         toast.success("Véhicule enregistré");
         // Resets the form to pristine state after saving.
         form.reset(variables.data);
+        if (exitAfterSaveRef.current) {
+          router.push("/vehicules");
+        }
+        exitAfterSaveRef.current = false;
       },
       onError: (err) => {
         toastTrpcError(err, "Erreur lors de l'enregistrement");
+        exitAfterSaveRef.current = false;
       },
     }),
   );
@@ -103,181 +95,44 @@ export function TabInformations({ vehicule }: TabInformationsProps) {
   }, [isDirty, setDirty]);
 
   return (
-    <Form {...form}>
+    <>
       {headerActions?.target &&
         createPortal(
-          <Button
-            type="submit"
-            form={formId}
-            size="sm"
-            disabled={mutation.isPending || !form.formState.isDirty}
-            className="cursor-pointer"
-          >
-            {mutation.isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>,
+          <>
+            <Button
+              type="submit"
+              form={formId}
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = false;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && !exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer"}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => {
+                exitAfterSaveRef.current = true;
+              }}
+              className="cursor-pointer"
+            >
+              {mutation.isPending && exitAfterSaveRef.current
+                ? "Enregistrement..."
+                : "Enregistrer et quitter"}
+            </Button>
+          </>,
           headerActions.target,
         )}
-      <form
-        id={formId}
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-6"
-      >
-        {/* Identification */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Identification</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nom du véhicule" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="licensePlate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Immatriculation</FormLabel>
-                    <FormControl>
-                      <Input placeholder="AA-123-BB" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="capacity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Capacité</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="Nombre de places"
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="brand"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Marque</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Marque" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="model"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Modèle</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Modèle" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="year"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Année</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="2024"
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Accessibility */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Accessibilité</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="wheelchairAccessible"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="cursor-pointer"
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel className="cursor-pointer">
-                      Accessible fauteuil roulant
-                    </FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Notes libres..."
-                      rows={4}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-      </form>
-    </Form>
+      <VehiculeFormFields form={form} formId={formId} onSubmit={onSubmit} />
+    </>
   );
 }

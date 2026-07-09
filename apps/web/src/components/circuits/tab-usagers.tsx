@@ -85,6 +85,10 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
   );
   const circuitLocked = (circuitAvenants?.length ?? 0) > 0;
 
+  // Contextual back: from a usager opened here, the "Back" button returns
+  // to the Usagers tab of this circuit (not the global usager list).
+  const backParam = encodeURIComponent(`/circuits/${circuitId}?tab=usagers`);
+
   const deleteMutation = useMutation(
     trpc.usagerCircuits.delete.mutationOptions({
       onSuccess: () => {
@@ -151,7 +155,9 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
             {linkedUsagers.map((item) => (
               <TableRow
                 key={item.id}
-                onClick={() => router.push(`/usagers/${item.usagerId}`)}
+                onClick={() =>
+                  router.push(`/usagers/${item.usagerId}?back=${backParam}`)
+                }
                 className="group/row cursor-pointer transition-colors hover:bg-muted/50"
               >
                 <TableCell className="whitespace-nowrap tabular-nums">
@@ -171,7 +177,7 @@ export function TabUsagers({ circuitId }: TabUsagersProps) {
                 <TableCell className="font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     <Link
-                      href={`/usagers/${item.usagerId}`}
+                      href={`/usagers/${item.usagerId}?back=${backParam}`}
                       onClick={(e) => e.stopPropagation()}
                       className="cursor-pointer text-foreground transition-colors hover:text-primary"
                     >

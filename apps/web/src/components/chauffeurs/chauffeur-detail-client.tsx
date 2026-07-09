@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc/client";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "@/components/ui/sonner";
-import { Badge } from "@/components/ui/badge";
 import { EntityDetailLayout } from "@/components/shared/entity-detail-layout";
 import { toastTrpcError } from "@/lib/utils/trpc-errors";
+import { ChauffeurStatusBadge } from "./chauffeur-status-badge";
 import { TabInformations } from "./tab-informations";
 import { TabDocuments } from "./tab-documents";
 
@@ -47,18 +47,7 @@ export function ChauffeurDetailClient({ id, initialTab }: ChauffeurDetailClientP
       entityName="Chauffeur"
       title={chauffeur ? `${chauffeur.firstName} ${chauffeur.lastName}` : ""}
       badges={
-        chauffeur && (
-          <Badge
-            variant={chauffeur.isActive ? "default" : "secondary"}
-            className={
-              chauffeur.isActive
-                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                : ""
-            }
-          >
-            {chauffeur.isActive ? "Actif" : "Inactif"}
-          </Badge>
-        )
+        chauffeur && <ChauffeurStatusBadge isActive={chauffeur.isActive} />
       }
       onDelete={() => chauffeur && deleteMutation.mutate({ id: chauffeur.id })}
       isDeleting={deleteMutation.isPending}

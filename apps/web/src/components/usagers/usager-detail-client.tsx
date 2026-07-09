@@ -28,12 +28,18 @@ interface UsagerDetailClientProps {
 export function UsagerDetailClient({
   id,
   initialTab,
-  backHref = "/usagers",
+  backHref,
   isPreparation = false,
 }: UsagerDetailClientProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  // Contextual back link (?back= param) restricted to an internal path (anti open-redirect).
+  const safeBack =
+    backHref && backHref.startsWith("/") && !backHref.startsWith("//")
+      ? backHref
+      : "/usagers";
 
   const { data: usager, isLoading } = useQuery(
     trpc.usagers.getById.queryOptions({ id }),
@@ -51,7 +57,7 @@ export function UsagerDetailClient({
           queryKey: trpc.usagers.list.queryKey(),
         });
         toast.success("Usager supprimé");
-        router.push(backHref);
+        router.push(safeBack);
       },
       onError: (err) => {
         toastTrpcError(err, "Erreur lors de la suppression");
@@ -90,7 +96,7 @@ export function UsagerDetailClient({
     <EntityDetailLayout
       isLoading={isLoading}
       entity={usager}
-      backHref={backHref}
+      backHref={safeBack}
       entityName="Usager"
       title={usager ? `${usager.firstName} ${usager.lastName}` : ""}
       badges={

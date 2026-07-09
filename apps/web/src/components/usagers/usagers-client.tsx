@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2, ExternalLink, Archive, ArchiveRestore, Copy, CalendarClock } from "lucide-react";
@@ -17,12 +17,20 @@ import {
 } from "./list/usager-list-filters";
 import { useUsagerListMutations } from "./list/use-usager-list-mutations";
 import { UsagerListDialogs } from "./list/usager-list-dialogs";
-import { UsagerArchiveTabs } from "./list/usager-archive-tabs";
+import { ArchiveTabs } from "@/components/shared/archive-tabs";
 import { EMPTY_FILTERS, TRANSPORT_ACCENT } from "./list/usager-list-model";
 import type { UsagerFormValues } from "@/lib/validators/usager";
 import type { UsagerRow, UsagerFilters, SortColumn } from "./list/usager-list-model";
 
-export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
+export function UsagersClient({
+  campaignId,
+  prepaTabs,
+  exportTarget,
+}: {
+  campaignId?: string;
+  prepaTabs?: ReactNode;
+  exportTarget?: HTMLElement | null;
+} = {}) {
   const trpc = useTRPC();
   const router = useRouter();
   const isPrepa = !!campaignId;
@@ -103,21 +111,23 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
   }
 
   return (
-    <div className="space-y-4">
-      {!isPrepa && (
-        <UsagerArchiveTabs
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          isLoading={isLoading}
-          currentCount={currentUsagers.length}
-          archivedCount={archivedUsagers.length}
-        />
-      )}
-
-      <DataList<UsagerRow, UsagerFilters>
+    <DataList<UsagerRow, UsagerFilters>
         data={displayedUsagers}
         isLoading={isLoading}
         error={error}
+        hideHeader={!!prepaTabs}
+        exportTarget={exportTarget}
+        tabsSlot={
+          isPrepa ? prepaTabs : (
+            <ArchiveTabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              isLoading={isLoading}
+              currentCount={currentUsagers.length}
+              archivedCount={archivedUsagers.length}
+            />
+          )
+        }
         onBulkDelete={(ids) => deleteManyMutation.mutate({ ids })}
         isBulkDeleting={deleteManyMutation.isPending}
         bulkActions={
@@ -197,6 +207,7 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           {
             label: "Modifier rapidement",
             icon: Pencil,
+            quick: true,
             onClick: (row) => {
               setEditingItem(row);
               setFormMode("edit");
@@ -207,12 +218,14 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
             ? {
                 label: "Désarchiver",
                 icon: ArchiveRestore,
+                quick: true,
                 onClick: (row) =>
                   archiveMutation.mutate({ id: row.id, archived: false }),
               }
             : {
                 label: "Archiver",
                 icon: Archive,
+                quick: true,
                 onClick: (row) =>
                   archiveMutation.mutate({ id: row.id, archived: true }),
               },
@@ -242,6 +255,5 @@ export function UsagersClient({ campaignId }: { campaignId?: string } = {}) {
           isBulkDatesPending={updateDatesManyMutation.isPending}
         />
       </DataList>
-    </div>
   );
 }
